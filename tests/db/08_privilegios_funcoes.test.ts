@@ -360,4 +360,32 @@ describe('privilégios por contexto', () => {
     );
     expect(credentialLeaks).toEqual([]);
   });
+
+  it('nenhum índice é redundante e o índice da FK de importação existe', async () => {
+    // Fase F: o índice da FK de import_batch_id precisa existir...
+    const importIndex = await sqlValue<number>(
+      `select count(*)
+         from pg_indexes
+        where schemaname = 'public'
+          and tablename = 'stock_units'
+          and indexname = 'stock_units_import_batch_idx'`,
+    );
+    expect(Number(importIndex)).toBe(1);
+
+    // ...e nenhum par de índices pode ter exatamente a mesma definição
+    // (mesma tabela, colunas, predicado e tipo): isso é custo de escrita sem
+    // ganho de leitura. Achado real da 0025, agora protegido por teste.
+    const duplicates = await runSql<{ tablename: string; signature: string; nomes: string }>(
+      `select tablename, signature, string_agg(indexname, ', ' order by indexname) as nomes
+         from (
+           select tablename, indexname,
+                  regexp_replace(indexdef, '^CREATE (UNIQUE )?INDEX \S+ ON ', '') as signature
+             from pg_indexes
+            where schemaname = 'public'
+         ) x
+        group by tablename, signature
+       having count(*) > 1`,
+    );
+    expect(duplicates).toEqual([]);
+  });
 });

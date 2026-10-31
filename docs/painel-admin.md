@@ -1,5 +1,12 @@
 # Painel administrativo e provisionamento dos administradores
 
+## Disputas (chargeback)
+
+O painel lista pedidos `disputed` (filtro de status e "somente problemas") e, no detalhe,
+oferece três desfechos auditados: **reembolsar e encerrar**, **contestação revertida
+(valor recuperado)** e **manter em análise**. A ação chama
+`admin_resolve_dispute` via `admin-api` (`orders.resolveDispute`).
+
 ## Acesso
 
 - Rota: `/admin` (chunk carregado sob demanda; nada da biblioteca de auth entra

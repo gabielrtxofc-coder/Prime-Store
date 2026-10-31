@@ -1,5 +1,13 @@
 # Mercado Pago (sandbox, Checkout Transparente)
 
+## Contestação (chargeback) — não é reembolso
+
+`charged_back` **não** é tratado como devolução concluída: o pedido vai para `disputed`,
+a entrega é preservada, um evento `payment_charged_back` é registrado e o painel assume a
+decisão (`admin_resolve_dispute`: reembolsar, reverter a contestação ou manter reembolso
+pendente). A aprovação que chega depois de um pedido encerrado é registrada como
+`payment_approved_ignored_late` e não reabre nada.
+
 ## O que está implementado
 
 - Integração pelo **Checkout Transparente / Payments API** (`POST /v1/payments`)

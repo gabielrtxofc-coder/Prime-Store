@@ -11,7 +11,8 @@
     "test:db": "vitest run --config vitest.db.config.ts",
     "typecheck": "tsc -b",
     "bundle:functions": "node scripts/bundle-functions.mjs",
-    "test:all": "vitest run --config vitest.db.config.ts && vitest run"
+    "test:all": "vitest run --config vitest.db.config.ts && vitest run",
+    "smoke:functions": "node scripts/smoke-edge-functions.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

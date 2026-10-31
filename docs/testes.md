@@ -1,5 +1,21 @@
 # Testes
 
+## Missão 03 (hardening)
+
+- `tests/db/06_hardening_integridade.test.ts` — matriz de idempotência (10) e de
+  chargeback/reembolso (10).
+- `tests/db/07_create_order_http.test.ts` — idempotência pelo handler HTTP, fallback da
+  chave no Vault e ação `orders.resolveDispute` (12).
+- `tests/db/08_privilegios_funcoes.test.ts` — 5 contextos de privilégio, `search_path`,
+  policies, view pública e ciphertext (12).
+
+Smoke HTTP das funções implantadas: `npm run smoke:functions` (script
+`scripts/smoke-edge-functions.mjs`). Requer rede e `SUPABASE_URL`/`SUPABASE_ANON_KEY`;
+não foi executado no ambiente da missão (sem egress).
+
+Resultado: **115 testes de banco** + **57 de frontend**. Detalhe em
+[`auditoria/missao-03/evidencias/04-testes-executados.md`](./auditoria/missao-03/evidencias/04-testes-executados.md).
+
 ## Como rodar
 
 ```bash

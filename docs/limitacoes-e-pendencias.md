@@ -7,9 +7,11 @@
    impede, aqui: `supabase db push`, `supabase functions deploy` e qualquer
    chamada real ao sandbox do Mercado Pago.
    - O schema do banco foi aplicado no projeto sandbox via conector (equivalente
-     ao `db push`), e a paridade foi verificada por contagem de objetos.
-   - O deploy das funções está preparado: bundles gerados por
-     `node scripts/bundle-functions.mjs` e comandos em `docs/setup-local.md`.
+     ao `db push`): **22 migrações registradas**, incluindo as 8 da missão 03.
+   - As **6 Edge Functions foram implantadas** via conector e estão `ACTIVE`
+     (`catalog`, `create-order`, `order-status`, `delivery`, `mp-webhook`,
+     `admin-api`). O que **não** foi feito é chamá-las por HTTP — sem rede aqui.
+     Ver `docs/auditoria/missao-03/evidencias/06-edge-functions-deploy.md`.
 2. **Sem credenciais sandbox do Mercado Pago** (`MP_ACCESS_TOKEN`,
    `MP_WEBHOOK_SECRET`). Sem elas o checkout responde
    `503 payment_not_configured` — comportamento intencional e testado.
@@ -21,7 +23,9 @@
 
 | Item | Situação |
 | --- | --- |
-| Deploy das 6 Edge Functions no projeto sandbox | Pronto para executar (bundles + comandos) |
+| Deploy das 6 Edge Functions no projeto sandbox | **Feito** (implantadas e ativas) |
+| Chamar as funções por HTTP / validar CORS no domínio real | Pendente: requer ambiente com rede |
+| Validar integração Mercado Pago sandbox (roteiro de 10 passos) | Pendente: exige `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET` de teste |
 | Provisionar 2 administradores + TOTP | Depende de e-mails reais (passo documentado) |
 | Validar PIX no sandbox real | Depende de credenciais MP |
 | E-mail de confirmação do pedido | Fora do escopo da V1 (sem provedor de e-mail) |

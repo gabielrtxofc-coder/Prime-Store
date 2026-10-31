@@ -23,6 +23,15 @@ vazio. Não há alteração manual de schema.
 | `…_0014_seguranca_rls_grants.sql` | RLS em todas as tabelas, revogação de GRANTs, EXECUTE explícito |
 | `…_0015_comentarios.sql` | Comentários de documentação dentro do banco |
 | `…_0016_seed_categorias_e_config.sql` | Categorias e parâmetros iniciais (idempotente) |
+| `…_0017_idempotencia_pedido.sql` | `create_order` com replay idempotente por (chave + token + produto + quantidade) e `idempotency_conflict` |
+| `…_0018_status_disputa.sql` | Valor `disputed` em `order_status` (isolado: enum não pode ser usado na mesma transação) |
+| `…_0019_chargeback_x_reembolso.sql` | `apply_payment_status` separa reembolso de contestação; `admin_resolve_dispute`; indicadores e filtro de problemas |
+| `…_0020_search_path_funcoes.sql` | `search_path = public, pg_temp` em todas as funções |
+| `…_0021_indices_operacionais.sql` | Índice da FK `stock_units.import_batch_id` + índices de consulta real |
+| `…_0022_privilegios_finais.sql` | Fechamento de privilégios e RLS reafirmada |
+| `…_0023_cofre_chave_criptografia.sql` | Chave AES-256 no Supabase Vault + `get_secret_material(text)` (`service_role`) |
+| `…_0024_status_sem_ciphertext.sql` | `get_order_status` sem `token_enc`; `get_delivery_token_enc(uuid, text)` |
+| `…_0025_indices_redundantes.sql` | Remove 3 índices com definição duplicada (mantém o índice da FK de importação) |
 
 ## Modelo de dados (resumo)
 

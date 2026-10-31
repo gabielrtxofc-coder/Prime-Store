@@ -1,18 +1,33 @@
-# Registro de progresso — Missão 02 (backend)
+# Registro de progresso
 
 > Atualizado em 2026-10-31. Este arquivo existe para que outra sessão consiga
 > retomar o trabalho sem depender do histórico de conversa.
 
-## Passo atual
+## Missão 03 (hardening e integridade) — concluída, com 3 bloqueios externos
 
-Backend completo e testado localmente; frontend integrado; documentação escrita.
-Falta apenas o que depende de acesso externo: deploy das Edge Functions no
-projeto Supabase, provisionamento dos dois administradores e execução real no
-sandbox do Mercado Pago.
+Estado detalhado em [`auditoria/missao-03/REGISTRO.md`](./auditoria/missao-03/REGISTRO.md);
+relatório com evidências em [`auditoria/missao-03/RELATORIO.md`](./auditoria/missao-03/RELATORIO.md).
 
-## Concluído
+- **Corrigido na raiz:** sequestro de pedido por chave de idempotência repetida;
+  chargeback tratado como reembolso concluído; 3 funções sem `search_path`;
+  `token_enc` devolvido pelo RPC de status; chave de criptografia fora do ambiente versionado.
+- **Novo:** índice da FK `stock_units.import_batch_id`; remoção de 3 índices
+  redundantes (`0025`); `admin_resolve_dispute`;
+  status `disputed` no painel e nos indicadores.
+- **Banco:** 25 migrações no repositório, **23 aplicadas** no sandbox
+  `eorlmqolbknrplvdbbtl`; invariantes re-medidos (41 `SECURITY DEFINER`, 0 sem
+  `search_path`, 0 executáveis por `anon`, 0 tabelas sem RLS).
+- **Edge Functions:** 6 implantadas e `ACTIVE` (`catalog`, `create-order`,
+  `order-status`, `delivery`, `mp-webhook`, `admin-api`).
+- **Testes:** 115 de banco + 57 de frontend, typecheck e build limpos.
 
-### Banco de dados (`supabase/migrations`, 16 arquivos)
+Bloqueado por dependência externa (nada declarado como validado):
+`MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET` de teste; e-mails dos dois administradores;
+egress de rede para invocar as funções e reexecutar os Advisors do painel.
+
+## Missão 02 (backend) — histórico
+
+### Banco de dados (`supabase/migrations`, 16 arquivos na missão 02)
 
 - `0001` tipos/enums · `0002` fundação/configuração · `0003` administração ·
   `0004` catálogo/produtos · `0005` estoque · `0006` pedidos/reservas ·

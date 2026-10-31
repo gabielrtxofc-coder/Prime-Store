@@ -18,8 +18,13 @@
 ## Credenciais de estoque
 
 - Cifradas com **AES-256-GCM** (`account_email_enc`, `account_password_enc` como
-  `bytea`). A chave (`PRIME_ENCRYPTION_KEY`) existe apenas nas secrets das Edge
-  Functions; o banco nunca a vê em claro.
+  `bytea`) com subchaves HKDF-SHA256 e envelope `versão | IV(12) | ciphertext+tag`.
+- **Onde a chave mestra fica (ordem de precedência):**
+  1. secret `PRIME_ENCRYPTION_KEY` da Edge Function, se existir;
+  2. Supabase Vault, lido por `get_secret_material('prime_store_encryption_key')` —
+     função `SECURITY DEFINER` executável **apenas** por `service_role` (migração `0023`);
+  3. sem nenhuma das duas, as operações falham fechadas (`503 not_configured`).
+  A chave nunca é versionada, impressa em relatório ou enviada ao navegador.
 - `credential_fingerprint` = HMAC-SHA256(chave, `email\0senha`), único por
   produto: permite detectar duplicatas **sem** guardar texto claro e sem
   permitir reversão.
@@ -28,6 +33,30 @@
   2. `admin-api` → `stock.list` com `includeCredentials` (ação auditada).
 - Consultas públicas jamais expõem `account_email_enc`, `account_password_enc`,
   `cost_cents`, `credential_fingerprint` ou ids de unidades.
+- Nenhum RPC devolve o ciphertext do link de entrega. `get_order_status` retorna
+  apenas `delivery.link_ready`; o ciphertext sai por
+  `get_delivery_token_enc(order_id, client_token_hash)` (prova de posse, somente
+  entrega ativa, somente `service_role`) e é decifrado na Edge Function — migração `0024`.
+
+## Idempotência de checkout (corrigida na missão 03)
+
+- Identidade = `idempotency_key` + `hash(token privado)` + produto + quantidade.
+- Mesma tupla → devolve o pedido original (`idempotent_replay`) e **o mesmo token**.
+- Qualquer divergência → `idempotency_conflict` (HTTP 409, mensagem genérica,
+  sem revelar dados do pedido). O `client_token_hash` de um pedido existente
+  **nunca** é sobrescrito.
+- O navegador mantém o token da tentativa (`client_token`) para que o retry
+  repita a mesma identidade.
+
+## Chargeback × reembolso (corrigido na missão 03)
+
+| Evento | Pedido | Entrega | Efeitos |
+| --- | --- | --- | --- |
+| `refunded` | `refunded` | revogada | evento `payment_refunded`, pendências processadas |
+| `charged_back` | `disputed` | **preservada** | evento `payment_charged_back`, revisão administrativa obrigatória |
+| `approved` atrasado | inalterado | inalterada | `payment_approved_ignored_late` |
+
+Encerramento só por `admin_resolve_dispute` (auditado).
 
 ## Token de entrega
 

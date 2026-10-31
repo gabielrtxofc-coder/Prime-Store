@@ -16,6 +16,8 @@ configuração fora dele, exceto os segredos (que nunca são versionados).
 | [`testes.md`](./testes.md) | Suítes automatizadas, resultados reais e matriz de cenários críticos |
 | [`limitacoes-e-pendencias.md`](./limitacoes-e-pendencias.md) | Bloqueios externos, decisões pendentes, próximos passos |
 | [`PROGRESSO.md`](./PROGRESSO.md) | Registro de progresso para retomar o trabalho em outra sessão |
+| [`auditoria/missao-03/RELATORIO.md`](./auditoria/missao-03/RELATORIO.md) | Missão 03: hardening, integridade, privilégios, evidências e o que segue bloqueado |
+| [`auditoria/missao-03/REGISTRO.md`](./auditoria/missao-03/REGISTRO.md) | Estado de execução da missão 03 (retomada) |
 
 ## Arquitetura em uma tela
 
