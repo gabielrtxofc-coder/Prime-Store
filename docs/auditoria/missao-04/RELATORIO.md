@@ -90,11 +90,34 @@ funções publicadas:
 | `POST /delivery` (token do link) | `200`; 1 unidade, e-mail mascarado, senha presente |
 | `POST /demo-payment` repetido | `409 demo_order_not_payable` |
 | `POST /order-status` com `client_token` de outro pedido | `404 not_found` |
+| `POST /create-order` com `quantity` 5 (limite do produto: 2) | `422 quantity_above_product_limit` |
+| `POST /create-order` com `quantity` 4 (estoque real: 3) | `409 insufficient_stock` + `available_units: 3` |
+| `POST /create-order` repetindo a `idempotency_key` já usada | `200` com **o mesmo** pedido (`PS-DL28KM`), sem nova reserva |
 
 Essas respostas são a única evidência aceita aqui como "validado": nenhum mock
 local foi usado para afirmar integração.
 
 ---
+
+### Cenário principal da missão — o que já foi provado e o que falta
+
+| Passo | Estado |
+|---|---|
+| abrir loja → catálogo real | ✅ `GET /catalog` |
+| escolher produto demo → quantidade | ✅ catálogo devolve `isDemo` e `availableUnits` |
+| criar pedido → reserva de 30 min | ✅ `201` com reserva criada |
+| modo demo identificado | ✅ `payment_mode: "demo"`, `payment: null` |
+| simular aprovação | ✅ `200 approved` |
+| pedido atualizado / unidades consumidas | ✅ `paid`, `ready` |
+| entrega exibida | ✅ `/delivery` devolve credenciais |
+| fechar e reabrir o link privado | ✅ mesma resposta de `/delivery` (idempotente) |
+| revogar no admin → link para de funcionar | ⛔ **não testável**: exige conta admin (e-mails oficiais ausentes). O caminho está implementado em `admin-api` e coberto pelos testes de banco de 03, mas não foi executado aqui. |
+| quantidade acima do máximo / estoque insuficiente | ✅ `422` / `409` |
+| duplo clique / requisição repetida | ✅ idempotência devolve o mesmo pedido |
+| link inválido | ✅ `404` |
+| pedido expirado | ⛔ depende de esperar 30 min; a regra é a mesma do fluxo real (`demo_reservation_expired`) e está coberta por teste de tela |
+| falha de comunicação com o backend | ✅ coberto por teste de frontend (aviso + catálogo local) |
+| ausência de credenciais reais de pagamento | ✅ `payment_not_configured` no fluxo real; demo não usa provedor |
 
 ## 4. Frontend
 
