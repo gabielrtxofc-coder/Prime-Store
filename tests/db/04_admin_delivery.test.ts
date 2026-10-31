@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   createOrder,
@@ -76,7 +77,7 @@ describe('autorização administrativa, estoque e entregas', () => {
       `select public.admin_create_product($1::jsonb) as result`,
       [
         JSON.stringify({
-          slug: `curso-${randomToken(3).toLowerCase()}`,
+          slug: `curso-${randomBytes(4).toString('hex')}`,
           name: 'Curso de exemplo',
           category_id: 'creative',
           price_cents: 9990,

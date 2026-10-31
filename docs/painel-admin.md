@@ -38,6 +38,8 @@ on conflict (user_id) do update set is_active = true;
 ```
 
 3. **Confirmar e-mail** de cada conta (obrigatório para login).
+   Atalho: `scripts/provision-admin.sql` contém o `insert` comentado e a consulta
+   de conferência para colar no SQL Editor.
 4. **Ativar TOTP**: cada administrador acessa `/admin`, entra com a senha e
    cadastra o autenticador no primeiro acesso (o segredo é exibido uma vez).
 5. **Teste de fumaça**: `session` deve retornar `is_admin: true` e

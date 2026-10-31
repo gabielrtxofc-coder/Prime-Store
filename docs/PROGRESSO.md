@@ -21,8 +21,29 @@ sandbox do Mercado Pago.
   `0013` triggers · `0014` RLS/grants · `0015` comentários · `0016` seeds.
 - 17 tabelas, 41 funções, 6 enums, 1 view pública, RLS em todas as tabelas.
 - Aplicado e verificado no projeto sandbox `prime-store-sandbox`
-  (`eorlmqolbknrplvdbbtl`): 17 tabelas, 17 com RLS, 41 funções, 18 enums,
-  1 view; `app_settings` com reserva/PIX de 30 min.
+  (`eorlmqolbknrplvdbbtl`): 17 tabelas, 17 com RLS habilitado, 41 funções com
+  as mesmas assinaturas do repositório, 5 categorias e 3 parâmetros
+  (`reservation_minutes`, `pix_expiry_minutes`, `max_quantity_per_order`),
+  0 unidades de estoque e 0 administradores (dependem de ação externa).
+  Nenhuma função pública ficou com EXECUTE para `PUBLIC`/`anon`.
+- Verificação de privilégios executada no projeto remoto (resultado real):
+
+```
+anon lê stock_units ................ false
+anon lê orders ..................... false
+anon executa create_order .......... false
+anon executa get_catalog ........... false
+authenticated executa admin_* ...... true
+authenticated executa apply_payment_status ... false
+public_catalog ..................... 2 linhas, 0 disponíveis (sem estoque)
+setting_int(reservation_minutes) ... 30
+setting_int(pix_expiry_minutes) .... 30
+```
+
+- Histórico remoto: as migrações foram aplicadas pelo conector do Supabase com
+  nomes lógicos (`foundation`, `admin_authorization`, `products_catalog`, …) e o
+  repositório consolidou os mesmos objetos em 16 arquivos ordenados. A paridade
+  foi conferida por assinaturas de função, contagem de tabelas/RLS e view.
 
 ### Edge Functions (`supabase/functions`)
 
