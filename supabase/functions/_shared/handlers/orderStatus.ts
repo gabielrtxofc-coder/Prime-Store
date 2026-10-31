@@ -45,13 +45,14 @@ export interface OrderStatusPayload {
     ticket_url: string | null;
     expires_at: string | null;
   } | null;
-  delivery: { id: string; status: string; token_enc: string; created_at: string } | null;
+  delivery: { id: string; status: string; link_ready?: boolean; created_at: string } | null;
   availability: { available_units: number };
 }
 
 async function newDeliveryToken(deps: Deps): Promise<{ hash: string; enc: string } | null> {
-  if (!deps.config.encryptionKey) return null;
-  const material = await loadSecretMaterial(deps.config.encryptionKey);
+  const masterKey = await deps.resolveEncryptionKey();
+  if (!masterKey) return null;
+  const material = await loadSecretMaterial(masterKey);
   const token = randomToken(32);
   const encrypted = await encryptText(material.encryptionKey, token);
   let binary = '';
@@ -120,21 +121,24 @@ export async function handleOrderStatus(request: Request, deps: Deps): Promise<R
     }
 
     let deliveryUrl: string | null = null;
-    if (
-      status.delivery &&
-      status.delivery.status === 'active' &&
-      status.delivery_status === 'ready' &&
-      deps.config.encryptionKey
-    ) {
-      try {
-        const material = await loadSecretMaterial(deps.config.encryptionKey);
-        const token = await decryptText(
-          material.encryptionKey,
-          fromBase64(status.delivery.token_enc),
-        );
-        deliveryUrl = `${deps.config.storeUrl.replace(/\/+$/, '')}/entrega/${encodeURIComponent(token)}`;
-      } catch {
-        deps.log('order_status.delivery_token_unreadable', { order_id: orderId });
+    if (status.delivery && status.delivery.status === 'active' && status.delivery_status === 'ready') {
+      const masterKey = await deps.resolveEncryptionKey();
+      if (masterKey) {
+        try {
+          // O ciphertext vem por RPC dedicado (prova de posse + link ativo) e é
+          // decifrado aqui, no servidor. O navegador só recebe a URL pronta.
+          const tokenEnc = await deps.rpc<string | null>('get_delivery_token_enc', {
+            p_order_id: orderId,
+            p_client_token_hash: clientTokenHash,
+          });
+          if (tokenEnc) {
+            const material = await loadSecretMaterial(masterKey);
+            const token = await decryptText(material.encryptionKey, fromBase64(tokenEnc));
+            deliveryUrl = `${deps.config.storeUrl.replace(/\/+$/, '')}/entrega/${encodeURIComponent(token)}`;
+          }
+        } catch {
+          deps.log('order_status.delivery_token_unreadable', { order_id: orderId });
+        }
       }
     }
 

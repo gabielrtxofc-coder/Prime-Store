@@ -90,11 +90,12 @@ describe('pedidos e reservas de estoque', () => {
     expect(Number(total)).toBe(7000);
   });
 
-  it('é idempotente por chave: a mesma chave devolve o mesmo pedido', async () => {
+  it('é idempotente para a mesma requisição e nunca troca o token do pedido', async () => {
     const seed = await seedProduct({ stockUnits: 3 });
-    const key = randomToken(12);
-    const first = await createOrder(seed.productId, 1, { idempotencyKey: key });
-    const second = await createOrder(seed.productId, 1, { idempotencyKey: key });
+    const key = randomToken(24);
+    const token = randomToken();
+    const first = await createOrder(seed.productId, 1, { idempotencyKey: key, clientToken: token });
+    const second = await createOrder(seed.productId, 1, { idempotencyKey: key, clientToken: token });
 
     expect(second.order.order_id).toBe(first.order.order_id);
     expect(second.order.idempotent_replay).toBe(true);
@@ -105,10 +106,10 @@ describe('pedidos e reservas de estoque', () => {
     );
     expect(Number(total)).toBe(1);
 
-    // O replay rotaciona o token de consulta: o novo token passa a valer.
+    // O token original continua sendo o único que abre o pedido.
     const rows = await runSql<{ result: { order_id: string } }>(
       `select public.get_order_status($1, $2) as result`,
-      [first.order.order_id, second.tokenHash],
+      [first.order.order_id, first.tokenHash],
     );
     expect(rows[0].result.order_id).toBe(first.order.order_id);
   });

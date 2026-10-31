@@ -76,7 +76,8 @@ export function AdminOverview() {
             <Metric label="Pedidos pagos" value={indicators.orders_paid} hint={`${indicators.orders_total} pedidos no total`} />
             <Metric label="Aguardando PIX" value={indicators.orders_pending_payment} />
             <Metric label="Reservas ativas" value={indicators.active_reservations} />
-            <Metric label="Reembolsos abertos" value={indicators.open_refund_requests} />
+            <Metric label="Reembolsos abertos" value={indicators.open_refund_requests} hint={`${indicators.orders_refunded} reembolsado(s)`} />
+            <Metric label="Disputas abertas" value={indicators.orders_disputed} hint={`${indicators.payments_charged_back} chargeback(s)`} />
             <Metric label="Unidades disponíveis" value={indicators.units_available} />
             <Metric label="Unidades vendidas" value={indicators.units_sold} />
           </div>

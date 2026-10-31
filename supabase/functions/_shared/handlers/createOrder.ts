@@ -3,6 +3,7 @@ import type { Deps } from '../deps.ts';
 import { ApiError, errorResponse, json, methodGuard, preflight, readJson } from '../http.ts';
 import { createPixPayment, MercadoPagoError } from '../mercadopago.ts';
 import {
+  optionalClientToken,
   optionalIdempotencyKey,
   requireEmail,
   requireQuantity,
@@ -56,7 +57,11 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
     const payerEmail = requireEmail(body.payer_email ?? body.email, 'payer_email');
     const idempotencyKey = optionalIdempotencyKey(body.idempotency_key);
 
-    const clientToken = randomToken(32);
+    // O cliente pode enviar o token da sua tentativa de checkout: assim um
+    // retry (relogar, falha de rede) repete a MESMA identidade e o banco
+    // devolve o pedido original. Sem ele, o servidor gera um token novo e a
+    // chave de idempotência passa a estar associada a esta requisição.
+    const clientToken = optionalClientToken(body.client_token) ?? randomToken(32);
     const clientTokenHash = await sha256Hex(clientToken);
 
     let order: CreatedOrder;

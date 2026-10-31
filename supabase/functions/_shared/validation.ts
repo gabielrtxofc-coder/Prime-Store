@@ -45,10 +45,33 @@ export function requireQuantity(value: unknown, max = 20): number {
   return quantity;
 }
 
+/**
+ * Chave de idempotência enviada pelo cliente.
+ *
+ * A chave sozinha não identifica nada: no banco ela é sempre comparada junto do
+ * hash do token privado do checkout, do produto e da quantidade. Assim, uma
+ * chave vazada/reenviada por terceiros não abre nem sequestra o pedido.
+ */
 export function optionalIdempotencyKey(value: unknown): string | null {
   if (value === undefined || value === null || value === '') return null;
-  if (typeof value !== 'string' || value.length < 8 || value.length > 128) {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{16,128}$/.test(value)) {
     throw new ApiError(422, 'invalid_payload', 'Chave de idempotência inválida.');
+  }
+  return value;
+}
+
+/**
+ * Token privado do checkout enviado pelo cliente.
+ *
+ * Permite que a mesma tentativa de compra seja repetida (reload, retry de
+ * rede) sem gerar um segundo pedido: o servidor reaproveita o token e a chave
+ * de idempotência identifica a requisição. Sem ele, cada requisição é uma nova
+ * sessão de compra.
+ */
+export function optionalClientToken(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{32,128}$/.test(value)) {
+    throw new ApiError(422, 'invalid_payload', 'Token de checkout inválido.');
   }
   return value;
 }

@@ -30,7 +30,8 @@ export async function handleDelivery(request: Request, deps: Deps): Promise<Resp
   try {
     methodGuard(request, ['GET', 'POST']);
 
-    if (!deps.config.encryptionKey) {
+    const masterKey = await deps.resolveEncryptionKey();
+    if (!masterKey) {
       throw new ApiError(503, 'not_configured', 'Entrega indisponível: chave de criptografia ausente.');
     }
 
@@ -47,7 +48,7 @@ export async function handleDelivery(request: Request, deps: Deps): Promise<Resp
       p_token_hash: tokenHash,
     });
 
-    const material = await loadSecretMaterial(deps.config.encryptionKey);
+    const material = await loadSecretMaterial(masterKey);
     const units = [];
     for (const unit of payload.units) {
       units.push({

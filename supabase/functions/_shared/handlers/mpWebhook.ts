@@ -122,8 +122,9 @@ export async function handleMpWebhook(request: Request, deps: Deps): Promise<Res
       }
 
       let token: { hash: string; enc: string } | null = null;
-      if (snapshot.status === 'approved' && deps.config.encryptionKey) {
-        const material = await loadSecretMaterial(deps.config.encryptionKey);
+      const masterKey = snapshot.status === 'approved' ? await deps.resolveEncryptionKey() : null;
+      if (snapshot.status === 'approved' && masterKey) {
+        const material = await loadSecretMaterial(masterKey);
         const rawToken = randomToken(32);
         token = {
           hash: await sha256Hex(rawToken),
@@ -131,7 +132,11 @@ export async function handleMpWebhook(request: Request, deps: Deps): Promise<Res
         };
       }
 
-      const applied = await deps.rpc<{ result: string }>('apply_payment_status', {
+      const applied = await deps.rpc<{
+        result: string;
+        order_status?: string;
+        requires_admin_review?: boolean;
+      }>('apply_payment_status', {
         p_order_id: orderId,
         p_provider_payment_id: snapshot.providerPaymentId,
         p_provider_status: snapshot.status,
@@ -154,7 +159,30 @@ export async function handleMpWebhook(request: Request, deps: Deps): Promise<Res
         result: applied?.result,
       });
 
-      return json({ received: true, result: applied?.result ?? 'processed' });
+      // Contestações (chargeback) NÃO são reembolsos: o pedido fica em disputa,
+      // a entrega é preservada e o caso vai para revisão manual no painel.
+      if (applied?.result === 'charged_back' || applied?.requires_admin_review) {
+        deps.log('mp_webhook.dispute_flagged', {
+          notification_id: notificationId,
+          order_id: orderId,
+          order_status: applied?.order_status,
+        });
+      }
+
+      // Aprovação que chega depois de um encerramento (reembolso/expiração)
+      // não reabre o pedido nem libera unidades: só é registrada.
+      if (applied?.result === 'ignored_late_approval') {
+        deps.log('mp_webhook.late_approval_ignored', {
+          notification_id: notificationId,
+          order_id: orderId,
+        });
+      }
+
+      return json({
+        received: true,
+        result: applied?.result ?? 'processed',
+        requires_admin_review: applied?.requires_admin_review === true,
+      });
     } catch (error) {
       await deps.rpc('finish_payment_event', {
         p_event_id: recorded.event_id,

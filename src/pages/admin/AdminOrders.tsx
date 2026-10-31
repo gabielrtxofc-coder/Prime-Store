@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { formatCurrency } from '../../lib/format';
-import { adminApi, type AdminOrderDetail, type AdminOrderList } from '../../services/adminApi';
+import {
+  adminApi,
+  type AdminOrderDetail,
+  type AdminOrderList,
+  type DisputeOutcome,
+} from '../../services/adminApi';
 import { describeBackendError } from '../../services/backend/http';
 
-const ORDER_STATUS = ['', 'pending_payment', 'paid', 'expired', 'cancelled', 'refund_pending', 'refunded', 'failed'] as const;
+const ORDER_STATUS = ['', 'pending_payment', 'paid', 'expired', 'cancelled', 'refund_pending', 'refunded', 'disputed', 'failed'] as const;
 const PAYMENT_STATUS = ['', 'pending', 'in_process', 'approved', 'rejected', 'cancelled', 'refunded', 'charged_back', 'amount_mismatch'] as const;
 
 export function AdminOrders() {
@@ -67,6 +72,23 @@ export function AdminOrders() {
       if (detail) await openDetail(detail.order.id);
     } catch (rotateError) {
       setError(describeBackendError(rotateError));
+    }
+  };
+
+  const resolveDispute = async (orderId: string, outcome: DisputeOutcome) => {
+    try {
+      await adminApi.resolveDispute(orderId, outcome, `Decisão da disputa registrada no painel (${outcome}).`);
+      setNotice(
+        outcome === 'reinstated'
+          ? 'Disputa revertida: pedido marcado como pago e entrega liberada.'
+          : outcome === 'refund'
+            ? 'Disputa encerrada com reembolso: entrega revogada.'
+            : 'Disputa mantida em análise de reembolso.',
+      );
+      if (detail) await openDetail(detail.order.id);
+      await load();
+    } catch (disputeError) {
+      setError(describeBackendError(disputeError));
     }
   };
 
@@ -140,6 +162,7 @@ export function AdminOrders() {
                 <td>{order.payment_status}</td>
                 <td>
                   {order.status}
+                  {order.status === 'disputed' && <span className="admin-badge is-warn">contestar</span>}
                   {order.open_refund_requests > 0 && <span className="admin-badge is-warn">reembolso</span>}
                 </td>
                 <td>{order.delivery_link_status ?? order.delivery_status}</td>
@@ -177,6 +200,27 @@ export function AdminOrders() {
             <div><dt>Pago em</dt><dd>{detail.order.paid_at ? new Date(detail.order.paid_at).toLocaleString('pt-BR') : '—'}</dd></div>
             <div><dt>Unidades entregues</dt><dd>{detail.delivery_units.length}</dd></div>
           </dl>
+
+          {(detail.order.status === 'disputed' || detail.order.payment_status === 'charged_back') && (
+            <div className="admin-panel admin-nested">
+              <h3>Contestação (chargeback)</h3>
+              <p className="field-hint">
+                O pagamento foi contestado no Mercado Pago. A entrega continua válida até uma decisão: contestação
+                não é reembolso. Registre o resultado após tratar o caso no Mercado Pago.
+              </p>
+              <div className="admin-row-actions">
+                <button className="button button--secondary button--small" type="button" onClick={() => resolveDispute(detail.order.id, 'refund')}>
+                  Reembolsar e encerrar
+                </button>
+                <button className="button button--secondary button--small" type="button" onClick={() => resolveDispute(detail.order.id, 'reinstated')}>
+                  Contestação revertida (valor recuperado)
+                </button>
+                <button className="button button--secondary button--small" type="button" onClick={() => resolveDispute(detail.order.id, 'refund_pending')}>
+                  Manter em análise
+                </button>
+              </div>
+            </div>
+          )}
 
           {detail.delivery && (
             <div className="admin-panel admin-nested">

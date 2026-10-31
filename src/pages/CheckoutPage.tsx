@@ -10,7 +10,7 @@ import { validateCheckout, type CheckoutField, type CheckoutValues } from '../li
 import { createDemoOrder } from '../services/demoOrderService';
 import { getBackendConfig } from '../services/backend/config';
 import { describeBackendError } from '../services/backend/http';
-import { createOrder, newIdempotencyKey, savePendingOrder } from '../services/orderService';
+import { createOrder, newClientToken, newIdempotencyKey, savePendingOrder } from '../services/orderService';
 import { catalogService } from '../services/catalogService';
 import type { PaymentMethod } from '../types';
 
@@ -29,6 +29,7 @@ export function CheckoutPage() {
   const backendEnabled = getBackendConfig().enabled;
   const paymentOptions = backendEnabled ? LIVE_PAYMENT_OPTIONS : DEMO_PAYMENT_OPTIONS;
   const [idempotencyKey] = useState(() => newIdempotencyKey());
+  const [clientToken] = useState(() => newClientToken());
   const { entries, lines, subtotalCents, totalCents, clearCart } = useCart();
   const { setCurrentOrder } = useDemoOrder();
   const { showToast } = useToast();
@@ -64,6 +65,7 @@ export function CheckoutPage() {
           quantity: line.quantity,
           payerEmail: values.email.trim(),
           idempotencyKey,
+          clientToken,
         });
         savePendingOrder({
           orderId: result.order.order_id,

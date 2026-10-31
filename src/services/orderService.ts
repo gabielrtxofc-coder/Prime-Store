@@ -86,6 +86,8 @@ export interface CreateOrderInput {
   quantity: number;
   payerEmail: string;
   idempotencyKey?: string;
+  /** Token privado da tentativa de checkout: mantém o retry idempotente. */
+  clientToken?: string;
 }
 
 /** Cria pedido + reserva e a cobrança PIX (Checkout Transparente). */
@@ -96,6 +98,7 @@ export function createOrder(input: CreateOrderInput): Promise<CreateOrderResult>
       quantity: input.quantity,
       payer_email: input.payerEmail,
       idempotency_key: input.idempotencyKey,
+      client_token: input.clientToken,
     },
   });
 }
@@ -170,6 +173,23 @@ export function clearPendingOrder(): void {
   } catch {
     // ignora
   }
+}
+
+/**
+ * Token privado da tentativa de checkout (32 bytes aleatórios).
+ *
+ * Enviado ao backend junto da chave de idempotência: um retry da MESMA
+ * tentativa devolve o pedido original em vez de criar um segundo pedido.
+ */
+export function newClientToken(): string {
+  const cryptoApi = globalThis.crypto;
+  if (cryptoApi && typeof cryptoApi.getRandomValues === 'function') {
+    const bytes = cryptoApi.getRandomValues(new Uint8Array(32));
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  return `ct-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}-${Math.random().toString(36).slice(2, 14)}`;
 }
 
 /** Chave de idempotência por tentativa (evita pedido duplicado ao recarregar). */

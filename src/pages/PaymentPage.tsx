@@ -22,6 +22,7 @@ const STATUS_LABEL: Record<string, string> = {
   expired: 'Reserva expirada',
   cancelled: 'Pedido cancelado',
   refund_pending: 'Reembolso em análise',
+  disputed: 'Contestação em análise',
   refunded: 'Pedido reembolsado',
   failed: 'Pedido com falha',
 };

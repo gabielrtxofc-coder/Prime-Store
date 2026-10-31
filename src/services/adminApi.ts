@@ -133,13 +133,18 @@ export interface AdminRefund {
   delivery_status: string;
 }
 
+export type DisputeOutcome = 'refund' | 'reinstated' | 'refund_pending';
+
 export interface AdminIndicators {
   orders_total: number;
   orders_pending_payment: number;
   orders_paid: number;
   orders_expired: number;
   orders_refund_pending: number;
+  orders_refunded: number;
+  orders_disputed: number;
   orders_failed: number;
+  payments_charged_back: number;
   revenue_total_cents: number;
   revenue_30d_cents: number;
   units_sold: number;
@@ -271,6 +276,10 @@ export const adminApi = {
 
   resolveRefund: (refundId: string, status: 'authorized' | 'processed' | 'rejected', notes = '') =>
     adminInvoke<Record<string, unknown>>('refunds.resolve', { refundId, status, notes }),
+
+  /** Encerra uma disputa (chargeback) com decisão registrada em auditoria. */
+  resolveDispute: (orderId: string, outcome: DisputeOutcome, notes = '') =>
+    adminInvoke<Record<string, unknown>>('orders.resolveDispute', { orderId, outcome, notes }),
 
   revokeDelivery: (deliveryId: string, reason: string) =>
     adminInvoke<Record<string, unknown>>('deliveries.revoke', { deliveryId, reason }),

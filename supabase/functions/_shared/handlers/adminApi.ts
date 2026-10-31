@@ -78,10 +78,11 @@ async function verifyUser(
 }
 
 async function requireMaterial(deps: Deps) {
-  if (!deps.config.encryptionKey) {
+  const masterKey = await deps.resolveEncryptionKey();
+  if (!masterKey) {
     throw new ApiError(503, 'not_configured', 'Chave de criptografia ausente no ambiente.');
   }
-  return loadSecretMaterial(deps.config.encryptionKey);
+  return loadSecretMaterial(masterKey);
 }
 
 async function encryptSecret(deps: Deps, value: string): Promise<string> {
@@ -394,6 +395,19 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
       // ---------------------------------------------------------------------
       // Entregas
       // ---------------------------------------------------------------------
+      case 'orders.resolveDispute': {
+        const orderId = requireUuid(payload.orderId, 'orderId');
+        const outcome = requireString(payload.outcome, 'outcome', { max: 30 });
+        if (!['refund', 'reinstated', 'refund_pending'].includes(outcome)) {
+          throw new ApiError(422, 'invalid_payload', 'Decisão de disputa inválida.');
+        }
+        return json(await rpc('admin_resolve_dispute', {
+          p_order_id: orderId,
+          p_outcome: outcome,
+          p_notes: optionalString(payload.notes, 'notes', { max: 500 }) ?? '',
+        }));
+      }
+
       case 'deliveries.revoke': {
         const deliveryId = requireUuid(payload.deliveryId, 'deliveryId');
         return json(await rpc('admin_revoke_delivery', {

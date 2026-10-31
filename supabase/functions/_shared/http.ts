@@ -48,6 +48,20 @@ export function errorResponse(error: unknown): Response {
 
   const message = error instanceof Error ? error.message : String(error);
 
+  if (message.includes('idempotency_conflict')) {
+    // Resposta deliberadamente genérica: não confirma se a chave existe, nem
+    // revela produto, quantidade ou qualquer dado do pedido original.
+    return json(
+      {
+        error: 'idempotency_conflict',
+        message: 'Esta tentativa já foi usada com outros dados. Inicie um novo checkout.',
+      },
+      { status: 409 },
+    );
+  }
+  if (message.includes('invalid_idempotency_key') || message.includes('invalid_client_token')) {
+    return json({ error: 'invalid_payload', message: 'Requisição inválida.' }, { status: 422 });
+  }
   if (message.includes('insufficient_stock')) {
     const detail = (error as { detail?: string }).detail;
     return json(

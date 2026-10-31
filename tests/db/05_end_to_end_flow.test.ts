@@ -75,6 +75,8 @@ function buildDeps(
     },
     rpc: userRpc ?? rpc,
     rpcForUser: () => userRpc ?? rpc,
+    serviceRpc: rpc,
+    resolveEncryptionKey: async () => overrides.encryptionKey ?? MASTER_KEY,
     fetchImpl,
     now: () => new Date(),
     log: () => undefined,
