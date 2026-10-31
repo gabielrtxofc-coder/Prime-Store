@@ -7,13 +7,22 @@ export interface CartTotals {
   totalCents: number;
 }
 
-/** Normalize untrusted quantities to the product's locally configured rules. */
+/**
+ * Normaliza a quantidade para as regras do produto.
+ *
+ * Quando o catálogo vem do backend (`availableUnits` presente), o limite também
+ * considera a disponibilidade real — o carrinho nunca pede mais do que existe.
+ * A palavra final continua sendo do servidor: esta checagem é só de interface.
+ */
 export function normalizeProductQuantity(product: Product, quantity: number): number {
   const integerQuantity = typeof quantity === 'number' && Number.isFinite(quantity)
     ? Math.floor(quantity)
     : 1;
   const maxQuantity = product.allowQuantity ? (product.maxQuantity ?? 10) : 1;
-  return Math.max(1, Math.min(integerQuantity, maxQuantity));
+  const availability = typeof product.availableUnits === 'number' && product.availableUnits > 0
+    ? product.availableUnits
+    : maxQuantity;
+  return Math.max(1, Math.min(integerQuantity, maxQuantity, availability));
 }
 
 /** Resolve and consolidate cart entries against the current catalog. */

@@ -98,6 +98,7 @@ export function mapPublicProduct(raw: unknown, options: MapOptions = {}): Produc
     instructions,
     availableUnits,
     categoryLabel: asString(raw.categoryLabel),
+    isDemo: raw.isDemo === true,
   };
 }
 

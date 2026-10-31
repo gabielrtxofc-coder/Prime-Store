@@ -1,3 +1,4 @@
+import { isDemoSandboxAllowed } from '../config.ts';
 import { randomToken, sha256Hex } from '../crypto.ts';
 import type { Deps } from '../deps.ts';
 import { ApiError, errorResponse, json, methodGuard, preflight, readJson } from '../http.ts';
@@ -29,6 +30,8 @@ interface CreatedOrder {
   total_cents: number;
   reservation_expires_at: string;
   idempotent_replay: boolean;
+  /** Presente quando o catálogo informa a origem do produto. */
+  product?: { id: string; name: string; slug: string; is_demo?: boolean } | null;
 }
 
 interface AttachedPayment {
@@ -101,9 +104,39 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
       if (existing.status !== 'pending_payment') {
         return json({ order, client_token: clientToken, payment: null, replayed: true });
       }
+
+      if (isDemoSandboxAllowed(deps.config) && order.product?.is_demo === true) {
+        return json({
+          order,
+          client_token: clientToken,
+          payment: null,
+          payment_mode: 'demo',
+          replayed: true,
+        });
+      }
     }
 
+    // Sem credenciais do provedor: o pedido só continua de pé se o ambiente de
+    // demonstração estiver autorizado E o produto for de demonstração. Assim a
+    // reserva não fica presa em um pedido que nunca poderá ser pago.
+    const demoEligible = isDemoSandboxAllowed(deps.config) && order.product?.is_demo === true;
+
     if (!deps.config.mercadoPagoAccessToken) {
+      if (demoEligible) {
+        deps.log('create_order.demo_pending', { order_id: order.order_id });
+        return json(
+          {
+            order,
+            client_token: clientToken,
+            payment: null,
+            payment_mode: 'demo',
+            demo_notice:
+              'Modo de demonstração: nenhuma cobrança foi gerada. A aprovação pode ser simulada nesta tela.',
+          },
+          { status: 201 },
+        );
+      }
+
       await deps.rpc('release_order_reservation', {
         p_order_id: order.order_id,
         p_reason: 'payment_not_configured',

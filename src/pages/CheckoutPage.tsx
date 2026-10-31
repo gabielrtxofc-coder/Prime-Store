@@ -138,7 +138,7 @@ export function CheckoutPage() {
                 ? 'Checkout de convidado. O e-mail é usado apenas para emitir a cobrança no Mercado Pago.'
                 : 'Checkout de convidado — nenhum dado será enviado para um serviço externo.'}</p></div>
       {backendEnabled ? (
-        <div className="checkout-demo-alert" role="note"><Icon name="alert" size={19} /><p><strong>Ambiente de testes (sandbox).</strong> O PIX é gerado pelo Mercado Pago e as unidades ficam reservadas por 30 minutos. Nenhum dado de cartão é solicitado.</p></div>
+        <div className="checkout-demo-alert" role="note"><Icon name="alert" size={19} /><p><strong>Ambiente de testes (sandbox).</strong> As unidades ficam reservadas por 30 minutos. Enquanto as credenciais do Mercado Pago não estiverem configuradas, produtos de demonstração usam aprovação simulada — nenhuma cobrança real é feita.</p></div>
       ) : (
         <div className="checkout-demo-alert" role="note"><Icon name="alert" size={19} /><p><strong>Ambiente demonstrativo.</strong> Não há cobrança, QR code, processamento de cartão ou entrega de produtos nesta etapa. Não informe dados financeiros.</p></div>
       )}

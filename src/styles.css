@@ -903,3 +903,26 @@ button:disabled { cursor: not-allowed; }
   .payment-layout { grid-template-columns: 1fr; }
   .admin-audit li { grid-template-columns: 1fr; }
 }
+
+/* --- Modo demonstrativo (missão 04) -------------------------------------- */
+/* O painel de pagamento simulado é visualmente distinto do PIX real:
+   borda tracejada, rótulo fixo e nenhuma aparência de QR code. */
+.demo-tag--muted { color: #9fb3cc; background: #131b26; border-color: #2a3648; }
+
+.demo-payment { display: grid; gap: 12px; padding: 18px; border: 1px dashed #3c5a86; border-radius: 11px; background: #0f1722; }
+.demo-payment__badge { justify-self: flex-start; padding: 4px 8px; color: #ffd39b; background: #2a2116; border: 1px solid #5b4426; border-radius: 5px; font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+.demo-payment h2 { margin: 0; font-size: 17px; }
+.demo-payment p { margin: 0; color: #bdcadd; font-size: 12.5px; line-height: 1.65; }
+.demo-payment strong { color: #ffd39b; }
+.demo-payment .button { justify-self: flex-start; }
+.demo-payment .field-hint { color: #8fa3bd; font-size: 11px; }
+.payment-warning--inline { margin: 0; }
+
+.admin-demo-banner { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 18px; padding: 13px 15px; color: #ffe0b3; background: #241c10; border: 1px dashed #6b5230; border-radius: 10px; }
+.admin-demo-banner svg { flex: 0 0 auto; margin-top: 2px; color: #ffc978; }
+.admin-demo-banner p { margin: 0; font-size: 12px; line-height: 1.6; }
+.admin-demo-banner strong { color: #ffe9c9; }
+
+.admin-login__demo { display: grid; gap: 8px; margin: 16px 0; padding: 14px; border: 1px dashed #3c5a86; border-radius: 10px; background: #0f1722; }
+.admin-login__demo .field-hint { margin: 0; }
+.admin-login__demo .button { justify-self: flex-start; }

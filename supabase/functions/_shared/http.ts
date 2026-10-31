@@ -87,6 +87,36 @@ export function errorResponse(error: unknown): Response {
   if (message.includes('not_admin') || message.includes('not_authenticated')) {
     return json({ error: 'forbidden', message: 'Acesso administrativo negado.' }, { status: 403 });
   }
+  if (message.includes('demo_disabled')) {
+    return json(
+      { error: 'demo_unavailable', message: 'Modo de demonstração desativado neste ambiente.' },
+      { status: 404 },
+    );
+  }
+  if (message.includes('demo_order_not_payable')) {
+    return json(
+      { error: 'demo_order_not_payable', message: 'Este pedido não está mais aguardando pagamento.' },
+      { status: 409 },
+    );
+  }
+  if (message.includes('demo_reservation_expired')) {
+    return json(
+      { error: 'demo_reservation_expired', message: 'A reserva deste pedido expirou. As unidades voltaram ao estoque.' },
+      { status: 410 },
+    );
+  }
+  if (message.includes('demo_real_stock_blocked') || message.includes('demo_not_allowed')) {
+    return json(
+      { error: 'demo_not_allowed', message: 'Este pedido não pode ser aprovado em modo de demonstração.' },
+      { status: 403 },
+    );
+  }
+  if (message.includes('demo_reservation_missing') || message.includes('demo_seed_limit')) {
+    return json(
+      { error: 'demo_unavailable', message: 'Não foi possível concluir a simulação. Tente novamente.' },
+      { status: 409 },
+    );
+  }
   if (message.includes('duplicate_credential')) {
     return json({ error: 'duplicate_credential', message: 'Credencial duplicada.' }, { status: 409 });
   }

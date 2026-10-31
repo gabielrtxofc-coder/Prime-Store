@@ -2,7 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from '../../components/Icon';
 import { getBackendConfig } from '../../services/backend/config';
-import { getCurrentSession, signOutAdmin, type AdminSession } from '../../services/adminAuth';
+import {
+  canUseAdminDemo,
+  getCurrentSession,
+  isAdminDemoSession,
+  setAdminDemoSession,
+  signOutAdmin,
+  type AdminSession,
+} from '../../services/adminAuth';
 import { AdminLogin } from './AdminLogin';
 import { AdminMfaGate } from './AdminMfaGate';
 import { AdminOverview } from './AdminOverview';
@@ -21,6 +28,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
 
 export function AdminPage() {
   const configured = getBackendConfig().enabled;
+  const [demoMode, setDemoMode] = useState(() => isAdminDemoSession());
   const [session, setSession] = useState<AdminSession | null>(null);
   const [booting, setBooting] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,20 +47,39 @@ export function AdminPage() {
   }, []);
 
   useEffect(() => {
-    if (!configured) {
+    if (!configured && !demoMode) {
       setBooting(false);
       return;
     }
     void refresh();
-  }, [configured, refresh]);
+  }, [configured, demoMode, refresh]);
+
+  const enableDemo = () => {
+    setAdminDemoSession(true);
+    setDemoMode(true);
+    setBooting(true);
+    void refresh();
+  };
 
   const logout = async () => {
     await signOutAdmin();
+    setAdminDemoSession(false);
+    setDemoMode(false);
     setSession(null);
     setTab('overview');
   };
 
-  if (!configured) {
+  const demoBanner = demoMode ? (
+    <div className="admin-demo-banner" role="note">
+      <Icon name="alert" size={18} />
+      <p>
+        <strong>Modo de demonstração do painel.</strong> Os dados exibidos são fictícios e nenhuma alteração é gravada no Supabase.
+        As ações são simuladas nesta aba. O acesso real continua exigindo conta autorizada e verificação em duas etapas.
+      </p>
+    </div>
+  ) : null;
+
+  if (!configured && !demoMode) {
     return (
       <section className="container page-section">
         <div className="page-heading">
@@ -77,7 +104,14 @@ export function AdminPage() {
   }
 
   if (!session) {
-    return <AdminLogin onSignedIn={refresh} initialError={error} />;
+    return (
+      <AdminLogin
+        onSignedIn={refresh}
+        initialError={error}
+        demoAvailable={canUseAdminDemo()}
+        onStartDemo={enableDemo}
+      />
+    );
   }
 
   if (!session.isAdmin) {
@@ -101,11 +135,16 @@ export function AdminPage() {
 
   return (
     <section className="container page-section admin-page">
+      {demoBanner}
       <header className="admin-header">
         <div>
           <span className="eyebrow-label">ADMINISTRAÇÃO</span>
           <h1>Painel Prime Store</h1>
-          <p className="field-hint">{session.email} · sessão com verificação em duas etapas (AAL2)</p>
+          <p className="field-hint">
+            {demoMode
+              ? 'sessão de demonstração (sem dados reais)'
+              : `${session.email} · sessão com verificação em duas etapas (AAL2)`}
+          </p>
         </div>
         <div className="admin-header__actions">
           <Link className="button button--secondary button--small" to="/">Ver loja</Link>

@@ -1,6 +1,7 @@
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
 import { assertBackendConfigured } from './backend/config';
 import { invokeFunction } from './backend/http';
+import { demoAdminInvoke, isAdminDemoAvailable } from './adminDemoData';
 
 /**
  * Autenticação do painel administrativo.
@@ -13,6 +14,28 @@ import { invokeFunction } from './backend/http';
  */
 
 let client: SupabaseClient | null = null;
+
+/**
+ * Sessão de demonstração do painel (dados fictícios, sem rede).
+ *
+ * Só pode ser ligada quando `VITE_ADMIN_DEMO=true`. Nesse estado NENHUMA
+ * chamada administrativa sai do navegador: tudo é respondido por
+ * `adminDemoInvoke`. O caminho real (JWT + allowlist + AAL2) continua intacto
+ * e é o único usado fora do modo demonstrativo.
+ */
+let demoSession = false;
+
+export function isAdminDemoSession(): boolean {
+  return demoSession && isAdminDemoAvailable();
+}
+
+export function setAdminDemoSession(value: boolean): void {
+  demoSession = value && isAdminDemoAvailable();
+}
+
+export function canUseAdminDemo(): boolean {
+  return isAdminDemoAvailable();
+}
 
 export function getSupabaseAuthClient(): SupabaseClient {
   if (client) return client;
@@ -123,6 +146,21 @@ export async function signInWithPassword(email: string, password: string): Promi
 }
 
 export async function getCurrentSession(): Promise<Result<AdminSession | null>> {
+  if (isAdminDemoSession()) {
+    return {
+      ok: true,
+      value: {
+        userId: 'demo-user',
+        email: 'painel-demonstracao@prime-store.test',
+        currentLevel: 'aal2',
+        nextLevel: 'aal2',
+        pendingTotp: false,
+        factors: [],
+        isAdmin: true,
+        mfaSatisfied: true,
+      },
+    };
+  }
   try {
     const supabase = getSupabaseAuthClient();
     const { data } = await supabase.auth.getSession();
@@ -174,6 +212,10 @@ export async function verifyTotp(factorId: string, code: string): Promise<Result
 }
 
 export async function signOutAdmin(): Promise<void> {
+  if (isAdminDemoSession()) {
+    demoSession = false;
+    return;
+  }
   try {
     await getSupabaseAuthClient().auth.signOut();
   } catch {
@@ -199,6 +241,9 @@ export async function adminInvoke<T>(
   payload: Record<string, unknown> = {},
   accessToken?: string,
 ): Promise<T> {
+  // Modo demonstração: nenhuma requisição é feita; a resposta é fictícia.
+  if (isAdminDemoSession()) return demoAdminInvoke<T>(action, payload);
+
   let token = accessToken;
   if (!token) {
     const supabase = getSupabaseAuthClient();

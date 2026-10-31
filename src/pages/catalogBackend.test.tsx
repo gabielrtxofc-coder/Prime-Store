@@ -83,6 +83,27 @@ describe('catálogo servido pelo backend', () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/catalog$/);
   });
 
+  it('identifica produto de demonstração e produto real com estoque real', async () => {
+    enableBackend();
+    const demoProduct = { ...backendProduct, id: '22222222-2222-4222-8222-222222222222', slug: 'demo-mensal', name: 'Assinatura de Demonstração', isDemo: true, availableUnits: 4 };
+    const soldOut = { ...backendProduct, id: '33333333-3333-4333-8333-333333333333', slug: 'sem-estoque', name: 'Produto Sem Estoque', isDemo: false, available: false, availableUnits: 0 };
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(JSON.stringify({ products: [demoProduct, backendProduct, soldOut], generated_at: '2026-10-31T10:00:00.000Z' }), { status: 200 }),
+    ));
+
+    renderAt('/produtos');
+
+    expect(await screen.findByText('Assinatura de Demonstração')).toBeInTheDocument();
+    // Produto de demonstração recebe o selo DEMO...
+    expect(screen.getAllByText('DEMO').length).toBeGreaterThan(0);
+    // ...o real mostra disponibilidade calculada no servidor...
+    expect(screen.getByText('DISPONÍVEL')).toBeInTheDocument();
+    expect(screen.getByText('3 unidade(s) disponível(is)')).toBeInTheDocument();
+    // ...e o esgotado não pode ser comprado.
+    expect(screen.getByText('ESGOTADO')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Esgotado/i })).toBeDisabled();
+  });
+
   it('mantém o catálogo local quando o backend falha, exibindo aviso', async () => {
     enableBackend();
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'internal_error' }), { status: 500 })));

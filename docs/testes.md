@@ -1,5 +1,27 @@
 # Testes
 
+## Missão 04 (integração)
+
+- `src/pages/demoPayment.test.tsx` (4) — bloco "Modo de demonstração" só com
+  `demo_enabled` do servidor + produto `isDemo`; clique chama `demo-payment` uma
+  vez e libera o link após nova consulta; sem botão quando o modo está desligado;
+  erro do backend sem detalhe técnico.
+- `src/pages/admin/adminDemo.test.tsx` (5) — painel demonstrativo local: opt-in
+  explícito, faixa de aviso permanente, ações sem rede, logout.
+- `src/pages/catalogBackend.test.tsx` (+1) — selo `DEMO` no produto de
+  demonstração, `DISPONÍVEL`/quantidade real no produto real e `ESGOTADO` sem
+  compra.
+
+Estado atual: **67 testes de frontend**, `typecheck` e `build` limpos.
+`npm run test:db` **não roda neste ambiente** (sem binários de PostgreSQL e sem
+egress para baixá-los); a verificação remota foi feita por HTTP contra as funções
+publicadas — evidências em
+[`auditoria/missao-04/RELATORIO.md`](./auditoria/missao-04/RELATORIO.md).
+
+> `vitest.config.ts` usa `envDir: './tests/env-isolated'` para que o `.env.local`
+> de desenvolvimento (backend e painel demonstrativo ligados) não contamine as
+> asserções de configuração dos testes.
+
 ## Missão 03 (hardening)
 
 - `tests/db/06_hardening_integridade.test.ts` — matriz de idempotência (10) e de
@@ -19,9 +41,9 @@ Resultado: **115 testes de banco** + **57 de frontend**. Detalhe em
 ## Como rodar
 
 ```bash
-npm test            # 57 testes de frontend (jsdom, sem banco)
+npm test            # 67 testes de frontend (jsdom, sem banco)
 npm run test:db     # 70 testes de banco + unitários
-npm run test:all    # tudo (127 testes)
+npm run test:all    # tudo (frontend + banco)
 npm run typecheck && npm run build
 ```
 

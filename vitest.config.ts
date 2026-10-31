@@ -8,6 +8,10 @@ import { defineConfig } from 'vitest/config';
  *   npm run test:all-> tudo
  */
 export default defineConfig({
+  // Os testes precisam ser herméticos: `envDir` aponta para uma pasta sem
+  // arquivos .env, então o `.env.local` de desenvolvimento (backend ligado,
+  // painel demonstrativo ligado) não vaza para as asserções de configuração.
+  envDir: './tests/env-isolated',
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

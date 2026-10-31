@@ -30,6 +30,8 @@ export interface Product {
   instructions?: string;
   availableUnits?: number;
   categoryLabel?: string;
+  /** Produto de demonstração do sandbox (credenciais fictícias). */
+  isDemo?: boolean;
 }
 
 export interface CartEntry {

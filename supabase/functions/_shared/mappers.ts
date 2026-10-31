@@ -22,6 +22,7 @@ export interface CatalogRow {
   is_featured: boolean;
   available_units: number;
   is_available: boolean;
+  is_demo?: boolean;
 }
 
 export interface PublicProduct {
@@ -47,6 +48,8 @@ export interface PublicProduct {
   featured: boolean;
   availableUnits: number;
   available: boolean;
+  /** Produto de demonstração (somente em sandbox). */
+  isDemo: boolean;
 }
 
 export function mapCatalogProduct(row: CatalogRow): PublicProduct {
@@ -73,6 +76,7 @@ export function mapCatalogProduct(row: CatalogRow): PublicProduct {
     featured: row.is_featured,
     availableUnits: row.available_units,
     available: row.is_available,
+    isDemo: row.is_demo === true,
   };
 }
 

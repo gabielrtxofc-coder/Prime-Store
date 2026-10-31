@@ -3,6 +3,30 @@
 > Atualizado em 2026-10-31. Este arquivo existe para que outra sessão consiga
 > retomar o trabalho sem depender do histórico de conversa.
 
+## Missão 04 (integração frontend ↔ backend) — V1 funcional no sandbox
+
+Relatório completo: [`auditoria/missao-04/RELATORIO.md`](./auditoria/missao-04/RELATORIO.md).
+
+- **Ligado de ponta a ponta:** catálogo (`catalog`), pedido (`create-order`),
+  acompanhamento (`order-status`), entrega (`delivery`) e aprovação simulada
+  (`demo-payment`) — todos verificados por HTTP real no sandbox.
+- **Novo no banco (0026–0029):** coluna `products.is_demo`, `payment_mode` no
+  pedido, `demo_payments_enabled` em `app_settings`, RPC de aprovação simulada,
+  semeadura de unidades fictícias com limite próprio e privilégios restritos.
+- **Nova Edge Function:** `demo-payment` (7ª), com três travas (segredo, lista de
+  refs permitidas, `app_settings`) e recusa de estoque real
+  (`demo_real_stock_blocked`); reaproveita `apply_payment_status('approved')`.
+- **Frontend:** catálogo e disponibilidade reais, quantidade limitada pelo
+  estoque, tela de pagamento com polling de 5 s, bloco "Modo de demonstração"
+  (sem PIX falso) e link privado de entrega; painel admin com modo demonstrativo
+  local claramente rotulado, sem atalhos no backend.
+- **Testes:** 67 de frontend, typecheck e build limpos. `npm run test:db` não roda
+  neste ambiente (sem binários de PostgreSQL); a verificação equivalente foi
+  feita por HTTP contra as funções publicadas.
+- **Pendências:** e-mails dos administradores (provisionamento real),
+  `MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET` (pagamento real), desligar o modo
+  demonstrativo antes de qualquer uso que não seja sandbox.
+
 ## Missão 03 (hardening e integridade) — concluída, com 3 bloqueios externos
 
 Estado detalhado em [`auditoria/missao-03/REGISTRO.md`](./auditoria/missao-03/REGISTRO.md);

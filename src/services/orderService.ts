@@ -28,6 +28,12 @@ export interface CreateOrderResult {
   client_token: string;
   payment: PixPayment | null;
   replayed?: boolean;
+  /**
+   * `demo` quando o pedido foi criado no modo demonstrativo do sandbox: não há
+   * cobrança e a aprovação pode ser simulada na tela de pagamento.
+   */
+  payment_mode?: 'demo' | null;
+  demo_notice?: string;
 }
 
 export interface OrderStatusPayload {
@@ -48,6 +54,8 @@ export interface OrderStatusPayload {
     name: string;
     instructions: string;
     access_validity_label: string;
+    /** Produto de demonstração (somente sandbox). */
+    is_demo?: boolean;
   };
   payment: {
     status: string;
@@ -107,6 +115,42 @@ export function createOrder(input: CreateOrderInput): Promise<CreateOrderResult>
 export function getOrderStatus(orderId: string, clientToken: string): Promise<OrderStatusPayload> {
   return invokeFunction<OrderStatusPayload>('order-status', {
     body: { order_id: orderId, client_token: clientToken },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Pagamento demonstrativo (exclusivo do sandbox)
+// ---------------------------------------------------------------------------
+
+export interface DemoCapabilities {
+  demo_enabled: boolean;
+  mode: 'demo' | 'disabled';
+}
+
+/** Pergunta ao backend se a aprovação simulada está disponível neste ambiente. */
+export async function getDemoCapabilities(): Promise<DemoCapabilities> {
+  return invokeFunction<DemoCapabilities>('demo-payment', {
+    method: 'GET',
+  });
+}
+
+export interface DemoApprovalResult {
+  demo: true;
+  result: string;
+  order_status: string | null;
+  payment_status: string | null;
+  delivery_status: string | null;
+}
+
+/**
+ * Pede ao backend para simular a aprovação do pagamento.
+ *
+ * A decisão é do servidor: o navegador só envia a prova de posse do pedido
+ * (id + token privado). Nada aqui altera estado localmente.
+ */
+export function approveDemoPayment(orderId: string, clientToken: string): Promise<DemoApprovalResult> {
+  return invokeFunction<DemoApprovalResult>('demo-payment', {
+    body: { action: 'approve', order_id: orderId, client_token: clientToken },
   });
 }
 

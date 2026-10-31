@@ -24,6 +24,15 @@ export interface AppConfig {
   encryptionKey: string | null;
   storeUrl: string;
   paymentNotificationUrl: string | null;
+  /**
+   * Modo de pagamento demonstrativo (sandbox).
+   *
+   * Só é considerado ativo quando `DEMO_PAYMENT_ENABLED=true` **e** o projeto
+   * Supabase está na lista `DEMO_ALLOWED_PROJECT_REFS`. É uma decisão por
+   * ambiente: nunca deve ser habilitado em produção.
+   */
+  demoPaymentEnabled: boolean;
+  demoAllowedProjectRefs: string[];
 }
 
 export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
@@ -47,7 +56,36 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     encryptionKey: overrides.encryptionKey ?? readEnv('PRIME_ENCRYPTION_KEY') ?? null,
     storeUrl: overrides.storeUrl ?? readEnv('STORE_URL') ?? 'http://localhost:5173',
     paymentNotificationUrl: overrides.paymentNotificationUrl ?? readEnv('MP_NOTIFICATION_URL') ?? null,
+    demoPaymentEnabled:
+      overrides.demoPaymentEnabled ?? (readEnv('DEMO_PAYMENT_ENABLED') ?? '').trim().toLowerCase() === 'true',
+    demoAllowedProjectRefs:
+      overrides.demoAllowedProjectRefs ??
+      (readEnv('DEMO_ALLOWED_PROJECT_REFS') ?? 'eorlmqolbknrplvdbbtl')
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
   };
+}
+
+/** Referência do projeto Supabase a partir da URL (ex.: `abc.supabase.co`). */
+export function projectRefFromUrl(supabaseUrl: string): string | null {
+  try {
+    const host = new URL(supabaseUrl).hostname;
+    const [ref] = host.split('.');
+    return ref || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * O modo demonstrativo só funciona no projeto de sandbox explicitamente
+ * autorizado. Qualquer outro projeto responde como se o modo não existisse.
+ */
+export function isDemoSandboxAllowed(config: AppConfig): boolean {
+  if (!config.demoPaymentEnabled) return false;
+  const ref = projectRefFromUrl(config.supabaseUrl);
+  return Boolean(ref && config.demoAllowedProjectRefs.includes(ref));
 }
 
 /** Configuração mínima para falar com o banco. */

@@ -4,11 +4,14 @@ import { Icon } from '../components/Icon';
 import { getBackendConfig } from '../services/backend/config';
 import { describeBackendError } from '../services/backend/http';
 import {
+  approveDemoPayment,
   clearPendingOrder,
+  getDemoCapabilities,
   getOrderStatus,
   isPaid,
   isTerminalFailure,
   readPendingOrder,
+  type DemoCapabilities,
   type OrderStatusPayload,
 } from '../services/orderService';
 import { formatCurrency } from '../lib/format';
@@ -25,6 +28,24 @@ const STATUS_LABEL: Record<string, string> = {
   disputed: 'Contestação em análise',
   refunded: 'Pedido reembolsado',
   failed: 'Pedido com falha',
+};
+
+const PAYMENT_LABEL: Record<string, string> = {
+  pending: 'Aguardando pagamento',
+  in_process: 'Em processamento',
+  approved: 'Aprovado',
+  rejected: 'Recusado',
+  cancelled: 'Cancelado',
+  refunded: 'Reembolsado',
+  charged_back: 'Contestado (chargeback)',
+  amount_mismatch: 'Valor divergente',
+};
+
+const DELIVERY_LABEL: Record<string, string> = {
+  not_ready: 'Aguardando aprovação do pagamento',
+  ready: 'Disponível',
+  revoked: 'Revogada',
+  blocked: 'Bloqueada para análise',
 };
 
 function useCountdown(target: string | null): string | null {
@@ -52,7 +73,10 @@ export function PaymentPage() {
   const configured = getBackendConfig().enabled;
   const pending = useMemo(() => readPendingOrder(), []);
   const [status, setStatus] = useState<OrderStatusPayload | null>(null);
+  const [demo, setDemo] = useState<DemoCapabilities | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [demoError, setDemoError] = useState<string | null>(null);
+  const [approving, setApproving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<number | null>(null);
@@ -77,6 +101,22 @@ export function PaymentPage() {
     void load();
   }, [load]);
 
+  // O modo demonstrativo é uma capacidade do servidor: a tela apenas pergunta.
+  useEffect(() => {
+    if (!configured) return undefined;
+    let active = true;
+    getDemoCapabilities()
+      .then((capabilities) => {
+        if (active) setDemo(capabilities);
+      })
+      .catch(() => {
+        if (active) setDemo(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [configured]);
+
   useEffect(() => {
     if (!pending) return;
     const finished = status ? isPaid(status.status, status.payment_status) || isTerminalFailure(status.status) : false;
@@ -94,8 +134,13 @@ export function PaymentPage() {
     };
   }, [load, pending, status]);
 
-  const countdown = useCountdown(status?.payment?.expires_at ?? null);
+  const countdown = useCountdown(status?.payment?.expires_at ?? status?.reservation_expires_at ?? null);
   const paid = status ? isPaid(status.status, status.payment_status) : false;
+  const awaitingPayment = status?.status === 'pending_payment';
+  const demoAvailable = Boolean(
+    demo?.demo_enabled && awaitingPayment && status?.product?.is_demo === true && !paid,
+  );
+
   const copyCode = async () => {
     const code = status?.payment?.qr_code;
     if (!code) return;
@@ -105,6 +150,20 @@ export function PaymentPage() {
       window.setTimeout(() => setCopied(false), 2500);
     } catch {
       setError('Não foi possível copiar automaticamente. Selecione o código manualmente.');
+    }
+  };
+
+  const simulateApproval = async () => {
+    if (!pending || approving) return;
+    setApproving(true);
+    setDemoError(null);
+    try {
+      await approveDemoPayment(pending.orderId, pending.clientToken);
+      await load();
+    } catch (approvalError) {
+      setDemoError(describeBackendError(approvalError));
+    } finally {
+      setApproving(false);
     }
   };
 
@@ -137,11 +196,11 @@ export function PaymentPage() {
   return (
     <section className="container page-section payment-page">
       <div className="page-heading">
-        <span className="eyebrow-label">PAGAMENTO PIX</span>
-        <h1>Finalize com PIX</h1>
+        <span className="eyebrow-label">{demoAvailable ? 'PAGAMENTO · DEMONSTRAÇÃO' : 'PAGAMENTO PIX'}</span>
+        <h1>{demoAvailable ? 'Finalizar em modo de demonstração' : 'Finalize com PIX'}</h1>
         <p>
-          Pedido <strong className="payment-reference">{pending.reference}</strong>. A reserva das unidades fica garantida até o
-          vencimento do PIX; depois disso as unidades voltam ao estoque.
+          Pedido <strong className="payment-reference">{pending.reference}</strong>. A reserva das unidades fica garantida por 30 minutos; depois disso
+          as unidades voltam ao estoque.
         </p>
       </div>
 
@@ -169,7 +228,8 @@ export function PaymentPage() {
               <div><dt>Produto</dt><dd>{status.product.name}</dd></div>
               <div><dt>Quantidade</dt><dd>{status.quantity}</dd></div>
               <div><dt>Valor</dt><dd>{formatCurrency(status.total_cents)}</dd></div>
-              <div><dt>Estado do pagamento</dt><dd>{status.payment_status}</dd></div>
+              <div><dt>Pagamento</dt><dd>{PAYMENT_LABEL[status.payment_status] ?? status.payment_status}</dd></div>
+              <div><dt>Entrega</dt><dd>{DELIVERY_LABEL[status.delivery_status] ?? status.delivery_status}</dd></div>
             </dl>
 
             {paid ? (
@@ -189,6 +249,36 @@ export function PaymentPage() {
               <div className="payment-warning">
                 <Icon name="alert" size={19} />
                 <p>Este pedido não pode mais ser pago. As unidades voltaram ao estoque e nenhum valor foi cobrado.</p>
+              </div>
+            ) : demoAvailable ? (
+              <div className="demo-payment">
+                <div className="demo-payment__badge">MODO DE DEMONSTRAÇÃO</div>
+                <h2>Pagamento simulado</h2>
+                <p>
+                  Este ambiente está em demonstração: <strong>nenhuma cobrança real foi realizada</strong> e nenhum PIX foi gerado.
+                  A aprovação abaixo é processada pelo backend, pelas mesmas regras usadas no pagamento real.
+                </p>
+                {demoError && (
+                  <div className="payment-warning payment-warning--inline" role="alert">
+                    <Icon name="alert" size={17} />
+                    <p>{demoError}</p>
+                  </div>
+                )}
+                <button className="button button--primary button--large" type="button" onClick={simulateApproval} disabled={approving}>
+                  {approving ? (
+                    <><span className="loading-spinner" aria-hidden="true" />Confirmando simulação…</>
+                  ) : (
+                    <>Simular aprovação do pagamento <Icon name="arrow-right" size={18} /></>
+                  )}
+                </button>
+                <p className="field-hint">
+                  A simulação só funciona no sandbox autorizado, exige o token privado deste pedido e só usa unidades fictícias de demonstração.
+                </p>
+              </div>
+            ) : status.payment === null ? (
+              <div className="payment-warning">
+                <Icon name="alert" size={19} />
+                <p>O pagamento ainda não está configurado neste ambiente e este produto não participa da demonstração.</p>
               </div>
             ) : (
               <div className="payment-pix">
@@ -224,10 +314,10 @@ export function PaymentPage() {
           <aside className="payment-aside">
             <h2>O que acontece depois</h2>
             <ol>
-              <li>O Mercado Pago confirma o pagamento e avisa o backend.</li>
-              <li>O backend valida a notificação e consulta o pagamento real.</li>
-              <li>As unidades reservadas passam a vendidas e a entrega é gerada.</li>
-              <li>Você recebe um link privado, permanente, com e-mail, senha e instruções.</li>
+              <li>O pagamento é confirmado (no sandbox, pela simulação).</li>
+              <li>O backend valida e consome as unidades reservadas.</li>
+              <li>A entrega é gerada e vinculada ao seu pedido.</li>
+              <li>Você recebe um link privado com e-mail, senha e instruções.</li>
             </ol>
             <p className="field-hint">Nenhum dado de cartão é solicitado ou armazenado. O e-mail informado é usado apenas na criação da cobrança.</p>
             <Link className="confirmation-catalog-link" to="/produtos">Continuar explorando o catálogo</Link>

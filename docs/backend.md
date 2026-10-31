@@ -93,6 +93,21 @@ revalidam a autorização internamente.
 | `delivery` | `GET ?token=` ou `POST { token }` | | `{ reference, product{ instructions, access_validity_label }, units[{ email, password, notes }] }` |
 | `mp-webhook` | `POST` | Notificação do Mercado Pago | `{ received: true }`, `401` em assinatura inválida, `500` para forçar reentrega |
 | `admin-api` | `POST` + `Authorization: Bearer <JWT>` | `{ action, payload }` | Resultado da ação |
+| `demo-payment` | `GET` | — | `{ demo_enabled, mode }` (capacidade do servidor) |
+| `demo-payment` | `POST` | `{ action: 'approve', order_id, client_token }` | `{ demo: true, result, order_status, payment_status, delivery_status }` |
+
+### Pagamento demonstrativo (somente sandbox)
+
+`demo-payment` existe para percorrer o fluxo sem provedor de pagamento. Ela não
+cria cobrança, não fala com o Mercado Pago e não aceita nada fora do sandbox
+autorizado: exige o segredo `DEMO_PAYMENT_ENABLED=true`, a ref do projeto em
+`DEMO_ALLOWED_PROJECT_REFS` e `app_settings.demo_payments_enabled = true`
+(faltando qualquer uma, responde `404`). Só atua em produtos/unidades
+`is_demo = true`, grava o pagamento com provider `demo` e chama a **mesma**
+`apply_payment_status(id, 'approved')` usada pelo webhook real — portanto a
+reserva, o consumo de estoque e a entrega seguem as regras normais.
+`create-order` responde `payment: null` e `payment_mode: "demo"` nesses pedidos,
+para que o frontend nunca exiba um PIX falso.
 
 ### Códigos de erro estáveis
 
@@ -100,6 +115,8 @@ revalidam a autorização internamente.
 (422), `product_unavailable` (404), `not_found` (404), `delivery_unavailable`
 (410), `mfa_required` (403), `forbidden` (403), `duplicate_credential` (409),
 `payment_not_configured` (503), `payment_provider_unavailable` (502),
+`demo_unavailable` (404), `demo_order_not_payable` (409),
+`demo_reservation_expired` (410), `demo_real_stock_blocked` (409),
 `invalid_signature` (401), `internal_error` (500).
 
 ## Estados

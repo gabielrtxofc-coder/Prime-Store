@@ -103,6 +103,14 @@ export function describeBackendError(error: unknown): string {
         return 'Acesso administrativo negado.';
       case 'not_found':
         return 'Registro não encontrado.';
+      case 'demo_unavailable':
+        return 'O modo de demonstração está desativado neste ambiente.';
+      case 'demo_order_not_payable':
+        return 'Este pedido não está mais aguardando pagamento. Atualize a página para ver o estado atual.';
+      case 'demo_reservation_expired':
+        return 'A reserva deste pedido expirou e as unidades voltaram ao estoque. Faça um novo pedido.';
+      case 'demo_not_allowed':
+        return 'Este pedido não pode ser aprovado em modo de demonstração.';
       case 'backend_not_configured':
         return 'Backend não configurado neste ambiente.';
       default:

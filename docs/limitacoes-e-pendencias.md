@@ -1,5 +1,12 @@
 # Limitações conhecidas e pendências
 
+> Atualização da missão 04: a fronteira mudou. **As Edge Functions agora são
+> chamadas por HTTP real** (de dentro do sandbox, via schema auxiliar `verif`),
+> então catálogo, pedido, acompanhamento, entrega e aprovação simulada deixam de
+> ser "não verificados". O que continua bloqueado por ambiente é o pagamento real
+> (Mercado Pago) e o `npm run test:db` local (sem binários de PostgreSQL aqui).
+> Detalhes em [`auditoria/missao-04/RELATORIO.md`](./auditoria/missao-04/RELATORIO.md).
+
 ## Bloqueios de ambiente (não resolvíveis pelo código)
 
 1. **Sem saída de rede para o Supabase e para o Mercado Pago** neste ambiente de
@@ -7,15 +14,26 @@
    impede, aqui: `supabase db push`, `supabase functions deploy` e qualquer
    chamada real ao sandbox do Mercado Pago.
    - O schema do banco foi aplicado no projeto sandbox via conector (equivalente
-     ao `db push`): **22 migrações registradas**, incluindo as 8 da missão 03.
-   - As **6 Edge Functions foram implantadas** via conector e estão `ACTIVE`
+     ao `db push`): **27 migrações registradas** (29 arquivos no repositório — os
+     registros em inglês agrupam alguns arquivos; ver a nota de equivalência em
+     `auditoria/missao-04/RELATORIO.md`, seção 6).
+   - As **7 Edge Functions foram implantadas** via conector e estão `ACTIVE`
      (`catalog`, `create-order`, `order-status`, `delivery`, `mp-webhook`,
-     `admin-api`). O que **não** foi feito é chamá-las por HTTP — sem rede aqui.
-     Ver `docs/auditoria/missao-03/evidencias/06-edge-functions-deploy.md`.
-2. **Sem credenciais sandbox do Mercado Pago** (`MP_ACCESS_TOKEN`,
+     `admin-api`, `demo-payment`).
+   - As chamadas HTTP de verificação são feitas **de dentro do sandbox**, com a
+     extensão `http` no schema auxiliar `verif` (`verif.http_get` /
+     `verif.http_post`), porque o shell local não tem egress.
+     Ver `docs/auditoria/missao-03/evidencias/06-edge-functions-deploy.md` e
+     `docs/auditoria/missao-04/RELATORIO.md`.
+2. **Modo demonstrativo ligado no sandbox** (`demo_payments_enabled = true` +
+   segredo `DEMO_PAYMENT_ENABLED`). Precisa ser desligado antes de qualquer uso
+   que não seja demonstração — instruções em `scripts/enable-demo-mode.sql`.
+   Sem as três travas (segredo, lista de refs, `app_settings`) a função
+   `demo-payment` responde `404`.
+3. **Sem credenciais sandbox do Mercado Pago** (`MP_ACCESS_TOKEN`,
    `MP_WEBHOOK_SECRET`). Sem elas o checkout responde
    `503 payment_not_configured` — comportamento intencional e testado.
-3. **Sem identidades dos administradores.** O repositório não inventa e-mails nem
+4. **Sem identidades dos administradores.** O repositório não inventa e-mails nem
    UUIDs. O procedimento está em `docs/painel-admin.md`; falta criar os dois
    usuários no Supabase Auth e inserir os UUIDs em `admin_users`.
 

@@ -6,9 +6,12 @@ import { requestPasswordReset, signInWithPassword } from '../../services/adminAu
 interface AdminLoginProps {
   onSignedIn: () => void | Promise<void>;
   initialError?: string | null;
+  /** Há conta administrativa provisionada? Se não, oferecemos o modo demonstrativo. */
+  demoAvailable?: boolean;
+  onStartDemo?: () => void;
 }
 
-export function AdminLogin({ onSignedIn, initialError = null }: AdminLoginProps) {
+export function AdminLogin({ onSignedIn, initialError = null, demoAvailable = false, onStartDemo }: AdminLoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(initialError);
@@ -84,6 +87,20 @@ export function AdminLogin({ onSignedIn, initialError = null }: AdminLoginProps)
         </form>
 
         <button className="link-button" type="button" onClick={recover}>Esqueci minha senha</button>
+
+        {demoAvailable && onStartDemo && (
+          <div className="admin-login__demo">
+            <span className="demo-tag">SEM CONTA AINDA?</span>
+            <p className="field-hint">
+              O provisionamento das duas contas administrativas depende dos e-mails oficiais. Enquanto isso, é possível revisar as telas com
+              dados fictícios — sem qualquer acesso ao banco e sem alterar nada.
+            </p>
+            <button className="button button--secondary button--small" type="button" onClick={onStartDemo}>
+              Ver painel em modo demonstração
+            </button>
+          </div>
+        )}
+
         <Link className="confirmation-catalog-link" to="/">Voltar à loja</Link>
       </div>
     </section>
