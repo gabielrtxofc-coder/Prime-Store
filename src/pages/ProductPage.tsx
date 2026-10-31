@@ -6,14 +6,18 @@ import { ProductArtwork } from '../components/ProductArtwork';
 import { ProductGrid } from '../components/ProductGrid';
 import { QuantityControl } from '../components/QuantityControl';
 import { useCart } from '../context/CartContext';
+import type { Product } from '../types';
 import { useToast } from '../context/ToastContext';
 import { getCategoryLabel } from '../data/products';
 import { formatCurrency } from '../lib/format';
-import { catalogService } from '../services/catalogService';
+import { useCatalog } from '../context/CatalogContext';
+import { getBackendConfig } from '../services/backend/config';
 
 export function ProductPage() {
   const { slug } = useParams();
-  const product = slug ? catalogService.getBySlug(slug) : undefined;
+  const { products } = useCatalog();
+  const backendEnabled = getBackendConfig().enabled;
+  const product = slug ? products.find((item) => item.slug === slug) : undefined;
   const [quantity, setQuantity] = useState(1);
   const { addItem } = useCart();
   const { showToast } = useToast();
@@ -29,10 +33,9 @@ export function ProductPage() {
     );
   }
 
-  const allProducts = catalogService.getAll();
-  const related = allProducts
-    .filter((item) => item.id !== product.id && item.categoryId === product.categoryId)
-    .concat(allProducts.filter((item) => item.id !== product.id && item.categoryId !== product.categoryId))
+  const related = products
+    .filter((item: Product) => item.id !== product.id && item.categoryId === product.categoryId)
+    .concat(products.filter((item: Product) => item.id !== product.id && item.categoryId !== product.categoryId))
     .slice(0, 3);
 
   const handleAdd = () => {
@@ -51,11 +54,11 @@ export function ProductPage() {
         <div className="product-detail">
           <div className="product-detail__art"><ProductArtwork product={product} size="detail" /></div>
           <div className="product-detail__content">
-            <span className="eyebrow-label">{getCategoryLabel(product.categoryId)} <span aria-hidden="true">·</span> ITEM DEMONSTRATIVO</span>
+            <span className="eyebrow-label">{getCategoryLabel(product.categoryId)} <span aria-hidden="true">·</span> {backendEnabled ? (product.available ? 'DISPONÍVEL' : 'ESGOTADO') : 'ITEM DEMONSTRATIVO'}</span>
             <h1>{product.name}</h1>
             <p className="product-detail__lead">{product.description}</p>
             <div className="product-detail__plan"><span>Modalidade</span><strong>{product.modality}</strong><span>Período</span><strong>{product.period}</strong></div>
-            <div className="product-detail__price-block"><span>Preço demonstrativo</span><strong>{formatCurrency(product.priceCents)}</strong><small>Valor meramente ilustrativo, sem cobrança.</small></div>
+            <div className="product-detail__price-block"><span>{backendEnabled ? 'Preço' : 'Preço demonstrativo'}</span><strong>{formatCurrency(product.priceCents)}</strong><small>{backendEnabled ? `${product.availableUnits ?? 0} unidade(s) disponível(is)` : 'Valor meramente ilustrativo, sem cobrança.'}</small></div>
             {product.allowQuantity && (
               <div className="product-detail__quantity"><span>Quantidade</span><QuantityControl value={quantity} max={product.maxQuantity ?? 10} label="quantidade do produto" onChange={setQuantity} /></div>
             )}
@@ -76,7 +79,7 @@ export function ProductPage() {
             <ul>{product.conditions.map((condition) => <li key={condition}>{condition}</li>)}</ul>
           </section>
           <section className="info-panel" aria-labelledby="delivery-heading">
-            <span className="eyebrow-label">INFORMAÇÕES DO FLUXO</span><h2 id="delivery-heading">Entrega demonstrativa</h2>
+            <span className="eyebrow-label">INFORMAÇÕES DO FLUXO</span><h2 id="delivery-heading">{backendEnabled ? 'Entrega após o pagamento' : 'Entrega demonstrativa'}</h2>
             <ul>{product.delivery.map((item) => <li key={item}>{item}</li>)}</ul>
           </section>
         </div>

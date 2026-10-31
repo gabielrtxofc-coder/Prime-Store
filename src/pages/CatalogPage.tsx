@@ -3,13 +3,14 @@ import { useSearchParams } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { ProductGrid } from '../components/ProductGrid';
 import { categories, getCategoryLabel } from '../data/products';
-import { catalogService } from '../services/catalogService';
+import { useCatalog } from '../context/CatalogContext';
 
 export function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [category, setCategory] = useState(searchParams.get('categoria') ?? 'all');
   const [sort, setSort] = useState('featured');
+  const { products, status, error, reload } = useCatalog();
 
   useEffect(() => {
     setQuery(searchParams.get('q') ?? '');
@@ -18,7 +19,7 @@ export function CatalogPage() {
 
   const matchingProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
-    const result = catalogService.getAll().filter((product) => {
+    const result = products.filter((product) => {
       const matchesCategory = category === 'all' || product.categoryId === category;
       const searchable = `${product.name} ${product.shortDescription} ${product.description} ${getCategoryLabel(product.categoryId)}`.toLocaleLowerCase('pt-BR');
       return matchesCategory && (!normalizedQuery || searchable.includes(normalizedQuery));
@@ -30,7 +31,7 @@ export function CatalogPage() {
       if (sort === 'name') return first.name.localeCompare(second.name, 'pt-BR');
       return Number(second.featured) - Number(first.featured) || first.name.localeCompare(second.name, 'pt-BR');
     });
-  }, [category, query, sort]);
+  }, [category, query, sort, products]);
 
   const hasActiveFilters = Boolean(query.trim()) || category !== 'all' || sort !== 'featured';
 
@@ -44,9 +45,25 @@ export function CatalogPage() {
   return (
     <section className="container page-section catalog-page">
       <div className="page-heading page-heading--catalog">
-        <div><span className="eyebrow-label">CATÁLOGO · DEMONSTRAÇÃO</span><h1>Produtos digitais</h1><p>Explore itens fictícios e teste pesquisa, filtros e navegação. Os valores não são ofertas comerciais.</p></div>
-        <span className="demo-tag demo-tag--large">MODO DEMONSTRAÇÃO</span>
+        <div>
+          <span className="eyebrow-label">{status === 'demo' ? 'CATÁLOGO · DEMONSTRAÇÃO' : 'CATÁLOGO'}</span>
+          <h1>Produtos digitais</h1>
+          <p>
+            {status === 'demo'
+              ? 'Explore itens fictícios e teste pesquisa, filtros e navegação. Os valores não são ofertas comerciais.'
+              : 'Produtos ativos com disponibilidade real, atualizada a cada carregamento da página.'}
+          </p>
+        </div>
+        <span className="demo-tag demo-tag--large">{status === 'demo' ? 'MODO DEMONSTRAÇÃO' : 'DADOS REAIS'}</span>
       </div>
+
+      {status === 'loading' && <p className="catalog-status">Carregando catálogo…</p>}
+      {status === 'error' && (
+        <div className="catalog-status catalog-status--error" role="alert">
+          <span>{error ?? 'Falha ao carregar o catálogo.'}</span>
+          <button className="button button--secondary button--small" type="button" onClick={reload}>Tentar novamente</button>
+        </div>
+      )}
 
       <div className="catalog-toolbar">
         <label className="catalog-search">

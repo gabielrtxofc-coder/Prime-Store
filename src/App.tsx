@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { AboutPage } from './pages/AboutPage';
 import { CartPage } from './pages/CartPage';
@@ -11,6 +11,13 @@ import { LegalPage } from './pages/LegalPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OrderConfirmedPage } from './pages/OrderConfirmedPage';
 import { ProductPage } from './pages/ProductPage';
+import { PaymentPage } from './pages/PaymentPage';
+import { DeliveryPage } from './pages/DeliveryPage';
+
+// O painel (e a biblioteca de autenticação) só carrega quando acessado.
+const AdminPage = lazy(() =>
+  import('./pages/admin/AdminPage').then((module) => ({ default: module.AdminPage })),
+);
 import { SiteLayout } from './components/SiteLayout';
 import { privacySections, refundSections, termsSections } from './data/legalContent';
 
@@ -25,6 +32,8 @@ function RouteEffects() {
       '/carrinho': 'Carrinho',
       '/checkout': 'Checkout demonstrativo',
       '/pedido-confirmado': 'Pedido demonstrativo',
+      '/pagamento': 'Pagamento PIX',
+      '/admin': 'Painel administrativo',
       '/faq': 'Perguntas frequentes',
       '/ajuda': 'Atendimento',
       '/sobre': 'Sobre a loja',
@@ -51,6 +60,16 @@ export function App() {
           <Route path="carrinho" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="pedido-confirmado" element={<OrderConfirmedPage />} />
+          <Route path="pagamento" element={<PaymentPage />} />
+          <Route path="entrega/:token" element={<DeliveryPage />} />
+          <Route
+            path="admin"
+            element={
+              <Suspense fallback={<section className="container page-section"><p className="loading-line"><span className="loading-spinner" aria-hidden="true" />Carregando painel…</p></section>}>
+                <AdminPage />
+              </Suspense>
+            }
+          />
           <Route path="faq" element={<FAQPage />} />
           <Route path="ajuda" element={<HelpPage />} />
           <Route path="sobre" element={<AboutPage />} />

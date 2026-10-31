@@ -25,6 +25,11 @@ export interface Product {
   maxQuantity?: number;
   conditions: string[];
   delivery: string[];
+  /** Campos presentes quando o catálogo vem do backend (Supabase). */
+  imageUrl?: string | null;
+  instructions?: string;
+  availableUnits?: number;
+  categoryLabel?: string;
 }
 
 export interface CartEntry {

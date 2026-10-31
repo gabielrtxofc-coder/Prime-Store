@@ -8,15 +8,27 @@ import { useToast } from '../context/ToastContext';
 import { EmptyState } from '../components/EmptyState';
 import { validateCheckout, type CheckoutField, type CheckoutValues } from '../lib/validation';
 import { createDemoOrder } from '../services/demoOrderService';
+import { getBackendConfig } from '../services/backend/config';
+import { describeBackendError } from '../services/backend/http';
+import { createOrder, newIdempotencyKey, savePendingOrder } from '../services/orderService';
+import { catalogService } from '../services/catalogService';
 import type { PaymentMethod } from '../types';
 
-const paymentOptions: { id: PaymentMethod; title: string; description: string }[] = [
+const DEMO_PAYMENT_OPTIONS: { id: PaymentMethod; title: string; description: string }[] = [
   { id: 'pix', title: 'PIX', description: 'Seleção visual, sem geração de QR code.' },
   { id: 'card', title: 'Cartão de crédito', description: 'Opção demonstrativa. Não informe dados de cartão.' },
 ];
 
+const LIVE_PAYMENT_OPTIONS: { id: PaymentMethod; title: string; description: string }[] = [
+  { id: 'pix', title: 'PIX', description: 'QR code e copia-e-cola gerados na próxima etapa. Reserva de 30 minutos.' },
+  { id: 'card', title: 'Cartão de crédito', description: 'Indisponível na versão 1. Use PIX.' },
+];
+
 export function CheckoutPage() {
   const navigate = useNavigate();
+  const backendEnabled = getBackendConfig().enabled;
+  const paymentOptions = backendEnabled ? LIVE_PAYMENT_OPTIONS : DEMO_PAYMENT_OPTIONS;
+  const [idempotencyKey] = useState(() => newIdempotencyKey());
   const { entries, lines, subtotalCents, totalCents, clearCart } = useCart();
   const { setCurrentOrder } = useDemoOrder();
   const { showToast } = useToast();
@@ -44,6 +56,26 @@ export function CheckoutPage() {
     submitLock.current = true;
     setIsSubmitting(true);
     try {
+      if (backendEnabled) {
+        // V1: um produto por pedido, com uma ou várias unidades.
+        const line = lines[0];
+        const result = await createOrder({
+          productId: line.product.id,
+          quantity: line.quantity,
+          payerEmail: values.email.trim(),
+          idempotencyKey,
+        });
+        savePendingOrder({
+          orderId: result.order.order_id,
+          clientToken: result.client_token,
+          reference: result.order.reference,
+          createdAt: new Date().toISOString(),
+        });
+        clearCart();
+        navigate('/pagamento');
+        return;
+      }
+
       const order = await createDemoOrder({
         buyerName: values.fullName,
         buyerEmail: values.email,
@@ -53,18 +85,44 @@ export function CheckoutPage() {
       setCurrentOrder(order);
       clearCart();
       navigate('/pedido-confirmado');
-    } catch {
-      showToast('Não foi possível criar a demonstração. Confira seu carrinho e tente novamente.', 'error');
+    } catch (error) {
+      showToast(
+        backendEnabled
+          ? describeBackendError(error)
+          : 'Não foi possível criar a demonstração. Confira seu carrinho e tente novamente.',
+        'error',
+      );
+      if (backendEnabled) void catalogService.refresh();
     } finally {
       submitLock.current = false;
       setIsSubmitting(false);
     }
   };
 
+  if (backendEnabled && lines.length > 1) {
+    return (
+      <section className="container page-section checkout-page">
+        <div className="page-heading">
+          <span className="eyebrow-label">CHECKOUT</span>
+          <h1>Um produto por pedido</h1>
+          <p>Para garantir a reserva correta das unidades, cada pedido contém apenas um produto (com uma ou várias unidades).</p>
+        </div>
+        <EmptyState
+          title="Remova os itens extras do carrinho"
+          description="Finalize a compra de um produto por vez. Nenhum valor foi cobrado."
+          actionLabel="Voltar ao carrinho"
+          to="/carrinho"
+          icon="cart"
+          secondaryAction={{ label: 'Explorar catálogo', to: '/produtos' }}
+        />
+      </section>
+    );
+  }
+
   if (lines.length === 0) {
     return (
       <section className="container page-section checkout-page">
-        <div className="page-heading"><span className="eyebrow-label">CHECKOUT</span><h1>Finalizar pedido demonstrativo</h1><p>O checkout só pode ser testado com ao menos um item no carrinho.</p></div>
+        <div className="page-heading"><span className="eyebrow-label">CHECKOUT</span><h1>{backendEnabled ? 'Finalizar pedido' : 'Finalizar pedido demonstrativo'}</h1><p>O checkout só pode ser testado com ao menos um item no carrinho.</p></div>
         <EmptyState title="Seu carrinho está vazio" description="Adicione um produto de demonstração antes de preencher o checkout." actionLabel="Explorar catálogo" to="/produtos" icon="cart" secondaryAction={{ label: 'Voltar ao carrinho', to: '/carrinho' }} />
       </section>
     );
@@ -74,13 +132,19 @@ export function CheckoutPage() {
 
   return (
     <section className="container page-section checkout-page">
-      <div className="page-heading checkout-heading"><span className="eyebrow-label">ETAPA FINAL · DEMONSTRAÇÃO</span><h1>Finalizar pedido</h1><p>Checkout de convidado — nenhum dado será enviado para um serviço externo.</p></div>
-      <div className="checkout-demo-alert" role="note"><Icon name="alert" size={19} /><p><strong>Ambiente demonstrativo.</strong> Não há cobrança, QR code, processamento de cartão ou entrega de produtos nesta etapa. Não informe dados financeiros.</p></div>
+      <div className="page-heading checkout-heading"><span className="eyebrow-label">{backendEnabled ? 'ETAPA FINAL' : 'ETAPA FINAL · DEMONSTRAÇÃO'}</span><h1>Finalizar pedido</h1><p>{backendEnabled
+                ? 'Checkout de convidado. O e-mail é usado apenas para emitir a cobrança no Mercado Pago.'
+                : 'Checkout de convidado — nenhum dado será enviado para um serviço externo.'}</p></div>
+      {backendEnabled ? (
+        <div className="checkout-demo-alert" role="note"><Icon name="alert" size={19} /><p><strong>Ambiente de testes (sandbox).</strong> O PIX é gerado pelo Mercado Pago e as unidades ficam reservadas por 30 minutos. Nenhum dado de cartão é solicitado.</p></div>
+      ) : (
+        <div className="checkout-demo-alert" role="note"><Icon name="alert" size={19} /><p><strong>Ambiente demonstrativo.</strong> Não há cobrança, QR code, processamento de cartão ou entrega de produtos nesta etapa. Não informe dados financeiros.</p></div>
+      )}
 
       <div className="checkout-layout">
         <form className="checkout-form" onSubmit={handleSubmit} noValidate aria-busy={isSubmitting}>
           <section className="checkout-section" aria-labelledby="buyer-section-heading">
-            <div className="checkout-section__heading"><span className="checkout-step">01</span><div><h2 id="buyer-section-heading">Seus dados</h2><p>Usados somente para a confirmação demonstrativa desta sessão.</p></div></div>
+            <div className="checkout-section__heading"><span className="checkout-step">01</span><div><h2 id="buyer-section-heading">Seus dados</h2><p>{backendEnabled ? 'O e-mail é enviado ao Mercado Pago para emitir a cobrança; não é armazenado pela loja.' : 'Usados somente para a confirmação demonstrativa desta sessão.'}</p></div></div>
             <div className="form-grid">
               <div className="form-field form-field--full">
                 <label htmlFor="buyer-full-name">Nome completo</label>
@@ -103,7 +167,7 @@ export function CheckoutPage() {
           <section className="checkout-section" aria-labelledby="payment-section-heading">
             <div className="checkout-section__heading"><span className="checkout-step">02</span><div><h2 id="payment-section-heading">Método de pagamento</h2><p>Selecione uma opção para testar o estado visual.</p></div></div>
             <fieldset className="payment-methods">
-              <legend className="sr-only">Método de pagamento demonstrativo</legend>
+              <legend className="sr-only">{backendEnabled ? 'Método de pagamento' : 'Método de pagamento demonstrativo'}</legend>
               {paymentOptions.map((option) => (
                 <label className={`payment-option${paymentMethod === option.id ? ' is-selected' : ''}`} key={option.id}>
                   <input type="radio" name="payment-method" value={option.id} checked={paymentMethod === option.id} onChange={() => setPaymentMethod(option.id)} />
@@ -113,7 +177,11 @@ export function CheckoutPage() {
                 </label>
               ))}
             </fieldset>
-            <p className="payment-disclaimer">A seleção não inicia pagamento. A integração com SyncPay ou qualquer outro gateway ainda não existe.</p>
+            <p className="payment-disclaimer">
+              {backendEnabled
+                ? 'O PIX é gerado pelo Mercado Pago (sandbox) na próxima etapa. Nenhum dado de cartão é solicitado.'
+                : 'A seleção não inicia pagamento. Nenhum gateway está conectado neste modo de demonstração.'}
+            </p>
           </section>
 
           <section className="checkout-section checkout-terms-section" aria-labelledby="terms-section-heading">
@@ -125,15 +193,30 @@ export function CheckoutPage() {
             {visibleError('acceptedTerms') && <p className="field-error field-error--terms" id="terms-acceptance-error">{visibleError('acceptedTerms')}</p>}
             {!values.acceptedTerms && !visibleError('acceptedTerms') && <p className="field-hint" id="terms-acceptance-hint">A confirmação é necessária para habilitar o botão de demonstração.</p>}
             <button className="button button--primary button--large checkout-submit" type="submit" disabled={!isValid || isSubmitting}>
-              {isSubmitting ? <><span className="loading-spinner" aria-hidden="true" />Criando pedido demonstrativo…</> : <>Criar pedido demonstrativo <Icon name="arrow-right" size={18} /></>}
+              {isSubmitting ? (
+                <><span className="loading-spinner" aria-hidden="true" />{backendEnabled ? 'Reservando unidades…' : 'Criando pedido demonstrativo…'}</>
+              ) : (
+                <>{backendEnabled ? 'Reservar unidades e gerar PIX' : 'Criar pedido demonstrativo'} <Icon name="arrow-right" size={18} /></>
+              )}
             </button>
-            <p className="checkout-submit-note">Ao continuar, nenhum pagamento será efetuado e nenhum produto será entregue.</p>
+            <p className="checkout-submit-note">
+              {backendEnabled
+                ? 'As unidades ficam reservadas por 30 minutos. Nada é entregue antes da confirmação do pagamento.'
+                : 'Ao continuar, nenhum pagamento será efetuado e nenhum produto será entregue.'}
+            </p>
           </section>
         </form>
 
         <div className="checkout-summary-column">
           <OrderSummary lines={lines} subtotalCents={subtotalCents} totalCents={totalCents} paymentLabel={paymentMethod === 'pix' ? 'PIX (demonstração)' : 'Cartão (demonstração)'} />
-          <div className="checkout-privacy-note"><Icon name="mail" size={17} /><p>Nome e e-mail ficam apenas no estado desta sessão para a tela de confirmação. Não informe dados financeiros.</p></div>
+          <div className="checkout-privacy-note">
+            <Icon name="mail" size={17} />
+            <p>
+              {backendEnabled
+                ? 'O e-mail é enviado ao Mercado Pago para emitir a cobrança e não é armazenado pela loja. Nenhum dado de cartão é solicitado.'
+                : 'Nome e e-mail ficam apenas no estado desta sessão para a tela de confirmação. Não informe dados financeiros.'}
+            </p>
+          </div>
           <Link className="checkout-back-link" to="/carrinho">Voltar ao carrinho</Link>
         </div>
       </div>

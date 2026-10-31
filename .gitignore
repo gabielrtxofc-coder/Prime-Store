@@ -6,3 +6,6 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# local-only credentials (never commit)
+.local/
