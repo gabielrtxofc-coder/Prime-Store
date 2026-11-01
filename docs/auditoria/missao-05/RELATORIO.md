@@ -92,22 +92,26 @@ administrativos).
 
 ### 1.3 Diferença nos números de estoque entre os testes
 
-**Investigação.** Não havia inconsistência de dados nem venda perdida: eram
-(a) a semeadura de demonstração da missão 04 (+5 unidades fictícias por produto)
-e (b) 1 unidade vendida em pedido de teste.
+**Investigação.** Não havia inconsistência de dados nem venda perdida. Duas
+coisas explicam a diferença: (a) a semeadura de demonstração da missão 04 (2
+lotes de 5 unidades fictícias por produto, o segundo em 01/11 02:35) e (b)
+vendas de teste, que retiram unidades de "disponíveis".
 
-**Reconciliação (unidades por produto, todas `is_demo = true`)**
+**Reconciliação (unidades por produto, todas `is_demo = true`, conferidas por
+`created_at` + `notes`)**
 
-| Produto | Antes dos testes da missão 04 | Após semeadura | Vendas | Estado final |
-| --- | --- | --- | --- | --- |
-| acesso mensal | 3 | 13 (+5 na 1ª rodada, +5 na 2ª) | 2 (missão 04) + 1 (esta missão) | 14 total · 11 disponíveis · 3 vendidas |
-| acesso avulso | 3 | 13 | 0 | 13 total · 13 disponíveis |
+| Produto | Criadas em 31/10 15:40 | Semeadas em 01/11 02:35 | Vendas | Total | Disponíveis |
+| --- | --- | --- | --- | --- | --- |
+| acesso mensal | 4 | +10 | 2 (missão 04) + 1 (esta missão) | 14 | 11 |
+| acesso avulso | 3 | +10 | 0 | 13 | 13 |
 
-A leitura "6" vista no meio dos testes era o número de unidades **disponíveis**
-daquele produto naquele instante (estoque já parcialmente reservado/vendido); a
-leitura "13" era o total após a semeadura. Nada foi apagado, e o ledger
-(`stock_units` + `stock_reservations` + `stock_reservation_units`) fecha:
-`disponíveis + vendidas + reservadas = total`.
+A leitura "6" vista no meio dos testes era a contagem de unidades
+**disponíveis** naquele instante — unidades reservadas (30 min) ou já vendidas
+não entram nessa conta. Depois da semeadura e das vendas, a mesma consulta passa
+a mostrar 13. Ou seja: o número mudou porque o estoque **cresceu** (semeadura de
+demonstração) e porque vendas/reservas movem unidades entre estados — não houve
+perda nem exclusão. O ledger (`stock_units` + `stock_reservations` +
+`stock_reservation_units`) fecha: `disponíveis + vendidas + reservadas = total`.
 
 ### 1.4 Contenção do pagamento demonstrativo (item 5)
 
@@ -209,6 +213,23 @@ auxiliar `verif` (o shell não tem egress para `*.supabase.co`).
 | Pagamento demonstrativo | OK — contido no sandbox, sem cobrança, rastreável como `demo` |
 | Pagamento real (Mercado Pago) | **Não verificável** — sem `MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET` |
 | Painel administrativo | Código e RPCs testados; **sem administradores cadastrados** (falta e-mail real) |
+
+### 2.4 Como validar agora (sem depender de credenciais)
+
+```bash
+cp .env.example .env.local   # VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (públicas), VITE_BACKEND_ENABLED=true
+npm run dev                  # http://localhost:5173
+```
+
+O backend responde porque `ALLOWED_ORIGINS` contém `http://localhost:5173`,
+`http://127.0.0.1:5173` e o preview do sandbox
+(`https://5173-i1chcaxiuf17fn1ectuv9.e2b.app`). Roteiro sugerido: abrir a loja →
+produto de exemplo → quantidade → checkout → tela de pagamento (modo
+demonstração) → aprovar → link privado de entrega. O painel `/admin` abre em modo
+demonstrativo local (`VITE_ADMIN_DEMO=true`), sem falar com o backend.
+
+Se o preview abrir em outro endereço, acrescente-o em `ALLOWED_ORIGINS` antes de
+testar (seção 4).
 
 ---
 
