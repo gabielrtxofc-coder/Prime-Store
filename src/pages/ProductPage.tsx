@@ -6,14 +6,18 @@ import { ProductArtwork } from '../components/ProductArtwork';
 import { ProductGrid } from '../components/ProductGrid';
 import { QuantityControl } from '../components/QuantityControl';
 import { useCart } from '../context/CartContext';
+import type { Product } from '../types';
 import { useToast } from '../context/ToastContext';
 import { getCategoryLabel } from '../data/products';
 import { formatCurrency } from '../lib/format';
-import { catalogService } from '../services/catalogService';
+import { useCatalog } from '../context/CatalogContext';
+import { getBackendConfig } from '../services/backend/config';
 
 export function ProductPage() {
   const { slug } = useParams();
-  const product = slug ? catalogService.getBySlug(slug) : undefined;
+  const { products } = useCatalog();
+  const backendEnabled = getBackendConfig().enabled;
+  const product = slug ? products.find((item) => item.slug === slug) : undefined;
   const [quantity, setQuantity] = useState(1);
   const { addItem } = useCart();
   const { showToast } = useToast();
@@ -29,10 +33,13 @@ export function ProductPage() {
     );
   }
 
-  const allProducts = catalogService.getAll();
-  const related = allProducts
-    .filter((item) => item.id !== product.id && item.categoryId === product.categoryId)
-    .concat(allProducts.filter((item) => item.id !== product.id && item.categoryId !== product.categoryId))
+  const categoryLabel = product.categoryLabel || getCategoryLabel(product.categoryId);
+  const units = typeof product.availableUnits === 'number' ? product.availableUnits : null;
+  const quantityLimit = Math.max(1, Math.min(product.maxQuantity ?? 10, units && units > 0 ? units : 10));
+
+  const related = products
+    .filter((item: Product) => item.id !== product.id && item.categoryId === product.categoryId)
+    .concat(products.filter((item: Product) => item.id !== product.id && item.categoryId !== product.categoryId))
     .slice(0, 3);
 
   const handleAdd = () => {
@@ -45,28 +52,66 @@ export function ProductPage() {
     <>
       <section className="container page-section product-detail-page">
         <nav className="breadcrumbs" aria-label="Trilha de navegação">
-          <Link to="/">Início</Link><span aria-hidden="true">/</span><Link to="/produtos">Catálogo</Link><span aria-hidden="true">/</span><Link to={`/produtos?categoria=${encodeURIComponent(product.categoryId)}`}>{getCategoryLabel(product.categoryId)}</Link><span aria-hidden="true">/</span><span aria-current="page">{product.name}</span>
+          <Link to="/">Início</Link><span aria-hidden="true">/</span><Link to="/produtos">Catálogo</Link><span aria-hidden="true">/</span><Link to={`/produtos?categoria=${encodeURIComponent(product.categoryId)}`}>{categoryLabel}</Link><span aria-hidden="true">/</span><span aria-current="page">{product.name}</span>
         </nav>
 
         <div className="product-detail">
           <div className="product-detail__art"><ProductArtwork product={product} size="detail" /></div>
           <div className="product-detail__content">
-            <span className="eyebrow-label">{getCategoryLabel(product.categoryId)} <span aria-hidden="true">·</span> ITEM DEMONSTRATIVO</span>
+            <span className="eyebrow-label">
+              {categoryLabel} <span aria-hidden="true">·</span>{' '}
+              {product.isDemo
+                ? 'DEMONSTRAÇÃO'
+                : backendEnabled
+                  ? (product.available ? 'DISPONÍVEL' : 'ESGOTADO')
+                  : 'ITEM DEMONSTRATIVO'}
+            </span>
             <h1>{product.name}</h1>
             <p className="product-detail__lead">{product.description}</p>
-            <div className="product-detail__plan"><span>Modalidade</span><strong>{product.modality}</strong><span>Período</span><strong>{product.period}</strong></div>
-            <div className="product-detail__price-block"><span>Preço demonstrativo</span><strong>{formatCurrency(product.priceCents)}</strong><small>Valor meramente ilustrativo, sem cobrança.</small></div>
-            {product.allowQuantity && (
-              <div className="product-detail__quantity"><span>Quantidade</span><QuantityControl value={quantity} max={product.maxQuantity ?? 10} label="quantidade do produto" onChange={setQuantity} /></div>
+            <div className="product-detail__plan"><span>Modalidade</span><strong>{product.modality || 'Produto digital'}</strong><span>Período</span><strong>{product.period || 'acesso imediato'}</strong></div>
+            <div className="product-detail__price-block">
+              <span>{backendEnabled ? 'Preço' : 'Preço demonstrativo'}</span>
+              <strong>{formatCurrency(product.priceCents)}</strong>
+              <small>
+                {backendEnabled
+                  ? product.available
+                    ? `${units ?? 0} unidade(s) disponível(is) agora`
+                    : 'Sem unidades disponíveis no momento'
+                  : 'Valor meramente ilustrativo, sem cobrança.'}
+              </small>
+            </div>
+            {product.allowQuantity && product.available && (
+              <div className="product-detail__quantity">
+                <span>Quantidade</span>
+                <QuantityControl value={quantity} max={quantityLimit} label="quantidade do produto" onChange={setQuantity} />
+                {units !== null && units > 0 && units <= (product.maxQuantity ?? 10) && (
+                  <small className="field-hint">Limite pela disponibilidade atual: {units}.</small>
+                )}
+              </div>
             )}
-            {!product.available && <p className="availability-note">Este item está indisponível na demonstração.</p>}
+            {!product.available && (
+              <p className="availability-note">
+                {backendEnabled
+                  ? 'Este produto está esgotado. As unidades voltam ao catálogo assim que forem repostas.'
+                  : 'Este item está indisponível na demonstração.'}
+              </p>
+            )}
             <div className="product-detail__actions">
               <button className="button button--primary button--large" type="button" onClick={handleAdd} disabled={!product.available}>
-                {product.available ? 'Adicionar ao carrinho' : 'Indisponível'}<Icon name="arrow-right" size={18} />
+                {product.available ? 'Adicionar ao carrinho' : 'Esgotado'}<Icon name="arrow-right" size={18} />
               </button>
               <Link className="button button--secondary button--large" to="/produtos">Continuar comprando</Link>
             </div>
-            <div className="product-detail__notice"><Icon name="alert" size={18} /><p>Este produto é apenas uma referência de interface. Não há parceria declarada, pagamento, acesso ou entrega real.</p></div>
+            <div className="product-detail__notice">
+              <Icon name="alert" size={18} />
+              <p>
+                {product.isDemo
+                  ? 'Produto de demonstração do sandbox: o pagamento é simulado e as credenciais entregues são fictícias. Nada é cobrado.'
+                  : backendEnabled
+                    ? 'As unidades são reservadas por 30 minutos e a entrega acontece somente após a confirmação do pagamento.'
+                    : 'Este produto é apenas uma referência de interface. Não há pagamento, acesso ou entrega real.'}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -76,7 +121,7 @@ export function ProductPage() {
             <ul>{product.conditions.map((condition) => <li key={condition}>{condition}</li>)}</ul>
           </section>
           <section className="info-panel" aria-labelledby="delivery-heading">
-            <span className="eyebrow-label">INFORMAÇÕES DO FLUXO</span><h2 id="delivery-heading">Entrega demonstrativa</h2>
+            <span className="eyebrow-label">INFORMAÇÕES DO FLUXO</span><h2 id="delivery-heading">{backendEnabled ? 'Entrega após o pagamento' : 'Entrega demonstrativa'}</h2>
             <ul>{product.delivery.map((item) => <li key={item}>{item}</li>)}</ul>
           </section>
         </div>

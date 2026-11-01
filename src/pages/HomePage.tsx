@@ -4,7 +4,8 @@ import { Icon } from '../components/Icon';
 import { ProductGrid } from '../components/ProductGrid';
 import { categories } from '../data/products';
 import { faqs } from '../data/faqs';
-import { catalogService } from '../services/catalogService';
+import { useCatalog } from '../context/CatalogContext';
+import { getBackendConfig } from '../services/backend/config';
 
 const steps = [
   { number: '01', title: 'Explore', text: 'Navegue pelas categorias e veja os detalhes de cada item demonstrativo.' },
@@ -13,21 +14,25 @@ const steps = [
 ];
 
 export function HomePage() {
-  const featuredProducts = catalogService.getAll().filter((product) => product.featured).slice(0, 4);
+  const { products } = useCatalog();
+  const backendEnabled = getBackendConfig().enabled;
+  const featuredProducts = products.filter((product) => product.featured).slice(0, 4);
 
   return (
     <>
       <section className="home-hero">
         <div className="container home-hero__layout">
           <div className="home-hero__copy">
-            <span className="eyebrow"><span className="eyebrow__dot" /> LOJA DIGITAL · PROTÓTIPO</span>
+            <span className="eyebrow"><span className="eyebrow__dot" /> LOJA DIGITAL · {backendEnabled ? 'CATÁLOGO ATIVO' : 'PROTÓTIPO'}</span>
             <h1>Seu próximo favorito está a <span>um clique.</span></h1>
-            <p>Explore uma experiência de catálogo e checkout para assinaturas e produtos digitais. Tudo aqui é demonstrativo — sem cobranças ou entrega real.</p>
+            <p>{backendEnabled
+              ? 'Assinaturas e produtos digitais com pagamento por PIX e entrega privada imediata após a confirmação.'
+              : 'Explore uma experiência de catálogo e checkout para assinaturas e produtos digitais. Tudo aqui é demonstrativo — sem cobranças ou entrega real.'}</p>
             <div className="home-hero__actions">
               <Link className="button button--primary button--large" to="/produtos">Explorar catálogo <Icon name="arrow-right" size={18} /></Link>
               <Link className="text-link" to="/sobre">Conhecer a proposta</Link>
             </div>
-            <div className="hero-reassurance"><Icon name="alert" size={16} /><span>Preços ilustrativos · sem pagamento real</span></div>
+            <div className="hero-reassurance"><Icon name="alert" size={16} /><span>{backendEnabled ? 'Pagamento por PIX · entrega privada · ambiente de testes' : 'Preços ilustrativos · sem pagamento real'}</span></div>
           </div>
           <div className="home-hero__visual" role="img" aria-label="Representação abstrata de produtos digitais demonstrativos">
             <div className="hero-visual__ring hero-visual__ring--outer" />
@@ -69,7 +74,7 @@ export function HomePage() {
       <section className="section-block featured-section" aria-labelledby="featured-heading">
         <div className="container">
           <div className="section-heading section-heading--row">
-            <div><span className="eyebrow-label">UMA AMOSTRA DO CATÁLOGO</span><h2 id="featured-heading">Destaques demonstrativos</h2><p>Exemplos fictícios para navegar e testar a experiência.</p></div>
+            <div><span className="eyebrow-label">DESTAQUES</span><h2 id="featured-heading">{backendEnabled ? 'Selecionados da loja' : 'Destaques demonstrativos'}</h2><p>{backendEnabled ? 'Produtos ativos com estoque disponível neste momento.' : 'Exemplos fictícios para navegar e testar a experiência.'}</p></div>
             <Link className="text-link text-link--arrow" to="/produtos">Ver todos os produtos <Icon name="arrow-right" size={17} /></Link>
           </div>
           <ProductGrid products={featuredProducts} />

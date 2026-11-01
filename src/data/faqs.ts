@@ -50,7 +50,7 @@ export const faqs: FAQItem[] = [
     id: 'dados-cartao',
     category: 'Pagamentos',
     question: 'Preciso informar dados de pagamento para testar?',
-    answer: 'Não. Não informe dados financeiros. O protótipo não possui campos de cartão, integração com SyncPay ou outro gateway, nem qualquer serviço externo de pagamento.',
+    answer: 'Não. Nenhum dado de cartão é solicitado ou armazenado. Quando o backend está habilitado, o pagamento acontece por PIX no Mercado Pago (sandbox) e a loja apenas registra o identificador da cobrança. No modo de demonstração, nenhum pagamento é iniciado.',
   },
   {
     id: 'cadastro',

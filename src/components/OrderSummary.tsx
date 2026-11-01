@@ -1,5 +1,6 @@
 import type { CartLine } from '../types';
 import { formatCurrency } from '../lib/format';
+import { getBackendConfig } from '../services/backend/config';
 
 interface OrderSummaryProps {
   lines: CartLine[];
@@ -10,12 +11,13 @@ interface OrderSummaryProps {
 
 export function OrderSummary({ lines, subtotalCents, totalCents, paymentLabel }: OrderSummaryProps) {
   const itemCount = lines.reduce((count, line) => count + line.quantity, 0);
+  const backendEnabled = getBackendConfig().enabled;
 
   return (
     <aside className="order-summary" aria-labelledby="order-summary-title">
       <div className="order-summary__heading">
         <div>
-          <span className="eyebrow-label">Pedido demonstrativo</span>
+          <span className="eyebrow-label">{backendEnabled ? 'Resumo' : 'Pedido demonstrativo'}</span>
           <h2 id="order-summary-title">Resumo do pedido</h2>
         </div>
         <span className="order-summary__count">{itemCount} {itemCount === 1 ? 'item' : 'itens'}</span>
@@ -38,7 +40,7 @@ export function OrderSummary({ lines, subtotalCents, totalCents, paymentLabel }:
       )}
       <div className="order-summary__totals">
         <div className="price-row"><span>Subtotal ilustrativo</span><span>{formatCurrency(subtotalCents)}</span></div>
-        <div className="price-row price-row--total"><span>Total demonstrativo</span><strong>{formatCurrency(totalCents)}</strong></div>
+        <div className="price-row price-row--total"><span>{backendEnabled ? 'Total' : 'Total demonstrativo'}</span><strong>{formatCurrency(totalCents)}</strong></div>
       </div>
       {paymentLabel && <p className="order-summary__payment">Método selecionado: <strong>{paymentLabel}</strong></p>}
       <p className="order-summary__note">Sem taxas ou descontos nesta simulação. Nenhum pagamento será processado.</p>
