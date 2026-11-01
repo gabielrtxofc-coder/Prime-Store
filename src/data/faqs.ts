@@ -13,26 +13,30 @@ export const faqs: FAQItem[] = [
   {
     id: 'como-comprar',
     category: 'Compras',
-    question: 'Como funciona uma compra neste protótipo?',
-    answer: 'Você pode explorar o catálogo, adicionar itens e preencher o checkout. Ao concluir, é criado somente um pedido demonstrativo no estado da página. Não existe venda, cobrança ou entrega real.',
+    question: 'Como funciona um pedido na Prime Store?',
+    answer:
+      'Você escolhe os produtos no catálogo, confere o carrinho e informa nome e e-mail. Ao enviar, a solicitação é registrada no servidor da loja e você recebe um número de pedido para acompanhar o estado. A solicitação fica aguardando confirmação da loja.',
   },
   {
     id: 'catalogo-real',
     category: 'Catálogo',
     question: 'Os produtos e valores do catálogo são ofertas reais?',
-    answer: 'Não. Os nomes, modalidades, disponibilidades e preços são dados ilustrativos para testes de interface. Eles não confirmam estoque, autorização comercial, parceria ou preço de qualquer serviço.',
+    answer:
+      'O catálogo é carregado do banco da loja: nome, descrição, preço e disponibilidade são os dados vigentes no momento da consulta. A disponibilidade pode mudar enquanto você navega; a confirmação final acontece ao enviar a solicitação.',
   },
   {
     id: 'pagamento',
     category: 'Pagamentos',
-    question: 'O PIX ou o cartão é cobrado?',
-    answer: 'Não. PIX e cartão aparecem apenas como opções visuais. Este frontend não está integrado a um processador e não coleta dados de cartão, não gera QR code e não processa pagamentos.',
+    question: 'A loja cobra alguma coisa ao enviar o pedido?',
+    answer:
+      'Não. O envio do pedido não inicia pagamento, não gera cobrança e não pede dados de cartão. A solicitação fica registrada como "aguardando confirmação" e nenhum valor é movimentado pelo site.',
   },
   {
     id: 'prazo-entrega',
     category: 'Entrega',
     question: 'Quando recebo o produto digital?',
-    answer: 'A entrega automatizada ainda não foi implementada. Nenhum acesso, arquivo, credencial ou benefício será liberado pelo protótipo. O processo e os prazos precisam ser definidos antes de uma operação real.',
+    answer:
+      'Nesta fase a entrega não acontece automaticamente: o pedido é uma solicitação registrada e aguarda confirmação. Nenhum acesso, arquivo ou credencial é liberado pelo site enquanto o pedido não for confirmado.',
   },
   {
     id: 'contato',
@@ -49,13 +53,22 @@ export const faqs: FAQItem[] = [
   {
     id: 'dados-cartao',
     category: 'Pagamentos',
-    question: 'Preciso informar dados de pagamento para testar?',
-    answer: 'Não. Nenhum dado de cartão é solicitado ou armazenado. Quando o backend está habilitado, o pagamento acontece por PIX no Mercado Pago (sandbox) e a loja apenas registra o identificador da cobrança. No modo de demonstração, nenhum pagamento é iniciado.',
+    question: 'Preciso informar dados de pagamento?',
+    answer:
+      'Não. Nenhum dado de cartão é solicitado ou armazenado. A loja guarda apenas nome, e-mail, itens e valor da solicitação, necessários para identificar o pedido e permitir o acompanhamento.',
+  },
+  {
+    id: 'acompanhar-pedido',
+    category: 'Compras',
+    question: 'Como acompanho a minha solicitação?',
+    answer:
+      'Guarde o número do pedido (formato PS-XXXXXX) e o código de acompanhamento mostrados na confirmação. Com os dois, a página "Acompanhar pedido" abre o estado atual. Sem o código, ninguém consegue ver o pedido, nem mesmo com o número.',
   },
   {
     id: 'cadastro',
     category: 'Compras',
     question: 'Preciso criar uma conta?',
-    answer: 'Não. O fluxo foi pensado como checkout demonstrativo de convidado e não há cadastro, login ou área de cliente nesta versão.',
+    answer:
+      'Não. O pedido é feito como visitante: nome e e-mail são usados para identificar a solicitação. Não há cadastro, login ou área de cliente.',
   },
 ];

@@ -11,12 +11,13 @@ export function SiteFooter() {
               <span className="brand__mark" aria-hidden="true">P</span>
               <span className="brand__name"><strong>PRIME</strong><small>STORE</small></span>
             </Link>
-            <p>Uma experiência de loja digital em versão de protótipo.</p>
-            <span className="footer-demo-label">Catálogo e checkout demonstrativos</span>
+            <p>Produtos digitais com catálogo e pedidos registrados no servidor da loja.</p>
+            <span className="footer-demo-label">Pedidos aguardando confirmação · sem pagamento no site</span>
           </div>
           <div className="site-footer__column">
             <h2>Explorar</h2>
             <Link to="/produtos">Catálogo</Link>
+            <Link to="/acompanhar">Acompanhar pedido</Link>
             <Link to="/faq">Perguntas frequentes</Link>
             <Link to="/sobre">Sobre a loja</Link>
           </div>
@@ -33,8 +34,8 @@ export function SiteFooter() {
           </div>
         </div>
         <div className="site-footer__bottom">
-          <span>© {new Date().getFullYear()} Prime Store · versão demonstrativa</span>
-          <span>Nenhum pagamento real é processado nesta aplicação.</span>
+          <span>© {new Date().getFullYear()} Prime Store</span>
+          <span>Nenhum pagamento é solicitado ou processado nesta aplicação.</span>
         </div>
       </div>
     </footer>

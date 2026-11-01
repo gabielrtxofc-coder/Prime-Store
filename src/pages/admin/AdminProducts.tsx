@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { categories } from '../../data/products';
+import { categoryOptions as categories } from '../../data/categories';
 import { centsToInput, formatCurrency, parseBrlToCents } from '../../lib/format';
 import { adminApi, type AdminProduct, type ProductInput } from '../../services/adminApi';
 import { describeBackendError } from '../../services/backend/http';

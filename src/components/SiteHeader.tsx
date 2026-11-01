@@ -55,8 +55,8 @@ export function SiteHeader() {
       <div className="demo-banner" role="note">
         <div className="container demo-banner__inner">
           <span className="demo-banner__dot" aria-hidden="true" />
-          <span>Protótipo demonstrativo — sem pagamentos reais, acesso ou entrega de produtos.</span>
-          <Link to="/sobre">Saiba mais</Link>
+          <span>Pedidos ficam aguardando confirmação — nenhum pagamento é feito pelo site.</span>
+          <Link to="/faq">Como funciona</Link>
         </div>
       </div>
       <header className="site-header">
@@ -69,6 +69,7 @@ export function SiteHeader() {
           <nav className="desktop-nav" aria-label="Navegação principal">
             <NavLink to="/" end className={({ isActive }) => isActive ? 'is-active' : undefined}>Início</NavLink>
             <NavLink to="/produtos" className={({ isActive }) => isActive ? 'is-active' : undefined}>Catálogo</NavLink>
+            <NavLink to="/acompanhar" className={({ isActive }) => isActive ? 'is-active' : undefined}>Acompanhar pedido</NavLink>
             <NavLink to="/ajuda" className={({ isActive }) => isActive ? 'is-active' : undefined}>Ajuda</NavLink>
           </nav>
 
@@ -110,6 +111,7 @@ export function SiteHeader() {
           <div className="container mobile-navigation__inner">
             <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : undefined}>Início</NavLink>
             <NavLink to="/produtos" className={({ isActive }) => isActive ? 'active' : undefined}>Catálogo</NavLink>
+            <NavLink to="/acompanhar" className={({ isActive }) => isActive ? 'active' : undefined}>Acompanhar pedido</NavLink>
             <NavLink to="/faq" className={({ isActive }) => isActive ? 'active' : undefined}>Perguntas frequentes</NavLink>
             <NavLink to="/ajuda" className={({ isActive }) => isActive ? 'active' : undefined}>Atendimento</NavLink>
             <NavLink to="/sobre" className={({ isActive }) => isActive ? 'active' : undefined}>Sobre a loja</NavLink>

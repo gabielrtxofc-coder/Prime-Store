@@ -1,8 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { App } from '../App';
+import { PaymentCheckoutPage } from './demo/PaymentCheckoutPage';
 import { CatalogProvider } from '../context/CatalogContext';
 import { CartProvider } from '../context/CartContext';
 import { OrderProvider } from '../context/OrderContext';
@@ -69,6 +69,11 @@ const successPayload: CreateOrderResult = {
   payment_mode: 'demo',
 };
 
+/**
+ * A tela de checkout COM COBRANÇA saiu da navegação pública na missão 08, mas o
+ * fluxo continua no repositório para a fase de pagamento. Por isso o teste
+ * monta o componente diretamente (antes ele chegava pelo `App`).
+ */
 function renderCheckout() {
   return render(
     <MemoryRouter initialEntries={['/checkout']}>
@@ -76,7 +81,10 @@ function renderCheckout() {
         <CartProvider>
           <OrderProvider>
             <ToastProvider>
-              <App />
+              <Routes>
+                <Route path="/checkout" element={<PaymentCheckoutPage />} />
+                <Route path="/pagamento" element={<p>Tela de pagamento (fora da navegação pública)</p>} />
+              </Routes>
             </ToastProvider>
           </OrderProvider>
         </CartProvider>
@@ -101,7 +109,7 @@ beforeEach(() => {
   // Catálogo em memória com um produto: o carrinho lê o snapshot ao montar.
   catalogService.setSnapshot([{ ...product }]);
   window.localStorage.setItem(
-    'prime-store-demo-cart-v1',
+    'prime-store-cart-v2',
     JSON.stringify([{ productId: product.id, quantity: 1 }]),
   );
   // A tela de pagamento consulta o pedido; o teste não depende da rede.
@@ -142,7 +150,7 @@ describe('checkout com tentativa anterior encerrada', () => {
       expect(pending).toContain('PS-RETRY1');
     });
     // O carrinho só é limpo depois do pedido novo.
-    expect(window.localStorage.getItem('prime-store-demo-cart-v1')).toBe('[]');
+    expect(window.localStorage.getItem('prime-store-cart-v2')).toBe('[]');
   });
 
   it('mantém a mesma identidade quando a falha é de rede (retry seguro)', async () => {
@@ -157,7 +165,7 @@ describe('checkout com tentativa anterior encerrada', () => {
 
     await waitFor(() => expect(createOrder).toHaveBeenCalledTimes(1));
     // Pedido não criado: o carrinho continua intacto para o próximo clique.
-    expect(window.localStorage.getItem('prime-store-demo-cart-v1')).not.toBe('[]');
+    expect(window.localStorage.getItem('prime-store-cart-v2')).not.toBe('[]');
     expect(window.sessionStorage.getItem('prime-store.pending-order')).toBeNull();
 
     await user.click(submit);

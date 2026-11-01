@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { AboutPage } from './pages/AboutPage';
 import { CartPage } from './pages/CartPage';
@@ -10,17 +10,24 @@ import { HomePage } from './pages/HomePage';
 import { LegalPage } from './pages/LegalPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OrderConfirmedPage } from './pages/OrderConfirmedPage';
+import { OrderStatusPage } from './pages/OrderStatusPage';
 import { ProductPage } from './pages/ProductPage';
-import { PaymentPage } from './pages/PaymentPage';
-import { DeliveryPage } from './pages/DeliveryPage';
-
-// O painel (e a biblioteca de autenticação) só carrega quando acessado.
-const AdminPage = lazy(() =>
-  import('./pages/admin/AdminPage').then((module) => ({ default: module.AdminPage })),
-);
+import { TrackingPage } from './pages/TrackingPage';
 import { SiteLayout } from './components/SiteLayout';
 import { privacySections, refundSections, termsSections } from './data/legalContent';
 
+/**
+ * Rotas da experiência pública (missão 08).
+ *
+ * Ficaram fora do roteador, de propósito:
+ *  - `/pagamento` e `/entrega/:token` (fluxo de cobrança): dependem de
+ *    integração de pagamento e de entrega pós-pagamento;
+ *  - `/admin` (painel): funcionalidade administrativa não é exposta ao visitante.
+ *
+ * Os arquivos continuam no repositório (`pages/PaymentPage.tsx`,
+ * `pages/DeliveryPage.tsx`, `pages/admin/*`, `pages/demo/PaymentCheckoutPage.tsx`)
+ * para a fase seguinte.
+ */
 function RouteEffects() {
   const location = useLocation();
 
@@ -30,10 +37,8 @@ function RouteEffects() {
       '/': 'Início',
       '/produtos': 'Catálogo',
       '/carrinho': 'Carrinho',
-      '/checkout': 'Checkout demonstrativo',
-      '/pedido-confirmado': 'Pedido demonstrativo',
-      '/pagamento': 'Pagamento PIX',
-      '/admin': 'Painel administrativo',
+      '/checkout': 'Finalizar pedido',
+      '/acompanhar': 'Acompanhar pedido',
       '/faq': 'Perguntas frequentes',
       '/ajuda': 'Atendimento',
       '/sobre': 'Sobre a loja',
@@ -41,7 +46,12 @@ function RouteEffects() {
       '/privacidade': 'Privacidade',
       '/reembolsos': 'Reembolsos e cancelamentos',
     };
-    const routeTitle = location.pathname.startsWith('/produto/') ? 'Detalhes do produto' : (titleByPath[location.pathname] ?? 'Página não encontrada');
+
+    const routeTitle = location.pathname.startsWith('/produto/')
+      ? 'Detalhes do produto'
+      : location.pathname.startsWith('/pedido')
+        ? 'Pedido'
+        : (titleByPath[location.pathname] ?? 'Página não encontrada');
     document.title = `Prime Store — ${routeTitle}`;
   }, [location.pathname]);
 
@@ -59,23 +69,16 @@ export function App() {
           <Route path="produto/:slug" element={<ProductPage />} />
           <Route path="carrinho" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
+          <Route path="pedido/:identifier" element={<OrderStatusPage />} />
+          <Route path="acompanhar" element={<TrackingPage />} />
+          {/* Endereço antigo: leva ao pedido registrado neste navegador. */}
           <Route path="pedido-confirmado" element={<OrderConfirmedPage />} />
-          <Route path="pagamento" element={<PaymentPage />} />
-          <Route path="entrega/:token" element={<DeliveryPage />} />
-          <Route
-            path="admin"
-            element={
-              <Suspense fallback={<section className="container page-section"><p className="loading-line"><span className="loading-spinner" aria-hidden="true" />Carregando painel…</p></section>}>
-                <AdminPage />
-              </Suspense>
-            }
-          />
           <Route path="faq" element={<FAQPage />} />
           <Route path="ajuda" element={<HelpPage />} />
           <Route path="sobre" element={<AboutPage />} />
           <Route path="termos" element={<LegalPage eyebrow="INFORMAÇÕES COMERCIAIS" title="Termos comerciais" description="Rascunho editável sobre o funcionamento de uma futura operação." sections={termsSections} />} />
-          <Route path="privacidade" element={<LegalPage eyebrow="DADOS E PRIVACIDADE" title="Política de privacidade" description="Informações sobre esta versão de protótipo e tópicos que dependem de decisões futuras." sections={privacySections} />} />
-          <Route path="reembolsos" element={<LegalPage eyebrow="SUPORTE AO CLIENTE" title="Reembolsos e cancelamentos" description="Procedimento provisório para revisão antes da publicação. Nenhuma solicitação real pode ser concluída nesta versão." sections={refundSections} />} />
+          <Route path="privacidade" element={<LegalPage eyebrow="DADOS E PRIVACIDADE" title="Política de privacidade" description="Como os dados do pedido são usados nesta versão da loja." sections={privacySections} />} />
+          <Route path="reembolsos" element={<LegalPage eyebrow="SUPORTE AO CLIENTE" title="Reembolsos e cancelamentos" description="Procedimento provisório para revisão antes da publicação. Nenhum pedido é confirmado automaticamente por esta página." sections={refundSections} />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

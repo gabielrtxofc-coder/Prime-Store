@@ -48,6 +48,17 @@ export interface OrderStatusPayload {
   created_at: string;
   paid_at: string | null;
   reservation_expires_at: string;
+  /** Solicitação sem pagamento (missão 08): ausentes nos pedidos de cobrança. */
+  items_count?: number;
+  buyer_name?: string | null;
+  items?: Array<{
+    product_id: string;
+    product_name: string;
+    product_slug: string;
+    quantity: number;
+    unit_price_cents: number;
+    subtotal_cents: number;
+  }>;
   product: {
     id: string;
     slug: string;

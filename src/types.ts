@@ -37,6 +37,12 @@ export interface Product {
 export interface CartEntry {
   productId: string;
   quantity: number;
+  /**
+   * Preço (em centavos) visto quando o item entrou no carrinho. Serve só para
+   * avisar o visitante se o preço mudou; o valor cobrado/registrado é sempre o
+   * do backend.
+   */
+  priceCents?: number;
 }
 
 export interface CartLine extends CartEntry {

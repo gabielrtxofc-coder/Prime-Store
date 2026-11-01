@@ -926,3 +926,62 @@ button:disabled { cursor: not-allowed; }
 .admin-login__demo { display: grid; gap: 8px; margin: 16px 0; padding: 14px; border: 1px dashed #3c5a86; border-radius: 10px; background: #0f1722; }
 .admin-login__demo .field-hint { margin: 0; }
 .admin-login__demo .button { justify-self: flex-start; }
+
+/* --- Missão 08: catálogo real, solicitação sem pagamento e acompanhamento -- */
+.product-art__image { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.product-art--card .product-art__image { border-radius: 14px; }
+
+.availability-badge { flex: 0 0 auto; padding: 3px 6px; color: #a8e8c4; background: #12261d; border: 1px solid #2c5342; border-radius: 4px; font-size: 8px; font-weight: 800; letter-spacing: .1em; }
+.availability-badge--out { color: #ffc2c4; background: #2a1417; border-color: #5c2b31; }
+.availability-badge--live { padding: 6px 9px; font-size: 9px; }
+.product-detail__availability { color: #a8e8c4; }
+.product-detail__availability--out { color: #ffb3b6; }
+
+.catalog-status__meta { margin: 14px 0 0; color: #7d8794; font-size: 10px; }
+.catalog-results-heading__actions { display: flex; align-items: center; gap: 16px; }
+
+.cart-alert { display: block; margin-bottom: 20px; }
+.cart-alert ul { display: grid; gap: 5px; margin: 8px 0 0; padding-left: 18px; color: #ccd6e2; font-size: 11px; line-height: 1.6; }
+.cart-alert p { margin: 8px 0 0; color: #9fa9b6; font-size: 11px; }
+.cart-alert--info { color: #cfdcea; background: #101a26; border-color: #2b3f57; }
+.cart-alert--info strong { color: #e3edf9; }
+
+.checkout-review-list { display: grid; gap: 11px; margin: 0; padding: 0 0 15px; list-style: none; border-bottom: 1px solid #29313c; }
+.checkout-review-list li { display: flex; justify-content: space-between; gap: 14px; font-size: 12px; }
+.checkout-review-list li > span { display: grid; gap: 3px; }
+.checkout-review-list small { color: #8b96a5; font-size: 10px; }
+.checkout-review-total { display: flex; justify-content: space-between; gap: 14px; margin: 14px 0 12px; font-size: 13px; }
+.checkout-review-total strong { color: #eaf1fb; }
+.checkout-submit-error { margin: 12px 0 0; color: #ffb3b6; font-size: 11px; line-height: 1.5; }
+
+.order-state-note { display: flex; align-items: flex-start; gap: 11px; margin: 0 0 22px; padding: 14px 16px; color: #d9e6f6; background: #111b29; border: 1px solid #33496a; border-radius: 10px; }
+.order-state-note svg { flex: 0 0 auto; margin-top: 2px; color: #9ec2ff; }
+.order-state-note p { margin: 0; font-size: 12px; line-height: 1.6; }
+.order-state-note strong { color: #eaf2ff; }
+
+.tracking-box { margin-top: 22px; padding: 17px; background: #0c1016; border: 1px dashed #34445c; border-radius: 9px; }
+.tracking-box h2 { margin: 0 0 10px; font-size: 14px; }
+.tracking-box__code { margin: 0; padding: 11px 12px; color: #cfe2ff; background: #0a0e14; border: 1px solid #2a3441; border-radius: 7px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.tracking-box .field-hint { margin: 9px 0 0; }
+.tracking-box__link { margin: 11px 0 0; color: #7f8b9a; font-size: 10px; overflow-wrap: anywhere; }
+.tracking-box__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 13px; }
+
+.tracking-page .page-heading { margin-bottom: 26px; }
+.tracking-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, .8fr); gap: 24px; align-items: start; }
+.tracking-form { display: grid; gap: 15px; padding: 22px 23px; background: #11151d; border: 1px solid #252c37; border-radius: 10px; }
+.tracking-form .field-hint { margin: 0; }
+.tracking-form .button { justify-self: flex-start; }
+.tracking-help { padding: 20px; color: #a6b1bf; background: #0f141c; border: 1px solid #242d39; border-radius: 10px; font-size: 12px; line-height: 1.65; }
+.tracking-help h2 { margin: 0 0 10px; color: #e3e9f1; font-size: 15px; }
+.tracking-help ul { display: grid; gap: 6px; margin: 0 0 12px; padding-left: 18px; }
+.tracking-help__last { margin: 12px 0 0; padding-top: 11px; border-top: 1px solid #242d39; }
+.tracking-help__last a { color: #8eb8ff; text-decoration: underline; text-underline-offset: 2px; }
+
+@media (max-width: 900px) {
+  .tracking-layout { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 700px) {
+  .catalog-results-heading__actions { flex-wrap: wrap; gap: 10px; }
+  .tracking-box__actions { flex-direction: column; align-items: flex-start; }
+}

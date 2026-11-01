@@ -1,12 +1,22 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import { CatalogProvider } from '../context/CatalogContext';
 import { CartProvider } from '../context/CartContext';
-import { OrderProvider } from '../context/OrderContext';
 import { ToastProvider } from '../context/ToastContext';
 import { catalogService } from '../services/catalogService';
+
+/**
+ * Missão 08 — o catálogo é sempre o do backend.
+ *
+ * O que estes testes garantem:
+ *  - os produtos exibidos vêm da Edge Function `catalog`;
+ *  - não existe array local de produtos como substituto;
+ *  - falha de rede vira estado de erro com ação de recarregar;
+ *  - sem backend configurado, a loja informa o problema (sem requisição).
+ */
 
 const backendProduct = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -38,11 +48,9 @@ function renderAt(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <CatalogProvider>
         <CartProvider>
-          <OrderProvider>
-            <ToastProvider>
-              <App />
-            </ToastProvider>
-          </OrderProvider>
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </CartProvider>
       </CatalogProvider>
     </MemoryRouter>,
@@ -61,12 +69,13 @@ beforeEach(() => {
 
 afterEach(() => {
   catalogService.reset();
+  window.localStorage.clear();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
 
 describe('catálogo servido pelo backend', () => {
-  it('substitui os dados locais pelos produtos reais da Edge Function', async () => {
+  it('exibe os produtos reais e consulta somente a Edge Function de catálogo', async () => {
     enableBackend();
     const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>
       new Response(JSON.stringify({ products: [backendProduct], generated_at: '2026-10-31T10:00:00.000Z' }), { status: 200 }),
@@ -76,51 +85,81 @@ describe('catálogo servido pelo backend', () => {
     renderAt('/produtos');
 
     expect(await screen.findByText('Produto Real de Teste')).toBeInTheDocument();
-    expect(screen.getByText('DADOS REAIS')).toBeInTheDocument();
-    // O catálogo local de demonstração não é mais exibido.
-    expect(screen.queryByText(/Spotify/i)).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('CATÁLOGO ONLINE')).toBeInTheDocument();
+    expect(screen.getAllByText(/R\$\s*49,90/).length).toBeGreaterThan(0);
+    expect(screen.getByText('3 unidade(s) disponível(is)')).toBeInTheDocument();
     expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/catalog$/);
   });
 
-  it('identifica produto de demonstração e produto real com estoque real', async () => {
+  it('distingue disponível de indisponível e não permite pedir o esgotado', async () => {
     enableBackend();
-    const demoProduct = { ...backendProduct, id: '22222222-2222-4222-8222-222222222222', slug: 'demo-mensal', name: 'Assinatura de Demonstração', isDemo: true, availableUnits: 4 };
-    const soldOut = { ...backendProduct, id: '33333333-3333-4333-8333-333333333333', slug: 'sem-estoque', name: 'Produto Sem Estoque', isDemo: false, available: false, availableUnits: 0 };
-    vi.stubGlobal('fetch', vi.fn(async () =>
-      new Response(JSON.stringify({ products: [demoProduct, backendProduct, soldOut], generated_at: '2026-10-31T10:00:00.000Z' }), { status: 200 }),
-    ));
+    const soldOut = {
+      ...backendProduct,
+      id: '33333333-3333-4333-8333-333333333333',
+      slug: 'sem-estoque',
+      name: 'Produto Sem Estoque',
+      available: false,
+      availableUnits: 0,
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ products: [backendProduct, soldOut], generated_at: '2026-10-31T10:00:00.000Z' }), {
+          status: 200,
+        }),
+      ),
+    );
 
     renderAt('/produtos');
 
-    expect(await screen.findByText('Assinatura de Demonstração')).toBeInTheDocument();
-    // Produto de demonstração recebe o selo DEMO...
-    expect(screen.getAllByText('DEMO').length).toBeGreaterThan(0);
-    // ...o real mostra disponibilidade calculada no servidor...
+    expect(await screen.findByText('Produto Real de Teste')).toBeInTheDocument();
     expect(screen.getByText('DISPONÍVEL')).toBeInTheDocument();
-    expect(screen.getByText('3 unidade(s) disponível(is)')).toBeInTheDocument();
-    // ...e o esgotado não pode ser comprado.
-    expect(screen.getByText('ESGOTADO')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Esgotado/i })).toBeDisabled();
+    expect(screen.getByText('INDISPONÍVEL')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Produto Sem Estoque indisponível/i })).toBeDisabled();
+    // O selo de demonstração do protótipo não existe mais.
+    expect(screen.queryByText('DEMO')).not.toBeInTheDocument();
   });
 
-  it('mantém o catálogo local quando o backend falha, exibindo aviso', async () => {
+  it('mostra erro (sem dados fictícios) quando o backend falha e permite tentar de novo', async () => {
     enableBackend();
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'internal_error' }), { status: 500 })));
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) => new Response(JSON.stringify({ error: 'internal_error' }), { status: 500 }));
+    vi.stubGlobal('fetch', fetchMock);
 
     renderAt('/produtos');
 
     expect(await screen.findByText(/Não foi possível carregar o catálogo/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/Spotify|Netflix|Canva/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Spotify|Netflix|Canva/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Produto Real de Teste' })).not.toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
   });
 
-  it('não faz requisições no modo demonstração', async () => {
+  it('informa quando o backend não está configurado e não faz requisições', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     renderAt('/produtos');
 
-    expect(await screen.findByText(/MODO DEMONSTRAÇÃO/i)).toBeInTheDocument();
+    expect(await screen.findByText(/não está conectada ao catálogo/i)).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('mostra produto com os dados do backend na página de detalhe', async () => {
+    enableBackend();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ products: [backendProduct], generated_at: '2026-10-31T10:00:00.000Z' }), { status: 200 }),
+      ),
+    );
+
+    renderAt('/produto/produto-real-de-teste');
+
+    expect(await screen.findByRole('heading', { name: 'Produto Real de Teste' })).toBeInTheDocument();
+    expect(screen.getByText(/R\$\s*49,90/)).toBeInTheDocument();
+    expect(screen.getByText('3 unidade(s) disponível(is) agora')).toBeInTheDocument();
+    expect(screen.getByText(/Condição do backend/)).toBeInTheDocument();
+    expect(screen.getByText(/Use as credenciais da entrega/)).toBeInTheDocument();
   });
 });

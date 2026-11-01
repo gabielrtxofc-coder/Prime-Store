@@ -1,27 +1,42 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
-import { products as demoProducts } from '../data/products';
-import { catalogService, type CatalogSource } from '../services/catalogService';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
+import { catalogService, type CatalogCategory } from '../services/catalogService';
 import { getBackendConfig } from '../services/backend/config';
 import type { Product } from '../types';
 
+export type CatalogStatus = 'loading' | 'live' | 'error' | 'not_configured';
+
 interface CatalogContextValue {
   products: Product[];
-  status: CatalogSource;
+  categories: CatalogCategory[];
+  status: CatalogStatus;
   error: string | null;
+  /** Última sincronização bem-sucedida (ISO) — usada nas telas públicas. */
+  lastSyncedAt: string | null;
   reload: () => void;
 }
 
 const CatalogContext = createContext<CatalogContextValue>({
-  products: demoProducts,
-  status: 'demo',
+  products: [],
+  categories: [],
+  status: 'loading',
   error: null,
+  lastSyncedAt: null,
   reload: () => undefined,
 });
 
 /**
- * Carrega o catálogo real uma única vez por sessão e re-renderiza as telas
- * quando o snapshot muda. Sem `VITE_BACKEND_ENABLED=true` o estado permanece
- * "demo" e os dados locais de demonstração são usados.
+ * Carrega o catálogo real do backend.
+ *
+ * Não existe mais "modo demonstração" com produtos locais: sem backend
+ * configurado a loja informa o problema em vez de exibir itens inventados.
  */
 export function CatalogProvider({ children }: { children: ReactNode }) {
   useSyncExternalStore(
@@ -31,25 +46,41 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (!getBackendConfig().enabled) return;
     void catalogService.ensureLoaded();
   }, []);
 
   const state = catalogService.getState();
   const products = catalogService.getAll();
+  const lastSyncedAt = state.lastSyncedAt;
+
+  // Categorias e produtos são derivados do MESMO snapshot: nenhuma lista
+  // estática participa da navegação.
+  const categories = useMemo(() => catalogService.getCategories(), [products]);
 
   const reload = useCallback(() => {
     void catalogService.refresh();
   }, []);
 
+  const backendEnabled = getBackendConfig().enabled;
+  // `idle`/`loading` aparecem como carregamento; o resto é o veredito do backend.
+  const status: CatalogStatus = !backendEnabled
+    ? 'not_configured'
+    : state.source === 'live'
+      ? 'live'
+      : state.source === 'error'
+        ? 'error'
+        : 'loading';
+
   const error =
-    state.source === 'error'
-      ? 'Não foi possível carregar o catálogo agora. Verifique a conexão e tente novamente.'
-      : null;
+    status === 'not_configured'
+      ? 'A loja não está conectada ao catálogo neste ambiente.'
+      : status === 'error'
+        ? 'Não foi possível carregar o catálogo agora. Verifique sua conexão e tente novamente.'
+        : null;
 
   const value = useMemo<CatalogContextValue>(
-    () => ({ products, status: state.source, error, reload }),
-    [products, state.source, error, reload],
+    () => ({ products, categories, status, error, lastSyncedAt, reload }),
+    [products, categories, status, error, lastSyncedAt, reload],
   );
 
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>;
