@@ -52,3 +52,86 @@ missão avança. O relatório final é [`RELATORIO.md`](./RELATORIO.md).
 | Pagamento demonstrativo | `handlers/demoPayment.ts`, migrações `0026`–`0029` |
 | Permissões | `…0014_seguranca_rls_grants.sql`, `…0022_privilegios_finais.sql`, `…0024`, `…0029` |
 | Migrações | `supabase/migrations/` (30 arquivos) |
+
+## Etapa 01 — assinatura do webhook (concluída)
+
+`mpWebhook.ts` valida autenticidade **antes** de qualquer leitura de dados:
+
+| Situação | Resposta |
+| --- | --- |
+| `MERCADOPAGO_WEBHOOK_SECRET` ausente | `503 webhook_not_configured` |
+| `x-signature` / `x-request-id` / `data.id` ausentes | `401 invalid_signature` |
+| HMAC divergente | `401 invalid_signature` (comparação em tempo constante) |
+| `ts` com mais de 24 h ou mais de 5 min no futuro | `401 stale_signature` |
+| assinatura válida | processa e **reconfirma o pagamento no provedor** |
+
+- Nada é gravado em `payment_events` antes da validação; o segredo e a
+  assinatura completa não vão para o log.
+- Não existe rota de bypass nem interruptor de "modo teste" para a validação.
+- `mercadopago.ts` ganhou `SIGNATURE_MAX_AGE_SECONDS`,
+  `SIGNATURE_CLOCK_TOLERANCE_SECONDS`, `isSignatureTimestampFresh` e um
+  verificador único usado pelo handler e pelos testes
+  (`tests/db/mpSignature.ts` gera a assinatura como o provedor).
+- O teste herdado da Missão 04 que aceitava evento sem assinatura foi
+  **reavaliado**: agora ele assina o payload. Não foi removido — passou a
+  representar o comportamento seguro.
+- `tests/db/11_webhook_assinatura.test.ts`: 9 casos (válida, inválida, ausente,
+  segredo ausente, cabeçalhos incompletos, dados inválidos, repetição, evento
+  válido com consulta simulada ao provedor, notificação inválida não altera
+  pedido). Commit `4397e64`.
+
+## Etapa 02 — expiração automática de reservas (concluída)
+
+- Migração `0031_agendamento_expiracao_reservas` cria `public.job_health`
+  (uso interno, RLS, sem acesso para `anon`/`authenticated`) e
+  `public.run_reservation_expiry()`, que **reusa** `expire_overdue_reservations`
+  — a regra de negócio continua em um único lugar.
+- Concorrência: `pg_try_advisory_lock` por execução; a função é idempotente
+  (reexecutar não devolve unidade duas vezes, coberto por teste).
+- Agendamento: `pg_cron` a cada minuto, **apenas quando a extensão existe**
+  (no PostgreSQL local é no-op; o teste detecta pela presença do schema `cron`).
+  Nenhuma extensão foi habilitada remotamente ainda.
+- Falhas ficam em `job_health` (`released_units`, `consecutive_failures`,
+  `last_error_code`, `last_run_at`) sem dados sensíveis.
+- `tests/db/12_expiracao_automatica.test.ts`: 7 casos. Commit `d970357`.
+
+## Etapa 03 — limite de requisições (concluída)
+
+- Migração `0032_limite_requisicoes`: tabela interna
+  `public.rate_limit_counters` (RLS ligada, **sem** privilégio para `anon` nem
+  `authenticated`) e `public.consume_rate_limit(route, subject, limit, window)`,
+  que incrementa a janela em **uma única instrução atômica**
+  (`insert … on conflict do update … returning`) — não há leitura seguida de
+  escrita, logo não há corrida entre instâncias. `prune_rate_limit_counters`
+  limpa janelas antigas (pg_cron de hora em hora, quando disponível).
+- `_shared/rateLimit.ts`: limites por rota — `catalog` 120/min,
+  `create-order` 10/min, `order-status` 60/min, `delivery` 30/min,
+  `demo-payment` 30/min, `admin-api` 120/min. Ajustáveis por
+  `RATE_LIMIT_OVERRIDES` (formato `rota=valor,…`).
+- A origem vem do `x-forwarded-for` (última entrada, escrita pelo proxy), não de
+  campo enviado pelo navegador. O banco guarda um **HMAC truncado** do IP com
+  `RATE_LIMIT_SECRET`, não o IP. IPv6 é agrupado por `/64` e IPv4 mapeado em
+  IPv6 é normalizado para o IPv4 equivalente.
+- Resposta ao exceder: `429` com `Retry-After` (segundos restantes da janela) e
+  `retry_after_seconds` no corpo; o `index.ts` continua aplicando CORS.
+- Falha do contador (RPC indisponível) **libera** a rota e registra
+  `rate_limit.unavailable` — indisponibilidade do medidor não derruba a loja.
+- `mp-webhook` fica **fora** do limite por decisão de projeto: bloquear por
+  origem pode descartar aprovação legítima reenviada pelo provedor; a proteção
+  dele é assinatura HMAC + deduplicação.
+- `tests/db/13_limite_requisicoes.test.ts`: 16 casos (limite por rota e por
+  origem, 429 com `Retry-After`, persistência entre instâncias, concorrência,
+  expiração de janela, checkout completo dentro do limite, idempotência
+  preservada, tabelas internas inacessíveis, webhook isento, normalização de
+  endereço).
+
+## Etapa 04 — reconciliação das migrações (concluída)
+
+Diagnóstico com medição, não com suposição: schema do sandbox e schema gerado
+pelos 30 arquivos do repositório são **idênticos** (tabelas, colunas, funções,
+enums, índices, triggers, view, RLS, constraints e privilégios). A divergência é
+só de nomenclatura/carimbo de tempo. Detalhes e evidência:
+[`04-reconciliacao-migracoes.md`](./04-reconciliacao-migracoes.md). Nenhum
+registro de histórico foi alterado; nenhuma migração destrutiva foi executada;
+`0031`/`0032` foram renomeadas para carimbos posteriores ao último registro
+remoto.
