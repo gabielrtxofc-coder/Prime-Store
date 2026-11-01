@@ -77,7 +77,36 @@ export function errorResponse(error: unknown): Response {
     );
   }
   if (message.includes('quantity_above_product_limit')) {
-    return json({ error: 'quantity_above_product_limit', message: 'Quantidade acima do limite do produto.' }, { status: 422 });
+    const detail = (error as { detail?: string }).detail;
+    return json(
+      {
+        error: 'quantity_above_product_limit',
+        message: 'Quantidade acima do limite do produto.',
+        max_quantity: Number.isFinite(Number(detail)) && Number(detail) > 0 ? Number(detail) : undefined,
+      },
+      { status: 422 },
+    );
+  }
+  // --- Solicitação sem pagamento (missão 08) -------------------------------
+  if (
+    message.includes('invalid_items') ||
+    message.includes('duplicate_item') ||
+    message.includes('invalid_quantity') ||
+    message.includes('invalid_buyer_name') ||
+    message.includes('invalid_buyer_email')
+  ) {
+    // Nunca ecoa o valor recebido: só o campo/código estável.
+    return json(
+      { error: 'invalid_payload', message: 'Não foi possível usar os dados informados. Revise e tente novamente.' },
+      { status: 422 },
+    );
+  }
+  if (message.includes('order_total_mismatch')) {
+    console.error('[prime-store] total divergente na solicitacao');
+    return json(
+      { error: 'internal_error', message: 'Não foi possível registrar a solicitação. Tente novamente.' },
+      { status: 500 },
+    );
   }
   if (message.includes('product_unavailable') || message.includes('product_not_found')) {
     return json({ error: 'product_unavailable', message: 'Produto indisponível.' }, { status: 404 });

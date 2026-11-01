@@ -235,6 +235,7 @@ export interface OrderResult {
 export const RELAXED_RATE_LIMIT_OVERRIDES = {
   catalog: 100000,
   'create-order': 100000,
+  'order-request': 100000,
   'order-status': 100000,
   delivery: 100000,
   'demo-payment': 100000,

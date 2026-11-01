@@ -10,10 +10,12 @@ import type { Deps } from '../deps.ts';
 import { errorResponse, json, methodGuard, preflight, readJson } from '../http.ts';
 import { enforceRateLimit } from '../rateLimit.ts';
 import { getPayment } from '../mercadopago.ts';
-import { requirePrivateToken, requireUuid } from '../validation.ts';
+import { requireOrderReference, requirePrivateToken, requireUuid } from '../validation.ts';
 
 interface OrderStatusBody {
   order_id?: unknown;
+  /** Alternativa ao id: número público do pedido (`PS-XXXXXX`). */
+  reference?: unknown;
   client_token?: unknown;
 }
 
@@ -78,14 +80,28 @@ export async function handleOrderStatus(request: Request, deps: Deps): Promise<R
     if (limited) return limited;
 
     const body = await readJson<OrderStatusBody>(request);
-    const orderId = requireUuid(body.order_id, 'order_id');
     const clientToken = requirePrivateToken(body.client_token, 'client_token');
     const clientTokenHash = await sha256Hex(clientToken);
 
-    let status = await deps.rpc<OrderStatusPayload>('get_order_status', {
-      p_order_id: orderId,
-      p_client_token_hash: clientTokenHash,
-    });
+    // Duas formas de identificar o pedido: o id (link privado) ou o número
+    // público + código de acompanhamento. Nos dois casos a prova de posse é o
+    // token privado, e o erro é o mesmo quando algo não confere.
+    let orderId: string;
+    let status: OrderStatusPayload;
+    if (body.order_id === undefined && body.reference !== undefined) {
+      const reference = requireOrderReference(body.reference);
+      status = await deps.rpc<OrderStatusPayload>('get_order_status_by_reference', {
+        p_reference: reference,
+        p_client_token_hash: clientTokenHash,
+      });
+      orderId = status.order_id;
+    } else {
+      orderId = requireUuid(body.order_id, 'order_id');
+      status = await deps.rpc<OrderStatusPayload>('get_order_status', {
+        p_order_id: orderId,
+        p_client_token_hash: clientTokenHash,
+      });
+    }
 
     const providerPaymentId = status.payment?.provider_payment_id ?? null;
     const shouldReconcile =

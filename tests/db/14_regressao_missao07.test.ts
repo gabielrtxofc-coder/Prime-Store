@@ -486,6 +486,9 @@ describe('permissões não foram enfraquecidas', () => {
   });
 
   it('service_role mantém acesso ao conjunto completo de objetos (nada de novo ficou exposto a anon)', async () => {
+    // 20 -> 21 objetos legíveis pela service_role na missão 08: `order_items`
+    // entrou com RLS ligada e privilégios só para o backend (mesma regra de
+    // `stock_units`). O número de tabelas com RLS sobe de 19 para 20 junto.
     expect(
       Number(
         await sqlValue<number>(
@@ -493,7 +496,7 @@ describe('permissões não foram enfraquecidas', () => {
             where n.nspname = 'public' and c.relkind in ('r','v') and has_table_privilege('service_role', c.oid, 'SELECT')`,
         ),
       ),
-    ).toBe(20);
+    ).toBe(21);
     expect(
       Number(
         await sqlValue<number>(
@@ -501,7 +504,7 @@ describe('permissões não foram enfraquecidas', () => {
             where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity`,
         ),
       ),
-    ).toBe(19);
+    ).toBe(20);
   });
 });
 

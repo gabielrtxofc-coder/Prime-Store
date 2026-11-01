@@ -16,6 +16,7 @@
  *   catalog        consulta de vitrine, o cliente legítimo abre várias vezes
  *   create-order   cada requisição reserva estoque e (quando configurado) cria
  *                  cobrança — o limite é o mais apertado da loja
+ *   order-request  registra a solicitação sem pagamento (grava pedido + itens)
  *   order-status   polling da tela de pagamento
  *   delivery       tentativa de leitura por token: limitar reduz força bruta
  *   demo-payment   simulação de aprovação e semeadura de estoque fictício
@@ -43,6 +44,8 @@ export interface RouteLimit {
 export const ROUTE_LIMITS: Record<string, RouteLimit> = {
   catalog: { limit: 120, windowSeconds: 60 },
   'create-order': { limit: 10, windowSeconds: 60 },
+  // Solicitação sem pagamento: mesmo peso de uma finalização de compra.
+  'order-request': { limit: 10, windowSeconds: 60 },
   'order-status': { limit: 60, windowSeconds: 60 },
   delivery: { limit: 30, windowSeconds: 60 },
   'demo-payment': { limit: 30, windowSeconds: 60 },

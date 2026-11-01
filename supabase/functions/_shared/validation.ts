@@ -84,6 +84,19 @@ export function requirePrivateToken(value: unknown, field = 'token'): string {
   return value;
 }
 
+/**
+ * Número público do pedido (`PS-XXXXXX`).
+ *
+ * É curto e legível, então não é segredo: a consulta sempre exige também o
+ * token privado do solicitante.
+ */
+export function requireOrderReference(value: unknown): string {
+  if (typeof value !== 'string' || !/^PS-[0-9A-Z]{6}$/.test(value.trim().toUpperCase())) {
+    throw new ApiError(404, 'not_found', 'Registro não encontrado.');
+  }
+  return value.trim().toUpperCase();
+}
+
 /** Aceita apenas campos conhecidos: evita mass assignment. */
 export function pickKnownFields(
   payload: Record<string, unknown>,
