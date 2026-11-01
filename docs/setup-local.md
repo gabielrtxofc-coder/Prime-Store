@@ -143,7 +143,7 @@ literal `(import.meta).env` (o único que o Vite substitui) e aceita
 ## 6. Testes e verificações
 
 ```bash
-npm test            # 68 testes de frontend (jsdom)
+npm test            # 70 testes de frontend (jsdom)
 npm run test:db     # 70 testes de banco + unitários
 npm run test:all    # tudo (frontend + banco)
 npm run typecheck                         # tsc -b

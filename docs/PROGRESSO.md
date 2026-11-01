@@ -3,6 +3,34 @@
 > Atualizado em 2026-11-01. Este arquivo existe para que outra sessão consiga
 > retomar o trabalho sem depender do histórico de conversa.
 
+## Missão 06 (revisão independente) — bordas do fluxo corrigidas
+
+Relatório completo: [`auditoria/missao-06/RELATORIO.md`](./auditoria/missao-06/RELATORIO.md).
+
+- **Corrigido — estoque preso:** `catalog` não expirava reservas vencidas e o
+  botão de compra esgotado impedia o cliente de gerar o tráfego que liberava a
+  reserva. O handler agora chama `expire_overdue_reservations` antes de ler a
+  disponibilidade (falha só loga). Ao vivo: reserva envelhecida + **um**
+  `GET /catalog` → pedido `expired`, unidade devolvida ao estoque.
+- **Corrigido — checkout morto:** replay idempotente de pedido
+  `failed`/`expired`/`cancelled` respondia `200` com `payment: null`; o
+  navegador limpava o carrinho e abria uma tela sem saída. Agora responde `409
+  previous_attempt_closed` e o checkout renova chave + token e repete uma vez.
+  Ao vivo: `409` confirmado depois do deploy (`create-order` v6).
+- **Corrigido — capabilities do modo demo:** `GET /demo-payment` consultava só o
+  segredo do ambiente; passou a exigir também `demo_payments_enabled` no banco.
+- **Mantido de propósito:** `mp-webhook` aceita notificação sem assinatura
+  quando falta `MP_WEBHOOK_SECRET` (comportamento coberto por teste da Missão
+  04; o handler reconfere o pagamento no provedor). Registrado como pendência.
+- **Testes:** `npx tsc -b` limpo, `npx vitest run` **70/70** (9 arquivos),
+  `test:db` **148/148** (12 arquivos, PostgreSQL 18.6 local), `vite build` OK.
+  Novos: `tests/db/10_auditoria_missao06.test.ts` (9) e
+  `src/pages/checkoutRetry.test.tsx` (2); ambos falham no código anterior.
+- **Supabase:** publicadas `catalog` v6 e `create-order` v6. Nenhuma migração,
+  grant ou credencial alterada; `demo-payment` segue v3.
+- **Produção:** **não pronta** (pagamento real, administradores, modo demo
+  desligado, domínio/CORS, expiração agendada e limite de abuso pendentes).
+
 ## Missão 05 (revisão final da V1) — segurança fechada, produção pendente
 
 Relatório completo: [`auditoria/missao-05/RELATORIO.md`](./auditoria/missao-05/RELATORIO.md).

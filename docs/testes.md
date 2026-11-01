@@ -1,5 +1,22 @@
 # Testes
 
+## Missão 06 (revisão independente)
+
+- `tests/db/10_auditoria_missao06.test.ts` (**9**) — catálogo expira reserva
+  vencida e devolve a unidade ao estoque sem depender de outro endpoint; reserva
+  válida não é tocada; falha na limpeza não derruba o catálogo; replay de pedido
+  `failed`/`expired` → `409 previous_attempt_closed` sem duplicar pedido; replay
+  de pedido pago → `200 replayed`; identidade nova conclui o checkout depois do
+  `409`; `capabilities` do modo demo acompanha `demo_payments_enabled` e o
+  segredo do ambiente.
+- `src/pages/checkoutRetry.test.tsx` (**2**) — o formulário renova chave e token
+  ao receber `previous_attempt_closed` e conclui na segunda tentativa; em falha
+  de rede repete a mesma identidade e mantém o carrinho.
+
+Estado atual: `npm run typecheck` limpo · `npm test` **70/70** (9 arquivos) ·
+`npm run test:db` **148/148** (12 arquivos, PostgreSQL 18.6 real local) ·
+`npm run build` OK.
+
 ## Missão 05 (revisão final)
 
 - `tests/db/09_modo_demonstrativo.test.ts` (**10**) — migrações `0026`–`0029`:
@@ -17,7 +34,7 @@
   `security_invoker`, sem `SELECT` para `anon`/`authenticated` e com `SELECT`
   para `service_role`.
 
-Estado atual: `npm run typecheck` limpo · `npm test` **68/68** ·
+Estado na Missão 05: `npm run typecheck` limpo · `npm test` **68/68** ·
 `npm run test:db` **139/139** (11 arquivos, PostgreSQL 17.11 real local) ·
 `npm run build` OK.
 
