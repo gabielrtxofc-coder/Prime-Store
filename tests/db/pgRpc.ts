@@ -21,7 +21,15 @@ export function createPgRpc(client: Client, session: RpcSession = {}): RpcFn {
   ): Promise<T> {
     const keys = Object.keys(args);
     const named = keys.length === 0 ? '' : keys.map((key, index) => `${key} => $${index + 1}`).join(', ');
-    const values = keys.map((key) => args[key]);
+    // PostgREST envia parâmetros `jsonb` como JSON; o driver `pg` enviaria um
+    // objeto JS como array/literal inválido. Serializar aqui reproduz o
+    // contrato real com a Edge Function (importante para `demo_seed_stock`).
+    const values = keys.map((key) => {
+      const value = args[key];
+      if (value === null || value === undefined) return null;
+      if (typeof value === 'object' && !Buffer.isBuffer(value)) return JSON.stringify(value);
+      return value;
+    });
     const sql = `select public.${name}(${named}) as result`;
 
     if (!session.role && !session.claims) {

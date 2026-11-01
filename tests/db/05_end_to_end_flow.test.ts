@@ -65,7 +65,6 @@ function buildDeps(
     config: {
       supabaseUrl: 'https://fake-project.supabase.test',
       serviceRoleKey: 'service-role-key',
-        rateLimitOverrides: RELAXED_RATE_LIMIT_OVERRIDES,
       anonKey: 'anon-key',
       mercadoPagoAccessToken: 'TEST-access-token',
       mercadoPagoWebhookSecret: WEBHOOK_SECRET,
@@ -73,6 +72,7 @@ function buildDeps(
       encryptionKey: MASTER_KEY,
       storeUrl: 'http://localhost:5173',
       paymentNotificationUrl: 'https://fake-project.supabase.test/functions/v1/mp-webhook',
+      rateLimitOverrides: RELAXED_RATE_LIMIT_OVERRIDES,
       ...overrides,
     },
     rpc: userRpc ?? rpc,

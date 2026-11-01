@@ -32,7 +32,6 @@ function buildDeps(fetchImpl: typeof fetch, overrides: Partial<Deps['config']> =
     config: {
       supabaseUrl: 'https://fake-project.supabase.test',
       serviceRoleKey: 'service-role-key',
-        rateLimitOverrides: RELAXED_RATE_LIMIT_OVERRIDES,
       anonKey: 'anon-key',
       mercadoPagoAccessToken: 'TEST-access-token',
       mercadoPagoWebhookSecret: 'webhook-secret',
@@ -43,6 +42,7 @@ function buildDeps(fetchImpl: typeof fetch, overrides: Partial<Deps['config']> =
       demoPaymentEnabled: true,
       demoAllowedProjectRefs: ['fake-project'],
       allowedOrigins: ['http://localhost:5173'],
+      rateLimitOverrides: RELAXED_RATE_LIMIT_OVERRIDES,
       ...overrides,
     },
     rpc,
