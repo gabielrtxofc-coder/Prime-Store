@@ -135,3 +135,44 @@ só de nomenclatura/carimbo de tempo. Detalhes e evidência:
 registro de histórico foi alterado; nenhuma migração destrutiva foi executada;
 `0031`/`0032` foram renomeadas para carimbos posteriores ao último registro
 remoto.
+
+## Etapa 05 — auditoria de regressão (concluída)
+
+- `tests/db/14_regressao_missao07.test.ts` (18 casos) percorre o checklist da
+  missão pelos handlers HTTP contra PostgreSQL real: estoque (8 checkouts
+  simultâneos para 1 unidade → 1 criado, sem oversell), consumo e expiração de
+  unidade, replay idempotente, `409 previous_attempt_closed`, replay de pedido
+  pago, ausência de campos internos nas respostas públicas, três travas do modo
+  demonstrativo, aprovação simulada sem chamada ao provedor, permissões e
+  coerência das migrações.
+- Suítes completas: **198/198** testes de banco em 16 arquivos (Missão 06:
+  148/148 em 12), **70/70** de frontend em 9 arquivos, `npx tsc -b` limpo,
+  `vite build` OK, 7 bundles gerados. Nenhum teste antigo removido ou afrouxado.
+- `checkoutRetry.test.tsx` continua verde: troca de chave/token em
+  `previous_attempt_closed`, retry único e carrinho preservado em falha de rede.
+- Correção de infraestrutura: `tests/db/pgRpc.ts` passou a serializar `jsonb`
+  como o PostgREST, e os arquivos de teste que não tratam de limite receberam
+  `RELAXED_RATE_LIMIT_OVERRIDES` (o limite de produção é assunto de `13`).
+
+## Etapa 06 — integração no sandbox (parcial, documentada)
+
+Projeto confirmado `prime-store-sandbox` (`eorlmqolbknrplvdbbtl`). Nenhum
+pagamento real, nenhuma credencial/CORS/domínio/admin alterado, modo
+demonstrativo intacto.
+
+| Ação | Resultado |
+| --- | --- |
+| Migração `0031` aplicada | `job_health` criada, RLS ligada, `anon` sem acesso |
+| `pg_cron` habilitado no sandbox | jobs `prime-store-expire-reservations` (`* * * * *`) e `prime-store-rate-limit-prune` (`7 * * * *`) |
+| Cron em execução | 4 execuções, última `succeeded`; `job_health` com `last_success_at` e `0` falhas |
+| Expiração automática sem cliente | pedido envelhecido por SQL → `expired`, reserva `expired`, `0` reservadas, `last_processed = 1` |
+| Migração `0032` aplicada | `rate_limit_counters` criada, `consume_rate_limit` responde, `anon` sem acesso |
+| `mp-webhook` publicado v5 | forjada sem assinatura → `503 webhook_not_configured`, **nenhuma** linha nova em `payment_events` |
+| `create-order` publicado v7 | checkout demo `201`, pedido `PS-RHT8MA`, `payment_mode: demo` |
+| Limite em HTTP real | 30 requisições rápidas → 27× `422` + **3× `429`** com `Retry-After` 40–41 e CORS preservado |
+| Histórico | registradas as versões aplicadas (`20261101090000`, `20261101091000`); os 27 registros antigos não foram tocados |
+
+Pendente: publicar `catalog`, `order-status`, `delivery`, `demo-payment` e
+`admin-api` (o ambiente não tem CLI nem token de deploy; as duas acima foram
+enviadas pelo conector) e configurar `MP_WEBHOOK_SECRET` (credencial — exige
+autorização).
