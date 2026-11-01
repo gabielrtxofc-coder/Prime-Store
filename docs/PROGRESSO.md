@@ -1,7 +1,35 @@
 # Registro de progresso
 
-> Atualizado em 2026-10-31. Este arquivo existe para que outra sessão consiga
+> Atualizado em 2026-11-01. Este arquivo existe para que outra sessão consiga
 > retomar o trabalho sem depender do histórico de conversa.
+
+## Missão 05 (revisão final da V1) — segurança fechada, produção pendente
+
+Relatório completo: [`auditoria/missao-05/RELATORIO.md`](./auditoria/missao-05/RELATORIO.md).
+
+- **Corrigido — catálogo público:** a view `public_catalog` era legível por `anon`
+  no PostgREST. Migração `0030` aplica `security_invoker = true` e revoga
+  `SELECT` de `anon`/`authenticated` (mantém `service_role`). Ao vivo:
+  `GET /rest/v1/public_catalog` → `401 42501`; `GET /functions/v1/catalog` →
+  `200` com 2 produtos.
+- **Corrigido — CORS:** nenhuma função responde mais `*`. Novo
+  `_shared/cors.ts` compara o `Origin` com a lista `ALLOWED_ORIGINS` +
+  `STORE_URL`; as 7 funções foram reimplantadas (`catalog` v5, `create-order` v5,
+  `order-status` v4, `delivery` v4, `demo-payment` v3, `mp-webhook` v4,
+  `admin-api` v4). Origem estranha recebe `204` sem `Access-Control-Allow-Origin`.
+- **Investigado — estoque:** a diferença vinha da semeadura de demonstração
+  (+5 unidades fictícias por produto) e de 1 venda de teste, não de perda de
+  dados. Ledger fecha: mensal 14 (11 disponíveis + 3 vendidas), avulso 13.
+- **Testes:** `npm run typecheck` limpo, `npm test` **68/68**, `npm run test:db`
+  **139/139** (11 arquivos) com PostgreSQL 17.11 real local, `npm run build` OK.
+  Novo `tests/db/09_modo_demonstrativo.test.ts` (10) cobre as migrações
+  `0026`–`0029`, inclusive `demo_real_stock_blocked`.
+- **Verificado ao vivo:** catálogo → pedido (`PS-Q56ZCP`) → reserva de 30 min →
+  aprovação simulada → entrega decifrada; `404` para token inválido; `409` ao
+  reaprovar; `0` eventos de Mercado Pago.
+- **Produção:** **não pronta**. Faltam pagamento real validado, administradores
+  cadastrados, modo demonstrativo desligado e domínio final em
+  `STORE_URL`/`ALLOWED_ORIGINS`.
 
 ## Missão 04 (integração frontend ↔ backend) — V1 funcional no sandbox
 
@@ -20,9 +48,10 @@ Relatório completo: [`auditoria/missao-04/RELATORIO.md`](./auditoria/missao-04/
   estoque, tela de pagamento com polling de 5 s, bloco "Modo de demonstração"
   (sem PIX falso) e link privado de entrega; painel admin com modo demonstrativo
   local claramente rotulado, sem atalhos no backend.
-- **Testes:** 67 de frontend, typecheck e build limpos. `npm run test:db` não roda
+- **Testes:** 67 de frontend, typecheck e build limpos. `npm run test:db` não rodava
   neste ambiente (sem binários de PostgreSQL); a verificação equivalente foi
-  feita por HTTP contra as funções publicadas.
+  feita por HTTP contra as funções publicadas. (Na missão 05 a suíte de banco
+  passou a rodar localmente com PostgreSQL embutido.)
 - **Pendências:** e-mails dos administradores (provisionamento real),
   `MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET` (pagamento real), desligar o modo
   demonstrativo antes de qualquer uso que não seja sandbox.

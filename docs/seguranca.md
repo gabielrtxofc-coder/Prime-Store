@@ -101,8 +101,25 @@ allowlist (admin_users.is_active) + claim aal = 'aal2'  →  assert_admin()
   explícita: `service_role` (todas), `authenticated` (apenas `admin_*` e
   `is_admin`), `anon` (nenhuma).
 - `alter default privileges` revoga o acesso automático em objetos futuros.
-- Único objeto público de leitura: a view `public_catalog` (sem custo, sem
-  credenciais, somente produtos ativos e com estoque).
+- A view `public_catalog` **não é mais pública** (missão 05): passou a
+  `security_invoker = true` e teve o `SELECT` revogado de `anon`/`authenticated`
+  (mantido para `service_role`). Antes, `GET /rest/v1/public_catalog` com a chave
+  anon devolvia o catálogo direto pelo PostgREST; hoje responde
+  `401 42501 permission denied`. O catálogo continua chegando ao navegador pela
+  Edge Function `catalog`, que usa `get_catalog()` (`SECURITY DEFINER`).
+
+## CORS por lista de origens (missão 05)
+
+- Nenhuma função responde mais `Access-Control-Allow-Origin: *`.
+- `_shared/cors.ts` compara o `Origin` da requisição com a lista explícita
+  `ALLOWED_ORIGINS` (segredo) + `STORE_URL`, normalizando para
+  `protocolo//host`. Sem `*`, sem regex, sem sufixo curinga.
+- Só emite `Access-Control-Allow-Origin` quando há correspondência exata; sempre
+  envia `Vary: Origin`.
+- Vale para as 7 funções, inclusive `mp-webhook` e `admin-api` (esta continua
+  com `verify_jwt: true`; o preflight `OPTIONS` passa, a chamada real exige JWT).
+- Consequência operacional: ao trocar de domínio (ou de porta/preview local) é
+  obrigatório atualizar `ALLOWED_ORIGINS`, senão o navegador bloqueia a resposta.
 
 ## Integridade e concorrência
 

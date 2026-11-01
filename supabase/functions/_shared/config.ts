@@ -33,6 +33,14 @@ export interface AppConfig {
    */
   demoPaymentEnabled: boolean;
   demoAllowedProjectRefs: string[];
+  /**
+   * Origens autorizadas a chamar as Edge Functions pelo navegador (CORS).
+   *
+   * Vem de `ALLOWED_ORIGINS` (lista separada por vírgula) somada à origem de
+   * `STORE_URL`. Sem lista configurada, nenhuma origem cruzada é liberada —
+   * o padrão é fechar, não abrir.
+   */
+  allowedOrigins: string[];
 }
 
 export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
@@ -58,6 +66,12 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     paymentNotificationUrl: overrides.paymentNotificationUrl ?? readEnv('MP_NOTIFICATION_URL') ?? null,
     demoPaymentEnabled:
       overrides.demoPaymentEnabled ?? (readEnv('DEMO_PAYMENT_ENABLED') ?? '').trim().toLowerCase() === 'true',
+    allowedOrigins:
+      overrides.allowedOrigins ??
+      (readEnv('ALLOWED_ORIGINS') ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
     demoAllowedProjectRefs:
       overrides.demoAllowedProjectRefs ??
       (readEnv('DEMO_ALLOWED_PROJECT_REFS') ?? 'eorlmqolbknrplvdbbtl')

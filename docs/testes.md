@@ -1,5 +1,33 @@
 # Testes
 
+## Missão 05 (revisão final)
+
+- `tests/db/09_modo_demonstrativo.test.ts` (**10**) — migrações `0026`–`0029`:
+  modo desligado por padrão; `demo_approve_payment`/`demo_seed_stock` só para
+  `service_role`; aprovação feliz reutilizando `apply_payment_status`
+  (`provider='demo'`, entrega `active`, reserva `consumed`, evento
+  `demo_payment_approved`, zero eventos de Mercado Pago); prova de posse;
+  produto não `is_demo`; **`demo_real_stock_blocked`**; reserva vencida devolvida
+  ao estoque; dupla aprovação; desligamento da chave; semeadura fictícia com
+  limite.
+- `tests/unit/cors.test.ts` (**13**) — normalização de origem, lista
+  `ALLOWED_ORIGINS` + `STORE_URL`, `Vary: Origin`, ausência de `*`, preflight
+  `204` e chamada de origem estranha sem `Access-Control-Allow-Origin`.
+- `tests/db/08_privilegios_funcoes.test.ts` (+2) — `public_catalog` com
+  `security_invoker`, sem `SELECT` para `anon`/`authenticated` e com `SELECT`
+  para `service_role`.
+
+Estado atual: `npm run typecheck` limpo · `npm test` **68/68** ·
+`npm run test:db` **139/139** (11 arquivos, PostgreSQL 17.11 real local) ·
+`npm run build` OK.
+
+### Banco de dados local (como rodar)
+
+O `test:db` precisa de um PostgreSQL acessível. Neste ambiente ele foi iniciado
+com o pacote embutido (`@embedded-postgres/linux-x64`) em `/tmp/pgdata` e
+`DATABASE_URL=postgresql://postgres@/postgres?host=/tmp/pgdata`. Cada arquivo de
+teste recria o schema do zero (`bootstrap_local.sql` + todas as migrações).
+
 ## Missão 04 (integração)
 
 - `src/pages/demoPayment.test.tsx` (4) — bloco "Modo de demonstração" só com
@@ -12,9 +40,9 @@
   demonstração, `DISPONÍVEL`/quantidade real no produto real e `ESGOTADO` sem
   compra.
 
-Estado atual: **67 testes de frontend**, `typecheck` e `build` limpos.
-`npm run test:db` **não roda neste ambiente** (sem binários de PostgreSQL e sem
-egress para baixá-los); a verificação remota foi feita por HTTP contra as funções
+Estado na missão 04: **67 testes de frontend**, `typecheck` e `build` limpos.
+`npm run test:db` não rodava então (sem binários de PostgreSQL e sem egress para
+baixá-los); a verificação remota foi feita por HTTP contra as funções
 publicadas — evidências em
 [`auditoria/missao-04/RELATORIO.md`](./auditoria/missao-04/RELATORIO.md).
 

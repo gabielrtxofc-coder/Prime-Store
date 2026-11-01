@@ -80,10 +80,32 @@ supabase secrets set --env-file .env.functions --project-ref <REF>
 ```
 PRIME_ENCRYPTION_KEY=<base64 de 32 bytes>
 STORE_URL=https://sua-loja.example
+ALLOWED_ORIGINS=https://sua-loja.example,http://localhost:5173,http://127.0.0.1:5173
 MP_ACCESS_TOKEN=TEST-...
 MP_WEBHOOK_SECRET=...
 MP_NOTIFICATION_URL=https://<REF>.supabase.co/functions/v1/mp-webhook
 ```
+
+### CORS: `ALLOWED_ORIGINS` é obrigatório
+
+Desde a missão 05 nenhuma função responde `Access-Control-Allow-Origin: *`. O
+navegador só aceita a resposta quando o `Origin` da requisição está na lista
+`ALLOWED_ORIGINS` (somada a `STORE_URL`). Inclua **todas** as origens que abrem a
+loja: domínio de produção, `www` se existir, e os endereços de desenvolvimento
+(`http://localhost:5173`, `http://127.0.0.1:5173` e o host do preview, no formato
+`https://<porta>-<sandbox>.e2b.app`).
+
+```bash
+supabase secrets set \
+  STORE_URL=https://sua-loja.example \
+  ALLOWED_ORIGINS=https://sua-loja.example,http://localhost:5173,http://127.0.0.1:5173 \
+  --project-ref <REF>
+```
+
+Sintoma de origem ausente: `OPTIONS` responde `204` **sem**
+`access-control-allow-origin` e o navegador bloqueia a chamada com erro de CORS.
+O valor é comparado de forma exata (protocolo + host, porta incluída quando
+explícita) — não há curinga.
 
 Gere a chave de criptografia com:
 

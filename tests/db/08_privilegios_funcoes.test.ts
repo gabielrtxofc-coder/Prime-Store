@@ -39,7 +39,16 @@ const INTERNAL_TABLES = [
   'stock_reservations',
 ];
 
-const PUBLIC_TABLES = ['public_catalog'];
+/**
+ * A view de catálogo NÃO é mais uma superfície de leitura pública (missão 05).
+ *
+ * Ela era `security definer` e tinha `select` para `anon`: com a chave pública
+ * embutida no bundle, qualquer pessoa lia `GET /rest/v1/public_catalog` direto
+ * pelo PostgREST, contornando a RLS. A migração 0030 fechou isso. O catálogo
+ * continua público **pela Edge Function `catalog`** (service_role → `get_catalog`),
+ * que é o contrato usado pela loja.
+ */
+const PUBLIC_TABLES: string[] = [];
 
 async function canSelect(role: Role, table: string, sub?: string, aal?: 'aal1' | 'aal2'): Promise<boolean> {
   const client = await connect();
@@ -123,12 +132,13 @@ describe('privilégios por contexto', () => {
     productId = (await seedProduct({ stockUnits: 1 })).productId;
   }, 60000);
 
-  it('anon não lê nenhuma tabela interna e lê apenas o catálogo público', async () => {
+  it('anon não lê nenhuma tabela nem a view de catálogo', async () => {
     for (const table of INTERNAL_TABLES) {
       expect(await canSelect('anon', table), `anon não deve ler ${table}`).toBe(false);
     }
+    // Nenhuma superfície de leitura: nem tabela interna, nem a view de catálogo.
     for (const table of PUBLIC_TABLES) {
-      expect(await canSelect('anon', table), `anon deve ler ${table}`).toBe(true);
+      expect(await canSelect('anon', table), `anon não deve ler ${table}`).toBe(false);
     }
   });
 
@@ -136,7 +146,7 @@ describe('privilégios por contexto', () => {
     for (const table of INTERNAL_TABLES) {
       expect(await canSelect('authenticated', table, adminId), `authenticated não deve ler ${table}`).toBe(false);
     }
-    expect(await canSelect('authenticated', 'public_catalog', randomUUID(), 'aal1')).toBe(true);
+    expect(await canSelect('authenticated', 'public_catalog', randomUUID(), 'aal1')).toBe(false);
   });
 
   it('anon não executa nenhuma função do schema public', async () => {
@@ -301,6 +311,38 @@ describe('privilégios por contexto', () => {
         where n.nspname = 'public' and (p.polroles = '{0}'::oid[] or pg_get_expr(p.polqual, p.polrelid) = 'true')`,
     );
     expect(genericPolicies).toEqual([]);
+  });
+
+  it('a view de catálogo não é mais security definer e só o backend a lê', async () => {
+    const options = await runSql<{ option_name: string; option_value: string }>(
+      `select option_name, option_value
+         from pg_options_to_table((select c.reloptions from pg_class c
+                                    join pg_namespace n on n.oid = c.relnamespace
+                                   where n.nspname = 'public' and c.relname = 'public_catalog'))`,
+    );
+    const invoker = options.find((row) => row.option_name === 'security_invoker');
+    expect(invoker?.option_value).toBe('true');
+
+    const privileges = await runSql<{
+      anon_select: boolean;
+      auth_select: boolean;
+      service_select: boolean;
+    }>(
+      `select has_table_privilege('anon', 'public.public_catalog', 'SELECT') as anon_select,
+              has_table_privilege('authenticated', 'public.public_catalog', 'SELECT') as auth_select,
+              has_table_privilege('service_role', 'public.public_catalog', 'SELECT') as service_select`,
+    );
+    expect(privileges[0].anon_select).toBe(false);
+    expect(privileges[0].auth_select).toBe(false);
+    expect(privileges[0].service_select).toBe(true);
+
+    // O caminho público continua sendo a Edge Function: get_catalog (definer,
+    // search_path fixo) lê a view como dono e devolve só os campos do catálogo.
+    const catalog = await runSql<{ result: { products: unknown[] } }>(
+      `select public.get_catalog(null, null) as result`,
+    );
+    expect(Array.isArray(catalog[0].result.products)).toBe(true);
+    expect(catalog[0].result.products.length).toBeGreaterThan(0);
   });
 
   it('a view pública não expõe custo, credenciais nem identificadores internos', async () => {

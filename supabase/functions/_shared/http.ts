@@ -5,8 +5,15 @@ export interface JsonResponseInit {
   headers?: Record<string, string>;
 }
 
+/**
+ * Cabeçalhos comuns de resposta.
+ *
+ * O `Access-Control-Allow-Origin` NÃO fica aqui: ele depende da origem da
+ * requisição e é aplicado por `_shared/cors.ts` (`withCors`) no `index.ts` de
+ * cada função. Antes era `*`, o que permitia qualquer site chamar a loja.
+ */
 export const CORS_HEADERS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
+  Vary: 'Origin',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Max-Age': '86400',
