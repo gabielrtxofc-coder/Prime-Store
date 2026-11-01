@@ -44,6 +44,27 @@ function assertSandbox(deps: Deps): void {
   }
 }
 
+/**
+ * O modo demonstrativo só está realmente disponível quando as TRÊS travas
+ * estão ligadas: segredo do ambiente, ref do projeto e a chave no banco.
+ *
+ * Auditoria da missão 06: `capabilities` respondia apenas com o segredo do
+ * ambiente. Com a chave do banco desligada, a tela oferecia a simulação e o
+ * clique falhava com `demo_disabled` (404). A resposta agora reflete o estado
+ * real, sem relaxar nenhuma trava — as funções SQL continuam decidindo.
+ */
+async function demoCurrentlyEnabled(deps: Deps): Promise<boolean> {
+  if (!isDemoSandboxAllowed(deps.config)) return false;
+  try {
+    return (await deps.rpc<boolean>('demo_payments_enabled')) === true;
+  } catch (error) {
+    deps.log('demo_payment.flag_unavailable', {
+      reason: error instanceof Error ? error.message.slice(0, 120) : 'unknown',
+    });
+    return false;
+  }
+}
+
 async function newDeliveryToken(deps: Deps): Promise<{ hash: string; enc: string }> {
   const masterKey = await deps.resolveEncryptionKey();
   if (!masterKey) {
@@ -139,9 +160,8 @@ export async function handleDemoPayment(request: Request, deps: Deps): Promise<R
   if (request.method === 'OPTIONS') return preflight();
 
   try {
-    const enabled = isDemoSandboxAllowed(deps.config);
-
     if (request.method === 'GET') {
+      const enabled = await demoCurrentlyEnabled(deps);
       return json({ demo_enabled: enabled, mode: enabled ? 'demo' : 'disabled' });
     }
 
@@ -155,6 +175,7 @@ export async function handleDemoPayment(request: Request, deps: Deps): Promise<R
     }
 
     if (action === 'capabilities') {
+      const enabled = await demoCurrentlyEnabled(deps);
       return json({ demo_enabled: enabled, mode: enabled ? 'demo' : 'disabled' });
     }
 

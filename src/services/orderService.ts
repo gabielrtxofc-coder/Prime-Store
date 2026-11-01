@@ -1,4 +1,4 @@
-import { invokeFunction } from './backend/http';
+import { BackendError, invokeFunction } from './backend/http';
 
 /** Contratos das Edge Functions `create-order`, `order-status` e `delivery`. */
 
@@ -96,6 +96,18 @@ export interface CreateOrderInput {
   idempotencyKey?: string;
   /** Token privado da tentativa de checkout: mantém o retry idempotente. */
   clientToken?: string;
+}
+
+/**
+ * A tentativa anterior deste checkout foi encerrada sem cobrança
+ * (pedido `failed`, `expired` ou `cancelled`).
+ *
+ * Nesse caso a mesma identidade de checkout nunca vai gerar um pedido pagável:
+ * o formulário precisa de uma chave de idempotência e de um token novos. É
+ * seguro trocar, porque o pedido anterior não foi cobrado.
+ */
+export function isClosedAttemptError(error: unknown): boolean {
+  return error instanceof BackendError && error.code === 'previous_attempt_closed';
 }
 
 /** Cria pedido + reserva e a cobrança PIX (Checkout Transparente). */

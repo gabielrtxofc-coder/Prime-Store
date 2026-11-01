@@ -91,6 +91,8 @@ export function describeBackendError(error: unknown): string {
         return 'Outro cliente finalizou a compra desta unidade. Nenhum valor foi cobrado.';
       case 'product_unavailable':
         return 'Este produto não está mais disponível.';
+      case 'previous_attempt_closed':
+        return 'A tentativa anterior deste checkout foi encerrada sem cobrança. Inicie um novo checkout.';
       case 'payment_not_configured':
         return 'O pagamento PIX ainda não está configurado neste ambiente.';
       case 'payment_provider_unavailable':

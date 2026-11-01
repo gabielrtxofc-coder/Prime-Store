@@ -10,7 +10,14 @@ import { validateCheckout, type CheckoutField, type CheckoutValues } from '../li
 import { createDemoOrder } from '../services/demoOrderService';
 import { getBackendConfig } from '../services/backend/config';
 import { describeBackendError } from '../services/backend/http';
-import { createOrder, newClientToken, newIdempotencyKey, savePendingOrder } from '../services/orderService';
+import {
+  createOrder,
+  isClosedAttemptError,
+  newClientToken,
+  newIdempotencyKey,
+  savePendingOrder,
+  type CreateOrderResult,
+} from '../services/orderService';
 import { catalogService } from '../services/catalogService';
 import type { PaymentMethod } from '../types';
 
@@ -28,8 +35,14 @@ export function CheckoutPage() {
   const navigate = useNavigate();
   const backendEnabled = getBackendConfig().enabled;
   const paymentOptions = backendEnabled ? LIVE_PAYMENT_OPTIONS : DEMO_PAYMENT_OPTIONS;
-  const [idempotencyKey] = useState(() => newIdempotencyKey());
-  const [clientToken] = useState(() => newClientToken());
+  // Identidade da tentativa de checkout. Ela é mantida entre cliques para que
+  // um retry (rede instável, duplo clique) repita a MESMA requisição e o banco
+  // devolva o mesmo pedido. Só é renovada quando o servidor informa que a
+  // tentativa anterior foi encerrada sem cobrança (`previous_attempt_closed`).
+  const [attempt, setAttempt] = useState(() => ({
+    idempotencyKey: newIdempotencyKey(),
+    clientToken: newClientToken(),
+  }));
   const { entries, lines, subtotalCents, totalCents, clearCart } = useCart();
   const { setCurrentOrder } = useDemoOrder();
   const { showToast } = useToast();
@@ -60,13 +73,27 @@ export function CheckoutPage() {
       if (backendEnabled) {
         // V1: um produto por pedido, com uma ou várias unidades.
         const line = lines[0];
-        const result = await createOrder({
-          productId: line.product.id,
-          quantity: line.quantity,
-          payerEmail: values.email.trim(),
-          idempotencyKey,
-          clientToken,
-        });
+        const send = (keys: { idempotencyKey: string; clientToken: string }) =>
+          createOrder({
+            productId: line.product.id,
+            quantity: line.quantity,
+            payerEmail: values.email.trim(),
+            idempotencyKey: keys.idempotencyKey,
+            clientToken: keys.clientToken,
+          });
+
+        let result: CreateOrderResult;
+        try {
+          result = await send(attempt);
+        } catch (error) {
+          if (!isClosedAttemptError(error)) throw error;
+          // Pedido anterior encerrado (reserva vencida, falha na cobrança ou
+          // cancelamento) e nada foi cobrado: trocar a identidade e tentar uma
+          // única vez com um checkout novo.
+          const fresh = { idempotencyKey: newIdempotencyKey(), clientToken: newClientToken() };
+          setAttempt(fresh);
+          result = await send(fresh);
+        }
         savePendingOrder({
           orderId: result.order.order_id,
           clientToken: result.client_token,

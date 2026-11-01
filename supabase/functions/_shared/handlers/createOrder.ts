@@ -34,6 +34,18 @@ interface CreatedOrder {
   product?: { id: string; name: string; slug: string; is_demo?: boolean } | null;
 }
 
+/**
+ * Estados em que o pedido original não pode mais ser pago nem reaproveitado.
+ *
+ * Auditoria da missão 06: no replay idempotente de um pedido nesse estado o
+ * handler devolvia `200 { order, payment: null, replayed: true }`. O navegador
+ * interpretava a resposta como um checkout vivo, limpava o carrinho e abria a
+ * tela de pagamento de um pedido morto — sem caminho de volta. Agora o cliente
+ * recebe um erro explícito e pode iniciar uma nova tentativa (novo token e nova
+ * chave), sem risco de cobrança dupla: nada foi cobrado neste pedido.
+ */
+const CLOSED_ORDER_STATUSES = ['failed', 'expired', 'cancelled'];
+
 interface AttachedPayment {
   payment_id: string;
   status: string;
@@ -81,6 +93,20 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
 
     // Replay idempotente: reaproveita a cobrança já existente quando houver.
     if (order.idempotent_replay) {
+      // Antes de qualquer outra coisa: se o pedido original já foi encerrado,
+      // nada foi cobrado e esta identidade nunca vai gerar um pedido pagável.
+      // Devolver 200 (com a cobrança antiga ou sem cobrança) faria o navegador
+      // tratar a resposta como checkout vivo, limpar o carrinho e abrir uma
+      // tela sem saída. O cliente recebe um erro explícito e reinicia o
+      // checkout com uma identidade nova.
+      if (CLOSED_ORDER_STATUSES.includes(order.status)) {
+        throw new ApiError(
+          409,
+          'previous_attempt_closed',
+          'A tentativa anterior deste checkout foi encerrada sem cobrança. Inicie um novo checkout.',
+        );
+      }
+
       const existing = await deps.rpc<{
         payment: { qr_code: string | null; qr_code_base64: string | null; ticket_url: string | null; status: string; expires_at: string | null } | null;
         status: string;
@@ -102,6 +128,8 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
       }
 
       if (existing.status !== 'pending_payment') {
+        // Pedido pago/reembolsado: devolve o estado atual (sem nova cobrança)
+        // para que o comprador chegue ao link de entrega.
         return json({ order, client_token: clientToken, payment: null, replayed: true });
       }
 
