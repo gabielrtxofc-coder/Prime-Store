@@ -87,6 +87,42 @@ export function parseSignatureHeader(header: string | null): { ts: string | null
   return { ts, v1 };
 }
 
+/** Janela máxima aceita para o `ts` da assinatura (evita replay de notificação antiga). */
+export const SIGNATURE_MAX_AGE_SECONDS = 24 * 60 * 60;
+
+/** Tolerância para relógio adiantado entre o provedor e a Edge Function. */
+export const SIGNATURE_CLOCK_TOLERANCE_SECONDS = 5 * 60;
+
+/**
+ * Valida o `ts` do cabeçalho `x-signature`.
+ *
+ * A assinatura HMAC sozinha prova que a notificação foi emitida pelo provedor
+ * com o segredo da aplicação, mas não impede que uma notificação **antiga e
+ * legítima** seja reenviada (replay). O `ts` faz parte do manifesto assinado,
+ * então conferir a idade dele não pode ser forjado sem o segredo.
+ *
+ * O provedor envia segundos; valores claramente em milissegundos (>= 1e11) são
+ * convertidos, porque alguns emissores usam ms e a conversão é determinística.
+ */
+export function isSignatureTimestampFresh(
+  ts: string | null,
+  now: Date,
+  options: { maxAgeSeconds?: number; toleranceSeconds?: number } = {},
+): boolean {
+  if (!ts || !/^[0-9]{1,16}$/.test(ts)) return false;
+  const raw = Number(ts);
+  if (!Number.isFinite(raw) || raw <= 0) return false;
+  const seconds = raw >= 1e11 ? Math.floor(raw / 1000) : Math.floor(raw);
+
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  const maxAge = options.maxAgeSeconds ?? SIGNATURE_MAX_AGE_SECONDS;
+  const tolerance = options.toleranceSeconds ?? SIGNATURE_CLOCK_TOLERANCE_SECONDS;
+
+  if (seconds > nowSeconds + tolerance) return false;
+  if (nowSeconds - seconds > maxAge) return false;
+  return true;
+}
+
 /**
  * Verifica a assinatura HMAC do webhook em tempo constante.
  * A notificação nunca é a fonte de verdade do pagamento: mesmo válida, o

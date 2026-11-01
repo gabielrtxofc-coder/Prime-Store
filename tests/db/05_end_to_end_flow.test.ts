@@ -11,6 +11,7 @@ import { handleCreateOrder } from '../../supabase/functions/_shared/handlers/cre
 import { handleDelivery } from '../../supabase/functions/_shared/handlers/delivery';
 import { handleOrderStatus } from '../../supabase/functions/_shared/handlers/orderStatus';
 import { handleMpWebhook } from '../../supabase/functions/_shared/handlers/mpWebhook';
+import { signWebhook, signedWebhookRequest } from './mpSignature';
 import { handleAdminApi } from '../../supabase/functions/_shared/handlers/adminApi';
 import type { Deps } from '../../supabase/functions/_shared/deps';
 import { createFakeMercadoPago } from '../unit/fakeMp';
@@ -66,7 +67,7 @@ function buildDeps(
       serviceRoleKey: 'service-role-key',
       anonKey: 'anon-key',
       mercadoPagoAccessToken: 'TEST-access-token',
-      mercadoPagoWebhookSecret: 'webhook-secret',
+      mercadoPagoWebhookSecret: WEBHOOK_SECRET,
       mercadoPagoApiBase: 'https://api.mercadopago.test',
       encryptionKey: MASTER_KEY,
       storeUrl: 'http://localhost:5173',
@@ -90,6 +91,9 @@ function postJson(url: string, body: unknown, headers: Record<string, string> = 
     body: JSON.stringify(body),
   });
 }
+
+/** Segredo fictício deste arquivo: só existe no teste, nunca no ambiente. */
+const WEBHOOK_SECRET = 'segredo-de-teste-do-webhook';
 
 describe('fluxo completo (Edge Function + PostgreSQL real + Mercado Pago simulado)', () => {
   let client: Client;
@@ -160,13 +164,18 @@ describe('fluxo completo (Edge Function + PostgreSQL real + Mercado Pago simulad
     const paymentId = mp.lastPayment?.id as string;
     mp.setStatus('approved');
 
+    // A notificação é assinada com o segredo de teste (missão 07): a rota não
+    // aceita mais evento sem assinatura válida.
+    const signed = signWebhook({
+      dataId: paymentId,
+      requestId: 'req-e2e-1',
+      secret: WEBHOOK_SECRET,
+      notificationId: 'notif-e2e-1',
+      action: 'payment.updated',
+    });
     const webhookResponse = await handleMpWebhook(
-      postJson(
-        'https://fn.test/mp-webhook?data.id=' + paymentId,
-        { id: 'notif-e2e-1', type: 'payment', action: 'payment.updated', data: { id: paymentId } },
-        { 'x-request-id': 'req-e2e-1' },
-      ),
-      buildDeps(client, mp.fetchImpl, { mercadoPagoWebhookSecret: null }),
+      signedWebhookRequest(signed, 'https://fn.test/mp-webhook?data.id=' + paymentId),
+      buildDeps(client, mp.fetchImpl),
     );
     expect(webhookResponse.status).toBe(200);
     const webhookBody = (await webhookResponse.json()) as { result: string };
@@ -190,12 +199,8 @@ describe('fluxo completo (Edge Function + PostgreSQL real + Mercado Pago simulad
 
     // 5. Notificação repetida não duplica venda nem entrega.
     const duplicateResponse = await handleMpWebhook(
-      postJson(
-        'https://fn.test/mp-webhook?data.id=' + paymentId,
-        { id: 'notif-e2e-1', type: 'payment', action: 'payment.updated', data: { id: paymentId } },
-        { 'x-request-id': 'req-e2e-1' },
-      ),
-      buildDeps(client, mp.fetchImpl, { mercadoPagoWebhookSecret: null }),
+      signedWebhookRequest(signed, 'https://fn.test/mp-webhook?data.id=' + paymentId),
+      buildDeps(client, mp.fetchImpl),
     );
     expect((await duplicateResponse.json()) as { duplicate: boolean }).toMatchObject({ duplicate: true });
 

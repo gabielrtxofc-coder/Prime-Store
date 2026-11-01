@@ -1,7 +1,12 @@
 import { encryptText, loadSecretMaterial, randomToken, sha256Hex, toBase64 } from '../crypto.ts';
 import type { Deps } from '../deps.ts';
 import { errorResponse, json, methodGuard, preflight } from '../http.ts';
-import { getPayment, verifyWebhookSignature } from '../mercadopago.ts';
+import {
+  getPayment,
+  isSignatureTimestampFresh,
+  parseSignatureHeader,
+  verifyWebhookSignature,
+} from '../mercadopago.ts';
 import { isUuid } from '../validation.ts';
 
 interface WebhookBody {
@@ -50,21 +55,57 @@ export async function handleMpWebhook(request: Request, deps: Deps): Promise<Res
         : `${typeParam ?? 'unknown'}:${dataId ?? 'none'}:${requestId ?? 'no-request-id'}`;
 
     const payloadHash = await sha256Hex(rawBody || notificationId);
+
+    // ---------------------------------------------------------------------
+    // Autenticidade da notificação (missão 07, etapa 01)
+    // ---------------------------------------------------------------------
+    // Ordem deliberada: primeiro a configuração, depois os cabeçalhos, depois o
+    // HMAC e só então a idade do `ts`. Nada disso grava em `payment_events` —
+    // uma notificação não autenticada não deixa rastro no banco nem pode alterar
+    // o estado de um pedido.
+    const secret = deps.config.mercadoPagoWebhookSecret;
+    if (!secret) {
+      // Sem o segredo da aplicação não existe prova de origem. Falha fechada:
+      // o provedor reenviará quando o segredo for configurado.
+      deps.log('mp_webhook.not_configured', {});
+      return json({ error: 'webhook_not_configured' }, { status: 503 });
+    }
+
     const signatureHeader = request.headers.get('x-signature');
+    const { ts } = parseSignatureHeader(signatureHeader);
 
-    let signatureValid: boolean | null = null;
-    if (deps.config.mercadoPagoWebhookSecret) {
-      signatureValid = await verifyWebhookSignature({
-        signatureHeader,
-        requestId,
-        dataId,
-        secret: deps.config.mercadoPagoWebhookSecret,
+    // O manifesto assinado é `id:{data.id};request-id:{x-request-id};ts:{ts};`.
+    // Sem qualquer uma das três partes o HMAC do provedor nunca confere, então a
+    // notificação é recusada explicitamente (e não tratada como "sem assinatura
+    // a conferir", que era a falha apontada pela auditoria da missão 06).
+    if (!signatureHeader || !requestId || !dataId || !ts) {
+      deps.log('mp_webhook.incomplete_signature_headers', {
+        has_signature: Boolean(signatureHeader),
+        has_request_id: Boolean(requestId),
+        has_data_id: Boolean(dataId),
+        has_ts: Boolean(ts),
       });
+      return json({ error: 'invalid_signature' }, { status: 401 });
+    }
 
-      if (!signatureValid) {
-        deps.log('mp_webhook.invalid_signature', { notification_id: notificationId });
-        return json({ error: 'invalid_signature' }, { status: 401 });
-      }
+    const signatureValid = await verifyWebhookSignature({
+      signatureHeader,
+      requestId,
+      dataId,
+      secret,
+    });
+
+    if (!signatureValid) {
+      // Só o identificador da notificação no log: nunca o HMAC nem o segredo.
+      deps.log('mp_webhook.invalid_signature', { notification_id: notificationId });
+      return json({ error: 'invalid_signature' }, { status: 401 });
+    }
+
+    // `ts` também é assinado, então uma notificação legítima antiga reenviada
+    // manualmente (replay) é recusada aqui, mesmo com HMAC correto.
+    if (!isSignatureTimestampFresh(ts, deps.now())) {
+      deps.log('mp_webhook.stale_signature', { notification_id: notificationId });
+      return json({ error: 'stale_signature' }, { status: 401 });
     }
 
     const recorded = await deps.rpc<RecordedEvent>('record_payment_event', {
