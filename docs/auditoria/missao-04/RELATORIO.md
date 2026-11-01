@@ -78,7 +78,19 @@ servidor informa `demo_enabled: false`.
 
 Chamadas feitas de dentro do sandbox (o ambiente local não tem egress para
 `*.supabase.co`), via extensão `http` no schema auxiliar `verif`, contra as
-funções publicadas:
+funções publicadas.
+
+> **Armadilha registrada.** Em SQL, `(verif.http(r)).status` e
+> `(verif.http(r)).content` na mesma consulta executam a requisição **duas
+> vezes** (cada acesso ao campo expande a chamada). Para provas que mudam estado
+> — aprovar pagamento, criar pedido, semear unidades — a consulta precisa
+> materializar a resposta uma única vez:
+> ```sql
+> with res as materialized (select verif.http(r) as resp from req)
+> select (resp).status, (resp).content from res;
+> ```
+> As evidências de escrita abaixo foram refeitas desse jeito. As de leitura
+> (`/catalog`, `/order-status`, `/delivery`) não são afetadas.
 
 | Chamada | Resultado |
 |---|---|
@@ -92,7 +104,9 @@ funções publicadas:
 | `POST /order-status` com `client_token` de outro pedido | `404 not_found` |
 | `POST /create-order` com `quantity` 5 (limite do produto: 2) | `422 quantity_above_product_limit` |
 | `POST /create-order` com `quantity` 4 (estoque real: 3) | `409 insufficient_stock` + `available_units: 3` |
-| `POST /create-order` repetindo a `idempotency_key` já usada | `200` com **o mesmo** pedido (`PS-DL28KM`), sem nova reserva |
+| `POST /create-order` repetindo a `idempotency_key` (chave `missao04-manual-0001`) | `200` com **o mesmo** pedido `f457e9e9-b691-4f4b-8c98-6e4ec6bd50bf` / `PS-X2KL5N`, `replayed: true`, `idempotent_replay: true` e a mesma reserva — sem nova unidade |
+| `POST /demo-payment` aprovando esse pedido | `200` `approved` → pedido `paid`, 1 linha em `payments` com provider `demo` |
+| `POST /demo-payment` aprovação repetida (avaliação única) | `409 demo_order_not_payable` |
 
 Essas respostas são a única evidência aceita aqui como "validado": nenhum mock
 local foi usado para afirmar integração.
