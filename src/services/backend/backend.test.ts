@@ -1,3 +1,4 @@
+import publicEnvSource from '../../lib/publicEnv.ts?raw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getBackendConfig } from './config';
 import { BackendError, describeBackendError, invokeFunction } from './http';
@@ -31,6 +32,19 @@ describe('configuração do backend no frontend', () => {
 
     vi.stubEnv('VITE_BACKEND_URL', 'https://api.exemplo.com/v1/');
     expect(getBackendConfig().functionsUrl).toBe('https://api.exemplo.com/v1');
+  });
+
+  /**
+   * Regressão real: o Vite só troca `import.meta.env` (o acesso literal) pelo
+   * objeto de variáveis. Se o código guardar `import.meta` numa variável e ler
+   * `.env` depois, o navegador recebe `undefined` e a loja cai silenciosamente
+   * no catálogo local. Este teste trava a forma do código.
+   */
+  it('lê import.meta.env de forma que o Vite consiga substituir no build', () => {
+    // Padrão literal `(import.meta).env ...` — o único que o Vite substitui.
+    expect(publicEnvSource).toMatch(/\(import\.meta as[\s\S]{0,120}?\)\.env/);
+    // Nada de `const meta = import.meta` seguido de `meta.env`.
+    expect(publicEnvSource).not.toMatch(/const \w+ = import\.meta\s*;/);
   });
 });
 

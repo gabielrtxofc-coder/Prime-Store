@@ -9,6 +9,8 @@
  * demonstração local (nenhuma requisição de rede).
  */
 
+import { readPublicEnv, type PublicEnv } from '../../lib/publicEnv';
+
 export interface BackendConfig {
   /** true somente quando a flag está ligada e URL + chave anon existem. */
   enabled: boolean;
@@ -18,9 +20,8 @@ export interface BackendConfig {
   functionsUrl: string | null;
 }
 
-function readEnv(): Record<string, string | undefined> {
-  const meta = import.meta as unknown as { env?: Record<string, string | undefined> };
-  return meta.env ?? {};
+function readEnv(): PublicEnv {
+  return readPublicEnv();
 }
 
 const trimUrl = (value: string | undefined): string | null => {

@@ -149,12 +149,27 @@ inalterados). O que existe hoje é uma **visualização demonstrativa local**:
 
 ---
 
+### Correção encontrada ao publicar a loja para teste
+
+Ao subir o `npm run dev` para teste manual, a loja continuava no catálogo local
+(Spotify/Netflix) mesmo com `.env.local` preenchido. Causa: `readEnv()` em
+`src/services/backend/config.ts` guardava `import.meta` numa variável
+(`const meta = import.meta`) e lia `meta.env` depois. O Vite só substitui o
+padrão **literal** `import.meta.env`; a forma indireta deixa `env` indefinido no
+navegador — em silêncio, o backend nunca era detectado.
+
+Correção: `src/lib/publicEnv.ts` centraliza a leitura com o padrão literal e
+aceita `process.env` apenas em Node (necessário porque `vi.stubEnv` age no
+processo). `config.ts` e `adminDemoData.ts` passaram a usar esse helper, e um
+teste de regressão (`backend.test.ts`) trava a forma do código, comparando o
+fonte do módulo com o padrão que o Vite substitui.
+
 ## 5. Testes executados
 
 | Suíte | Resultado |
 |---|---|
 | `npm run typecheck` | ✅ sem erros |
-| `npm test` (frontend, jsdom) | ✅ **67 testes / 8 arquivos** |
+| `npm test` (frontend, jsdom) | ✅ **68 testes / 8 arquivos** |
 | `npm run build` | ✅ `dist/` gerado |
 | `npm run test:db` | ⚠️ **não executado neste ambiente** — o sandbox não tem binários de PostgreSQL (`initdb`/`pg_ctl`) e não há egress para baixá-los. Os 115 testes de banco passaram no commit `cdeb810`; as migrações 0026–0029 foram aplicadas no projeto remoto e validadas por HTTP real. |
 | `npm run smoke:functions` | ⚠️ depende de egress local; a verificação equivalente foi feita de dentro do sandbox (tabela da seção 3) |
@@ -169,6 +184,9 @@ Novos testes desta missão:
   aviso, ações respondidas sem rede, logout, ausência de sessão presumida.
 - `src/pages/catalogBackend.test.tsx` — 1 caso novo: produto demo com selo
   `DEMO`, produto real com quantidade real e esgotado sem botão de compra.
+- `src/services/backend/backend.test.ts` — 1 caso novo: garante que a leitura de
+  `import.meta.env` continua no padrão literal que o Vite substitui (regressão
+  que impedia a loja publicada de falar com o backend).
 
 Classificação honesta do que foi validado:
 

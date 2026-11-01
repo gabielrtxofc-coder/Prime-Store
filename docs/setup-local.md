@@ -97,19 +97,33 @@ runtime do Supabase.
 ## 5. Frontend
 
 ```bash
-cp .env.example .env      # preencha URL, chave anon e VITE_BACKEND_ENABLED=true
+cp .env.example .env.local   # preencha URL, chave anon, VITE_BACKEND_ENABLED=true
 npm run dev
 ```
 
 Sem `VITE_BACKEND_ENABLED=true` a aplicação permanece no **modo demonstração**
-(catálogo local, checkout simulado) — é o modo usado pelos testes de UI.
+(catálogo local, checkout simulado).
+
+> **Cuidado com o cache do Vite.** As `VITE_*` são lidas em tempo de build/servidor:
+> depois de criar ou editar o `.env.local`, reinicie o `npm run dev`. Um arquivo
+> criado com o servidor já rodando não é aplicado — e a loja continua no modo
+> local sem avisar.
+>
+> Se o navegador mostrar o catálogo de exemplo (Spotify/Netflix) mesmo com o
+> arquivo preenchido, confira o módulo servido:
+> `curl -s http://localhost:5173/src/lib/publicEnv.ts | head -1` — a primeira
+> linha deve trazer o objeto `import.meta.env` com `VITE_SUPABASE_URL`.
+
+O acesso às variáveis passa por `src/lib/publicEnv.ts`, que mantém o padrão
+literal `(import.meta).env` (o único que o Vite substitui) e aceita
+`process.env` apenas em Node, para os testes de unidade.
 
 ## 6. Testes e verificações
 
 ```bash
-npm test            # 57 testes de frontend (jsdom)
+npm test            # 68 testes de frontend (jsdom)
 npm run test:db     # 70 testes de banco + unitários
-npm run test:all    # tudo (127 testes)
+npm run test:all    # tudo (frontend + banco)
 npm run typecheck                         # tsc -b
 npm run build                             # build de produção
 ```

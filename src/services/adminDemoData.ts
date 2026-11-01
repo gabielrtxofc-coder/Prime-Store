@@ -31,23 +31,13 @@ import type {
   ImportPreview,
   ImportReport,
 } from './adminApi';
+import { readEnvFlag } from '../lib/publicEnv';
 
 const FLAG = 'VITE_ADMIN_DEMO';
 
-function readFlag(): string {
-  const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-  // No build do Vite o valor vem de `import.meta.env`; nos testes, de
-  // `process.env` (mesma variável, sem duplicar configuração).
-  const nodeEnv =
-    typeof globalThis !== 'undefined' && 'process' in globalThis
-      ? (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[FLAG]
-      : undefined;
-  return (metaEnv[FLAG] ?? nodeEnv ?? '').trim().toLowerCase();
-}
-
 /** O painel demonstrativo está habilitado neste build? */
 export function isAdminDemoAvailable(): boolean {
-  return readFlag() === 'true' || readFlag() === '1';
+  return readEnvFlag(FLAG);
 }
 
 // ---------------------------------------------------------------------------
