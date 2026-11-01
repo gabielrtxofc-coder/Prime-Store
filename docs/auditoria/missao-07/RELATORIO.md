@@ -215,7 +215,7 @@ domínio alterado. Requisições HTTP feitas de dentro do banco (`verif.http`).
 | `create-order` publicado (**v7**) | checkout demo real → `201`, pedido `PS-RHT8MA`, `payment_mode: demo`, nenhuma cobrança |
 | Limite em HTTP real | 30 requisições rápidas → `27 × 422` + **`3 × 429`** com `retry_after_seconds` 40–41 e cabeçalho `retry-after` |
 | CORS no `429` | `access-control-allow-methods`, `access-control-max-age` e `vary` preservados |
-| `. http://` do catálogo | `200`, 2 produtos, `availableUnits` real |
+| `GET /catalog` | `200`, 2 produtos, `availableUnits` real |
 
 Antes/depois do webhook, medido no mesmo banco:
 
