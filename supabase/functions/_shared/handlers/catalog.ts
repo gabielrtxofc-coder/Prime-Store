@@ -1,5 +1,6 @@
 import type { Deps } from '../deps.ts';
 import { errorResponse, json, methodGuard, preflight } from '../http.ts';
+import { enforceRateLimit } from '../rateLimit.ts';
 import { mapCatalogProduct, type CatalogRow } from '../mappers.ts';
 
 /**
@@ -32,6 +33,11 @@ export async function handleCatalog(request: Request, deps: Deps): Promise<Respo
 
   try {
     methodGuard(request, ['GET', 'POST']);
+
+    // Defesa em profundidade (missão 07): limite por origem e rota, antes de
+    // qualquer trabalho. Containers persistentes: ver `_shared/rateLimit.ts`.
+    const limited = await enforceRateLimit(request, deps, 'catalog');
+    if (limited) return limited;
 
     await releaseExpiredReservations(deps);
 

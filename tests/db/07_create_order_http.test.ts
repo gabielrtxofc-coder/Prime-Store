@@ -4,7 +4,7 @@ import { createDeps, type Deps } from '../../supabase/functions/_shared/deps';
 import { handleCreateOrder } from '../../supabase/functions/_shared/handlers/createOrder';
 import { handleAdminApi } from '../../supabase/functions/_shared/handlers/adminApi';
 import { createFakeMercadoPago } from '../unit/fakeMp';
-import { connect, randomToken, resetDatabase, runSql, seedAdmin, seedProduct, sqlValue } from './helpers';
+import { connect, randomToken, resetDatabase, runSql, seedAdmin, seedProduct, sqlValue, RELAXED_RATE_LIMIT_OVERRIDES } from './helpers';
 import { createPgRpc } from './pgRpc';
 
 /**
@@ -29,6 +29,7 @@ describe('create-order (HTTP) — idempotência sem sequestro de pedido', () => 
       config: {
         supabaseUrl: 'https://fake-project.supabase.test',
         serviceRoleKey: 'service-role-key',
+        rateLimitOverrides: RELAXED_RATE_LIMIT_OVERRIDES,
         anonKey: 'anon-key',
         mercadoPagoAccessToken: 'TEST-access-token',
         mercadoPagoWebhookSecret: 'webhook-secret',
@@ -256,7 +257,7 @@ describe('admin-api: disputa de chargeback', () => {
     });
 
     const deps = createDeps({
-      config: { supabaseUrl: 'https://fake-project.supabase.test', serviceRoleKey: 'k', anonKey: 'a' },
+      config: { supabaseUrl: 'https://fake-project.supabase.test', serviceRoleKey: 'k', anonKey: 'a', rateLimitOverrides: RELAXED_RATE_LIMIT_OVERRIDES },
       rpc: adminRpc as unknown as Deps['rpc'],
       rpcForUser: () => adminRpc,
       serviceRpc: rpc,
@@ -292,7 +293,7 @@ describe('admin-api: disputa de chargeback', () => {
 
   it('sem token de sessão a ação não é executada', async () => {
     const deps = createDeps({
-      config: { supabaseUrl: 'https://fake-project.supabase.test', serviceRoleKey: 'k', anonKey: 'a' },
+      config: { supabaseUrl: 'https://fake-project.supabase.test', serviceRoleKey: 'k', anonKey: 'a', rateLimitOverrides: RELAXED_RATE_LIMIT_OVERRIDES },
       log: () => undefined,
     });
 

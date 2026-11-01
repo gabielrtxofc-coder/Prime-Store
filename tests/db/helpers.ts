@@ -222,6 +222,25 @@ export interface OrderResult {
   idempotent_replay: boolean;
 }
 
+/**
+ * Orçamento de limite de requisições para testes que exercitam OUTRO
+ * comportamento (idempotência, entrega, catálogo, etc.).
+ *
+ * Os testes de banco falam com os handlers HTTP em sequência rápida, muito acima
+ * do que um cliente real faz: sem este ajuste, o limite por origem da missão 07
+ * (10/min no checkout, por exemplo) bloquearia o próprio teste. O limite real,
+ * com os valores de produção, é verificado em `13_limite_requisicoes.test.ts`,
+ * que usa a configuração padrão.
+ */
+export const RELAXED_RATE_LIMIT_OVERRIDES = {
+  catalog: 100000,
+  'create-order': 100000,
+  'order-status': 100000,
+  delivery: 100000,
+  'demo-payment': 100000,
+  'admin-api': 100000,
+} as const;
+
 export const ADMIN_KEY = 'test-webhook-secret';
 
 export async function createOrder(

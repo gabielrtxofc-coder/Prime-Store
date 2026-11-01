@@ -11,6 +11,7 @@ import {
 import { extractStockRows, maskEmail, maskSecret, parseCsv, validateStockRows } from '../csv.ts';
 import type { Deps } from '../deps.ts';
 import { ApiError, errorResponse, json, methodGuard, preflight, readJson } from '../http.ts';
+import { enforceRateLimit } from '../rateLimit.ts';
 import type { RpcFn } from '../rest.ts';
 import {
   isUuid,
@@ -106,6 +107,10 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
 
   try {
     methodGuard(request, ['POST']);
+
+    // Anti-flood antes de validar o JWT (a verificação chama o Auth).
+    const limited = await enforceRateLimit(request, deps, 'admin-api');
+    if (limited) return limited;
 
     const authorization = request.headers.get('authorization') ?? '';
     if (!authorization.toLowerCase().startsWith('bearer ')) {

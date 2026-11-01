@@ -2,6 +2,7 @@ import { encryptText, hmacHex, loadSecretMaterial, randomToken, sha256Hex, toBas
 import { isDemoSandboxAllowed } from '../config.ts';
 import type { Deps } from '../deps.ts';
 import { ApiError, errorResponse, json, methodGuard, preflight, readJson } from '../http.ts';
+import { enforceRateLimit } from '../rateLimit.ts';
 import { requireUuid } from '../validation.ts';
 
 /**
@@ -160,6 +161,11 @@ export async function handleDemoPayment(request: Request, deps: Deps): Promise<R
   if (request.method === 'OPTIONS') return preflight();
 
   try {
+    // A rota é pública no sandbox: o limite vale para GET (capabilities) e POST
+    // (approve/seed), por origem e sem depender do corpo enviado.
+    const limited = await enforceRateLimit(request, deps, 'demo-payment');
+    if (limited) return limited;
+
     if (request.method === 'GET') {
       const enabled = await demoCurrentlyEnabled(deps);
       return json({ demo_enabled: enabled, mode: enabled ? 'demo' : 'disabled' });

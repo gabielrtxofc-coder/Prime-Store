@@ -15,7 +15,7 @@ import { signWebhook, signedWebhookRequest } from './mpSignature';
 import { handleAdminApi } from '../../supabase/functions/_shared/handlers/adminApi';
 import type { Deps } from '../../supabase/functions/_shared/deps';
 import { createFakeMercadoPago } from '../unit/fakeMp';
-import { connect, resetDatabase, runSql, seedAdmin, sqlValue } from './helpers';
+import { connect, resetDatabase, runSql, seedAdmin, sqlValue, RELAXED_RATE_LIMIT_OVERRIDES } from './helpers';
 import { createPgRpc } from './pgRpc';
 import type { Client } from 'pg';
 
@@ -65,6 +65,7 @@ function buildDeps(
     config: {
       supabaseUrl: 'https://fake-project.supabase.test',
       serviceRoleKey: 'service-role-key',
+        rateLimitOverrides: RELAXED_RATE_LIMIT_OVERRIDES,
       anonKey: 'anon-key',
       mercadoPagoAccessToken: 'TEST-access-token',
       mercadoPagoWebhookSecret: WEBHOOK_SECRET,

@@ -8,6 +8,7 @@ import {
 } from '../crypto.ts';
 import type { Deps } from '../deps.ts';
 import { errorResponse, json, methodGuard, preflight, readJson } from '../http.ts';
+import { enforceRateLimit } from '../rateLimit.ts';
 import { getPayment } from '../mercadopago.ts';
 import { requirePrivateToken, requireUuid } from '../validation.ts';
 
@@ -70,6 +71,11 @@ export async function handleOrderStatus(request: Request, deps: Deps): Promise<R
 
   try {
     methodGuard(request, ['POST']);
+
+    // Defesa em profundidade (missão 07): limite por origem e rota, antes de
+    // qualquer trabalho. Containers persistentes: ver `_shared/rateLimit.ts`.
+    const limited = await enforceRateLimit(request, deps, 'order-status');
+    if (limited) return limited;
 
     const body = await readJson<OrderStatusBody>(request);
     const orderId = requireUuid(body.order_id, 'order_id');

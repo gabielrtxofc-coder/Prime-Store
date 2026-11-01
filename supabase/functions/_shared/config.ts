@@ -41,6 +41,31 @@ export interface AppConfig {
    * o padrão é fechar, não abrir.
    */
   allowedOrigins: string[];
+  /**
+   * Segredo usado para pseudonimizar a origem do cliente nos contadores de
+   * limite de requisições (HMAC). Nunca vai ao navegador. Quando ausente, o
+   * sujeito é derivado do `serviceRoleKey` (que só existe no servidor).
+   */
+  rateLimitSecret: string | null;
+  /**
+   * Ajuste fino por rota, em requisições por janela de 60s.
+   * Formato: `catalog=200,create-order=15`. Serve para calibrar o limite com o
+   * tráfego real; não permite desligar a proteção.
+   */
+  rateLimitOverrides: Record<string, number>;
+}
+
+/** `catalog=200,create-order=15` -> `{ catalog: 200, 'create-order': 15 }`. */
+export function parseRateLimitOverrides(raw: string): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const entry of raw.split(',')) {
+    const [rawKey, rawValue] = entry.split('=');
+    const key = rawKey?.trim();
+    const value = Number(rawValue);
+    if (!key || !Number.isInteger(value) || value < 1 || value > 100000) continue;
+    result[key] = value;
+  }
+  return result;
 }
 
 export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
@@ -72,6 +97,10 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
         .split(',')
         .map((value) => value.trim())
         .filter((value) => value.length > 0),
+    rateLimitSecret: overrides.rateLimitSecret ?? readEnv('RATE_LIMIT_SECRET') ?? null,
+    rateLimitOverrides:
+      overrides.rateLimitOverrides ??
+      parseRateLimitOverrides(readEnv('RATE_LIMIT_OVERRIDES') ?? ''),
     demoAllowedProjectRefs:
       overrides.demoAllowedProjectRefs ??
       (readEnv('DEMO_ALLOWED_PROJECT_REFS') ?? 'eorlmqolbknrplvdbbtl')

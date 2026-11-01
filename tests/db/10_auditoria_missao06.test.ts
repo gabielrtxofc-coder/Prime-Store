@@ -5,7 +5,7 @@ import { handleCatalog } from '../../supabase/functions/_shared/handlers/catalog
 import { handleCreateOrder } from '../../supabase/functions/_shared/handlers/createOrder';
 import { handleDemoPayment } from '../../supabase/functions/_shared/handlers/demoPayment';
 import { createFakeMercadoPago } from '../unit/fakeMp';
-import { connect, createOrder, resetDatabase, runSql, seedProduct, sha256Hex, sqlValue } from './helpers';
+import { connect, createOrder, resetDatabase, runSql, seedProduct, sha256Hex, sqlValue, RELAXED_RATE_LIMIT_OVERRIDES } from './helpers';
 import { createPgRpc } from './pgRpc';
 
 /**
@@ -32,6 +32,7 @@ function buildDeps(fetchImpl: typeof fetch, overrides: Partial<Deps['config']> =
     config: {
       supabaseUrl: 'https://fake-project.supabase.test',
       serviceRoleKey: 'service-role-key',
+        rateLimitOverrides: RELAXED_RATE_LIMIT_OVERRIDES,
       anonKey: 'anon-key',
       mercadoPagoAccessToken: 'TEST-access-token',
       mercadoPagoWebhookSecret: 'webhook-secret',

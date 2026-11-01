@@ -1,6 +1,7 @@
 import { decryptText, fromBase64, loadSecretMaterial, sha256Hex } from '../crypto.ts';
 import type { Deps } from '../deps.ts';
 import { ApiError, errorResponse, json, methodGuard, preflight } from '../http.ts';
+import { enforceRateLimit } from '../rateLimit.ts';
 import { requirePrivateToken } from '../validation.ts';
 
 interface ResolvedDelivery {
@@ -29,6 +30,11 @@ export async function handleDelivery(request: Request, deps: Deps): Promise<Resp
 
   try {
     methodGuard(request, ['GET', 'POST']);
+
+    // Defesa em profundidade (missão 07): limite por origem e rota, antes de
+    // qualquer trabalho. Containers persistentes: ver `_shared/rateLimit.ts`.
+    const limited = await enforceRateLimit(request, deps, 'delivery');
+    if (limited) return limited;
 
     const masterKey = await deps.resolveEncryptionKey();
     if (!masterKey) {

@@ -5,7 +5,7 @@ import { handleCreateOrder } from '../../supabase/functions/_shared/handlers/cre
 import { handleMpWebhook } from '../../supabase/functions/_shared/handlers/mpWebhook';
 import { toBase64 } from '../../supabase/functions/_shared/crypto';
 import { createFakeMercadoPago } from '../unit/fakeMp';
-import { connect, resetDatabase, runSql, seedProduct, sqlValue } from './helpers';
+import { connect, resetDatabase, runSql, seedProduct, sqlValue, RELAXED_RATE_LIMIT_OVERRIDES } from './helpers';
 import { createPgRpc } from './pgRpc';
 import { signWebhook, signedWebhookRequest } from './mpSignature';
 
@@ -39,6 +39,7 @@ describe('mp-webhook — validação da assinatura', () => {
       config: {
         supabaseUrl: 'https://fake-project.supabase.test',
         serviceRoleKey: 'service-role-key',
+        rateLimitOverrides: RELAXED_RATE_LIMIT_OVERRIDES,
         anonKey: 'anon-key',
         mercadoPagoAccessToken: 'TEST-access-token',
         mercadoPagoWebhookSecret: WEBHOOK_SECRET,

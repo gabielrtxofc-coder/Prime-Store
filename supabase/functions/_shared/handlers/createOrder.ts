@@ -3,6 +3,7 @@ import { randomToken, sha256Hex } from '../crypto.ts';
 import type { Deps } from '../deps.ts';
 import { ApiError, errorResponse, json, methodGuard, preflight, readJson } from '../http.ts';
 import { createPixPayment, MercadoPagoError } from '../mercadopago.ts';
+import { enforceRateLimit } from '../rateLimit.ts';
 import {
   optionalClientToken,
   optionalIdempotencyKey,
@@ -65,6 +66,11 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
 
   try {
     methodGuard(request, ['POST']);
+
+    // Defesa em profundidade (missão 07): limite por origem e rota, antes de
+    // qualquer trabalho. Containers persistentes: ver `_shared/rateLimit.ts`.
+    const limited = await enforceRateLimit(request, deps, 'create-order');
+    if (limited) return limited;
 
     const body = await readJson<CreateOrderBody>(request);
     const productId = requireUuid(body.product_id, 'product_id');
