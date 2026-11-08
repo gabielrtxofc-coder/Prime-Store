@@ -828,7 +828,13 @@ button:disabled { cursor: not-allowed; }
 .delivery-unit dt { color: var(--text-subtle); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
 .delivery-unit dd { display: flex; align-items: center; gap: 10px; margin: 3px 0 0; }
 .delivery-unit code { padding: 4px 8px; border-radius: 6px; background: var(--surface-soft); color: #a7f3d0; font-size: 13px; }
-.delivery-instructions h2 { margin: 0 0 8px; font-size: 15px; }
+.delivery-instructions h2, .delivery-instructions h3 { margin: 0 0 8px; font-size: 15px; }
+/* Entrega multi-produto: um bloco por produto, com seus próprios acessos. */
+.delivery-group { margin-bottom: 26px; }
+.delivery-group__heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.delivery-group__heading h2 { margin: 0; font-size: 17px; }
+.delivery-group__heading p { margin: 0; }
+.delivery-group .delivery-instructions { margin-bottom: 14px; }
 .delivery-instructions p { margin: 0; color: var(--text-muted); font-size: 13px; white-space: pre-wrap; }
 .delivery-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
 

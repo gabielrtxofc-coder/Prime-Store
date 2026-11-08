@@ -4,6 +4,7 @@ import { AboutPage } from './pages/AboutPage';
 import { CartPage } from './pages/CartPage';
 import { CatalogPage } from './pages/CatalogPage';
 import { CheckoutPage } from './pages/CheckoutPage';
+import { DeliveryPage } from './pages/DeliveryPage';
 import { FAQPage } from './pages/FAQPage';
 import { HelpPage } from './pages/HelpPage';
 import { HomePage } from './pages/HomePage';
@@ -20,9 +21,13 @@ import { privacySections, refundSections, termsSections } from './data/legalCont
  * Rotas da experiência pública (missão 08).
  *
  * Ficaram fora do roteador, de propósito:
- *  - `/pagamento` e `/entrega/:token` (fluxo de cobrança): dependem de
- *    integração de pagamento e de entrega pós-pagamento;
+ *  - `/pagamento` (fluxo de cobrança): depende da integração de pagamento;
  *  - `/admin` (painel): funcionalidade administrativa não é exposta ao visitante.
+ *
+ * `/entrega/:token` passou a ser público de propósito: é a entrega digital do
+ * pedido. A rota não libera nada por si — a credencial só é devolvida pela Edge
+ * Function `delivery` quando o token privado existe, a entrega está ativa e o
+ * pedido está pago e pronto. Sem isso a página mostra "Entrega indisponível".
  *
  * Os arquivos continuam no repositório (`pages/PaymentPage.tsx`,
  * `pages/DeliveryPage.tsx`, `pages/admin/*`, `pages/demo/PaymentCheckoutPage.tsx`)
@@ -70,6 +75,8 @@ export function App() {
           <Route path="carrinho" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="pedido/:identifier" element={<OrderStatusPage />} />
+          {/* Entrega privada: o token da URL é a única credencial de acesso. */}
+          <Route path="entrega/:token" element={<DeliveryPage />} />
           <Route path="acompanhar" element={<TrackingPage />} />
           {/* Endereço antigo: leva ao pedido registrado neste navegador. */}
           <Route path="pedido-confirmado" element={<OrderConfirmedPage />} />

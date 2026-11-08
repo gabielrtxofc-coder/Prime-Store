@@ -86,9 +86,28 @@ export interface DeliveredUnit {
   notes: string;
 }
 
+/** Grupo de entrega de um produto do pedido (entrega multi-item). */
+export interface DeliveryItemGroup {
+  product_id: string;
+  product_name: string;
+  product_slug: string;
+  instructions: string;
+  access_validity_label: string;
+  access_validity_days: number | null;
+  quantity: number;
+  units: DeliveredUnit[];
+}
+
 export interface DeliveryPayload {
   reference: string;
   created_at: string;
+  items_count?: number;
+  /** Um grupo por produto do pedido. */
+  items?: DeliveryItemGroup[];
+  /**
+   * Primeiro produto e lista plana de unidades: campos do formato anterior,
+   * mantidos para navegadores que já estão com a versão antiga aberta.
+   */
   product: {
     id: string;
     name: string;

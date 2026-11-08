@@ -8,11 +8,14 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
-    "test:db": "vitest run --config vitest.db.config.ts",
+    "test:db": "DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:55432/postgres} vitest run --config vitest.db.config.ts",
     "typecheck": "tsc -b",
     "bundle:functions": "node scripts/bundle-functions.mjs",
-    "test:all": "vitest run --config vitest.db.config.ts && vitest run",
-    "smoke:functions": "node scripts/smoke-edge-functions.mjs"
+    "test:all": "DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:55432/postgres} vitest run --config vitest.db.config.ts && vitest run",
+    "smoke:functions": "node scripts/smoke-edge-functions.mjs",
+    "db:local": "node scripts/local-db.mjs start",
+    "db:local:stop": "node scripts/local-db.mjs stop",
+    "db:local:status": "node scripts/local-db.mjs status"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
@@ -28,6 +31,7 @@
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^6.1.2",
+    "embedded-postgres": "^18.6.0-beta.19",
     "jsdom": "^30.1.3",
     "pg": "^8.23.1",
     "tsx": "^4.23.15",

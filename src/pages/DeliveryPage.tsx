@@ -3,7 +3,35 @@ import { Link, useParams } from 'react-router-dom';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
 import { describeBackendError } from '../services/backend/http';
-import { fetchDelivery, type DeliveredUnit, type DeliveryPayload } from '../services/orderService';
+import {
+  fetchDelivery,
+  type DeliveredUnit,
+  type DeliveryItemGroup,
+  type DeliveryPayload,
+} from '../services/orderService';
+
+/**
+ * Normaliza o payload da entrega.
+ *
+ * O backend devolve um grupo por produto (`items`). Navegadores antigos, que
+ * podem estar com um bundle anterior em memória, recebem também `product` +
+ * `units`; aqui o formato plano é convertido em um único grupo.
+ */
+function deliveryGroups(payload: DeliveryPayload): DeliveryItemGroup[] {
+  if (payload.items && payload.items.length > 0) return payload.items;
+  return [
+    {
+      product_id: payload.product.id,
+      product_name: payload.product.name,
+      product_slug: payload.product.slug,
+      instructions: payload.product.instructions,
+      access_validity_label: payload.product.access_validity_label,
+      access_validity_days: payload.product.access_validity_days,
+      quantity: payload.units.length,
+      units: payload.units,
+    },
+  ];
+}
 
 /**
  * Página privada de entrega.
@@ -16,7 +44,7 @@ export function DeliveryPage() {
   const [payload, setPayload] = useState<DeliveryPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [revealed, setRevealed] = useState<Record<number, boolean>>({});
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -74,14 +102,18 @@ export function DeliveryPage() {
     );
   }
 
+  const groups = deliveryGroups(payload);
+  const totalUnits = groups.reduce((total, group) => total + group.units.length, 0);
+
   return (
     <section className="container page-section delivery-page">
       <div className="page-heading">
         <span className="eyebrow-label">ENTREGA PRIVADA</span>
-        <h1>{payload.product.name}</h1>
+        <h1>{groups.length > 1 ? 'Seus acessos' : groups[0].product_name}</h1>
         <p>
-          Pedido <strong>{payload.reference}</strong> · {payload.units.length} {payload.units.length === 1 ? 'unidade' : 'unidades'} ·{' '}
-          {payload.product.access_validity_label}
+          Pedido <strong>{payload.reference}</strong> · {groups.length}{' '}
+          {groups.length === 1 ? 'produto' : 'produtos'} ·{' '}
+          {totalUnits} {totalUnits === 1 ? 'unidade' : 'unidades'}
         </p>
       </div>
 
@@ -93,26 +125,51 @@ export function DeliveryPage() {
         </p>
       </div>
 
-      <div className="delivery-units">
-        {payload.units.map((unit, index) => (
-          <DeliveryUnitCard
-            key={`${index}-${unit.email.slice(0, 3)}`}
-            index={index}
-            unit={unit}
-            revealed={Boolean(revealed[index])}
-            onToggle={() => setRevealed((previous) => ({ ...previous, [index]: !previous[index] }))}
-            onCopy={copy}
-            copiedLabel={copied}
-          />
-        ))}
-      </div>
+      {groups.map((group, groupIndex) => (
+        <section className="delivery-group" key={group.product_id} aria-labelledby={`grupo-${groupIndex}`}>
+          {/* Com um produto só, o título já está no topo da página. */}
+          {groups.length > 1 ? (
+            <div className="delivery-group__heading">
+              <h2 id={`grupo-${groupIndex}`}>{group.product_name}</h2>
+              <p className="field-hint">
+                {group.quantity} {group.quantity === 1 ? 'acesso' : 'acessos'}
+                {group.access_validity_label ? ` · ${group.access_validity_label}` : ''}
+              </p>
+            </div>
+          ) : (
+            group.access_validity_label && (
+              <p className="field-hint delivery-group__meta">{group.access_validity_label}</p>
+            )
+          )}
 
-      {payload.product.instructions && (
-        <div className="delivery-instructions">
-          <h2>Instruções de acesso</h2>
-          <p>{payload.product.instructions}</p>
-        </div>
-      )}
+          {group.instructions && (
+            <div className="delivery-instructions">
+              <h3>Instruções de acesso</h3>
+              <p>{group.instructions}</p>
+            </div>
+          )}
+
+          <div className="delivery-units">
+            {group.units.map((unit, index) => {
+              // A chave combina produto e posição: revelar uma unidade não
+              // revela as demais, nem em outro produto.
+              const key = `${groupIndex}:${index}`;
+              return (
+                <DeliveryUnitCard
+                  key={key}
+                  index={index}
+                  unit={unit}
+                  revealed={Boolean(revealed[key])}
+                  onToggle={() => setRevealed((previous) => ({ ...previous, [key]: !previous[key] }))}
+                  onCopy={copy}
+                  copiedLabel={copied}
+                  stateKey={key}
+                />
+              );
+            })}
+          </div>
+        </section>
+      ))}
 
       <div className="delivery-footer">
         <p className="field-hint">Criada em {new Date(payload.created_at).toLocaleString('pt-BR')}.</p>
@@ -129,9 +186,19 @@ interface DeliveryUnitCardProps {
   onToggle: () => void;
   onCopy: (value: string, label: string) => void;
   copiedLabel: string | null;
+  /** Identidade do card (produto + posição) usada nos rótulos de cópia. */
+  stateKey: string;
 }
 
-function DeliveryUnitCard({ index, unit, revealed, onToggle, onCopy, copiedLabel }: DeliveryUnitCardProps) {
+function DeliveryUnitCard({
+  index,
+  unit,
+  revealed,
+  onToggle,
+  onCopy,
+  copiedLabel,
+  stateKey,
+}: DeliveryUnitCardProps) {
   const mask = (value: string) => '•'.repeat(Math.min(16, Math.max(6, value.length)));
   return (
     <article className="delivery-unit">
@@ -146,8 +213,8 @@ function DeliveryUnitCard({ index, unit, revealed, onToggle, onCopy, copiedLabel
           <dt>E-mail / login</dt>
           <dd>
             <code>{revealed ? unit.email : mask(unit.email)}</code>
-            <button className="link-button" type="button" onClick={() => onCopy(unit.email, `email-${index}`)}>
-              {copiedLabel === `email-${index}` ? 'Copiado' : 'Copiar'}
+            <button className="link-button" type="button" onClick={() => onCopy(unit.email, `email-${stateKey}`)}>
+              {copiedLabel === `email-${stateKey}` ? 'Copiado' : 'Copiar'}
             </button>
           </dd>
         </div>
@@ -155,8 +222,8 @@ function DeliveryUnitCard({ index, unit, revealed, onToggle, onCopy, copiedLabel
           <dt>Senha</dt>
           <dd>
             <code>{revealed ? unit.password : mask(unit.password)}</code>
-            <button className="link-button" type="button" onClick={() => onCopy(unit.password, `senha-${index}`)}>
-              {copiedLabel === `senha-${index}` ? 'Copiado' : 'Copiar'}
+            <button className="link-button" type="button" onClick={() => onCopy(unit.password, `senha-${stateKey}`)}>
+              {copiedLabel === `senha-${stateKey}` ? 'Copiado' : 'Copiar'}
             </button>
           </dd>
         </div>

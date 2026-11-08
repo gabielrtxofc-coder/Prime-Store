@@ -7,7 +7,7 @@ import { Client, type QueryResultRow } from 'pg';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 export const DEFAULT_DATABASE_URL =
-  process.env.DATABASE_URL ?? 'postgresql://postgres@/postgres?host=/tmp/pgdata';
+  process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:55432/postgres';
 
 export const MIGRATIONS_DIR = path.join(ROOT, 'supabase', 'migrations');
 export const BOOTSTRAP_FILE = path.join(ROOT, 'supabase', 'local', 'bootstrap_local.sql');
