@@ -3,6 +3,29 @@
 > Atualizado em 2026-11-09. Este arquivo existe para que outra sessão consiga
 > retomar o trabalho sem depender do histórico de conversa.
 
+## Missão 09 (fechamento operacional) — PARCIAL; merge proibido
+
+Relatório completo: [`missao-09-fechamento-operacional.md`](./missao-09-fechamento-operacional.md).
+
+- Projeto confirmado: `eorlmqolbknrplvdbbtl`; migrações 0034–0038 remotas presentes;
+  assinatura remota do RPC de estoque é `(uuid,text,text,text)` e RLS está em 20/20
+  tabelas. Os dados consultados coincidem com as referências da M08.
+- Código local da `admin-api` já usava a assinatura correta no commit de referência;
+  pacote recomposto e todos os 8 bundles foram gerados. Remoto continua `admin-api` v4,
+  `verify_jwt=true`; nenhuma publicação foi confirmada. Smoke HTTP bloqueado (sem
+  invocação de função nem configuração HTTP adequada no ambiente); smoke revisado para
+  nunca criar pedidos reais.
+- Testes: `npm test` 127/127; `npm run test:db` 294/294 após iniciar Postgres local;
+  typecheck/build aprovados; bundles 8/8. Admin Auth e `admin_users` continuam em 0.
+- Segurança/dados/pagamentos preservados. Backup/PITR indisponível para verificação pelo
+  conector; verificar no painel. Script de admins usa marcadores inválidos até receber
+  dados reais e exige TOTP.
+- **Bloqueios finais:** publicação e smoke remoto, comprovação de backup, cadastro dos
+  admins; tag `safety/m07-start-cd87b3d` não encontrada. Branch fixa do checkout
+  `arena/aa4e6a29-prime-store` difere do head do PR. PR #2 foi mesclado externamente
+  durante a sessão (20:00:48Z; merge commit `0edf709`), sem checks reportados; este agente
+  não executou o merge. Requer revisão humana; não declarar lançamento.
+
 ## Missão 08 (reconciliação Supabase) — migrações aplicadas; funções/smoke BLOQUEADOS
 
 Relatório completo: [`missao-08-reconciliacao-supabase.md`](./missao-08-reconciliacao-supabase.md).

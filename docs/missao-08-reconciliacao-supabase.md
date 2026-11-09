@@ -265,6 +265,16 @@ Nenhuma escrita comercial ocorreu. O script continua pronto para a máquina de d
 6. Monitorar `realtime` (`UNHEALTHY`) — sem impacto no produto; investigar no painel se houver interesse.
 7. Manter pagamentos congelados até decisão própria (WyviPay ou outro provedor) em missão futura.
 
+## 16. Adendo — Missão 09 (2026-11-09)
+
+Este documento é mantido como registro histórico da Missão 08; os estados abaixo não substituem as verificações atuais. Na Missão 09, a identidade do projeto `eorlmqolbknrplvdbbtl` foi reconfirmada via conector Supabase. As migrações remotas 0034–0038 seguem registradas; consulta real ao catálogo confirmou `admin_set_stock_unit_status(uuid,text,text,text)` com `SECURITY DEFINER`, `search_path=public, pg_temp`, sem execução por `anon` e com execução administrativa autenticada. O código local da `admin-api` já usa os quatro argumentos e o bundle local foi gerado novamente (8/8 funções).
+
+O estado remoto continua `admin-api` v4 com `verify_jwt=true`; publicação não foi executada e não deve ser presumida. O conector atual lista atualização de Edge Function, mas não expõe invocação HTTP nem upload do arquivo de bundle local; smoke foi bloqueado. Backup/PITR não tem consulta no catálogo. A contagem remota permanece: products 2, orders 8, order_items 2, deliveries 3, stock_units 27, reservations 7, payments 3, `admin_users` 0 e `auth.users` 0. Foram confirmados 20/20 tabelas com RLS, 0 policies, settings `max_items_per_order=10` e `internal_confirmation_enabled=false`.
+
+Testes nesta retomada: `npm test` 127/127; `npm run test:db` 294/294 (após iniciar Postgres local); typecheck/build; bundles 8/8. O script smoke deixou de conter o caminho de criação de pedido. Script de provisionamento revisado para não conter UUID fictício. Nenhuma alteração de banco/dados/segredos/pagamentos, deploy ou merge foi feita por este agente. O PR #2 passou a `MERGED` externamente durante a sessão (20:00:48Z; merge commit `0edf709`); requer revisão do operador. Ver relatório completo em [`missao-09-fechamento-operacional.md`](./missao-09-fechamento-operacional.md).
+
+A branch ativa fornecida pelo ambiente nesta retomada foi `arena/aa4e6a29-prime-store`, divergente da branch mencionada no relatório de M08 e no head do PR #2 (`arena/66cda9f6-prime-store`). A tag `safety/m07-start-cd87b3d` não apareceu nas refs locais/remotas consultadas. Esses desvios não foram corrigidos por troca de branch ou manipulação de refs.
+
 ## 15. Classificação por grupo (A–L)
 
 | Grupo | Entrega | Status |
