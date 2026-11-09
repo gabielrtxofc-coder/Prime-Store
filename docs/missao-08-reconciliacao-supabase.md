@@ -284,3 +284,11 @@ Nenhuma escrita comercial ocorreu. O script continua pronto para a máquina de d
 
 *Evidência de que nada foi maquiado: os itens sem validação remota funcional
 (H, I, e o backup de C) estão marcados como BLOCKED, não como PASS.*
+
+---
+
+## Adendo — Missão 09 (2026-11-09)
+
+O estado descrito acima é histórico. A revalidação atual, o identificador de branch efetivo, as consultas Supabase, a função `admin-api` e os testes estão documentados em [`missao-09-fechamento-operacional.md`](missao-09-fechamento-operacional.md). Em síntese: ref Supabase correto; migrations 0034–0038 continuam presentes; 8 funções remotas; assinatura SQL de estoque confirmada em quatro argumentos; código local compatível; função remota ainda v4 com `verify_jwt=true`, sem publicação comprovada; dados contados coincidem; Auth/admin continuam sem usuários; backup não verificável; smoke HTTP real pendente. A suíte local passou após iniciar PostgreSQL (`npm test` 127/127, `npm run test:db` 294/294, bundles 8/8). Não houve escrita de produção, migração, mudança de pagamentos ou merge.
+
+A branch vinculada pelo Arena nesta sessão é `arena/529cc4db-prime-store`, divergente da branch `arena/66cda9f6-prime-store` citada neste relatório M08 e no PR #2. A tag `safety/m07-start-cd87b3d` não foi encontrada na consulta atual ao remoto. Esses fatos não devem ser reinterpretados como integridade confirmada; ver detalhes e limitações no relatório M09.
