@@ -180,6 +180,27 @@ Bloqueado por dependência externa (nada declarado como validado):
 `MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET` de teste; e-mails dos dois administradores;
 egress de rede para invocar as funções e reexecutar os Advisors do painel.
 
+## Missão 09 — Fechamento operacional (2026-11-09)
+
+**Estado geral: PARCIAL — não pronta para lançamento e sem merge.** Relatório completo: [`missao-09-fechamento-operacional.md`](missao-09-fechamento-operacional.md).
+
+Concluído e comprovado:
+- Supabase `eorlmqolbknrplvdbbtl` correto; migrações 0034–0038 no histórico remoto; 8 Edge Functions remotas; RLS em 20/20 tabelas.
+- Assinatura remota `admin_set_stock_unit_status(uuid,text,text,text)` conferida; código local de `admin-api` já usa os parâmetros pós-0038, mantém JWT de usuário/AAL2 e bundles sem credenciais.
+- Contagens de dados batem com as referências; `max_items_per_order=10`, `internal_confirmation_enabled=false`; pagamentos não foram alterados.
+- `npm test` 127/127; `npm run test:db` 294/294; bundle 8/8; typecheck e build aprovados.
+- Smoke de Edge Functions restringido a chamadas sem escrita; script de provisionamento agora deixa SQL de inserção comentado até haver UUIDs/nome reais.
+
+Ainda pendente/bloqueado:
+- `admin-api` remota permanece v4, `verify_jwt=true`; não há confirmação de publicação corrigida.
+- Smoke HTTP externo não foi executado (conector não oferece invocação e faltou credencial pública utilizável no ambiente).
+- Backup/PITR não pode ser consultado pelo conector; estado **não confirmado**.
+- `auth.users=0`, `admin_users=0`; provisionamento real e TOTP dependem do operador.
+- PR #2 continua draft e aponta para `arena/66cda9f6-prime-store`, mas a sessão foi vinculada à branch fixa `arena/529cc4db-prime-store`; alterações desta sessão não atualizam aquele PR automaticamente.
+- Tag `safety/m07-start-cd87b3d` não apareceu nas tags consultadas do remoto; precisa de esclarecimento, sem recriação automática.
+
+Não declarar pronto para lançamento até a publicação, smoke real, backup, admins/TOTP e reconciliação de branch/PR serem comprovados. Nenhuma migração reaplicada, nenhum dado real alterado, nenhuma integração de pagamento ativada e nenhum merge executado.
+
 ## Missão 02 (backend) — histórico
 
 ### Banco de dados (`supabase/migrations`, 16 arquivos na missão 02)
@@ -293,3 +314,20 @@ supabase functions deploy mp-webhook --no-verify-jwt
 
 Depois: criar os administradores, cadastrar 1 produto + 1 unidade de estoque pelo
 painel e percorrer o fluxo de compra com uma conta de teste do Mercado Pago.
+
+## Missão 10 — Reconciliação final (2026-11-09)
+
+Relatório: [missao-10-reconciliacao-final.md](missao-10-reconciliacao-final.md).
+M09 recuperada integralmente na branch fixa `arena/3b67fee3-prime-store`: único
+commit exclusivo `1de28ddbc0f568ab5de26bcc67a3d8a36bf0a318`, cinco arquivos, sem
+conflitos. Integração oficial será feita por PR intermediário para a branch
+`arena/66cda9f6-prime-store`, mantendo PR #2 como único caminho à main.
+
+Revalidação local: 127/127, 294/294, typecheck, build e bundles 8/8 aprovados;
+audit sem vulnerabilidades. Nenhuma escrita Supabase. Conector desativado:
+os resultados remotos M08/M09 são históricos, não revalidados nesta missão.
+Correção da assinatura admin-api/0038 já existia desde M07. Deploy, HTTP real,
+backup/PITR e admins reais/TOTP continuam pendentes; pagamentos congelados.
+Estado do merge ainda pendente no momento deste registro pré-integração;
+encerramento com SHAs e resultado efetivo será anexado ao PR #2.
+**Não pronta para lançamento.**
