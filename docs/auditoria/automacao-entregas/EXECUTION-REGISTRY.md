@@ -237,3 +237,66 @@
 | 6 | Página de entrega com heading duplicado quebrava teste existente | título de grupo só aparece com mais de um produto |
 | 7 | Testes próprios usando `sha256Hex` (assíncrono) sem `await` | `await` corrigido |
 | 8 | Token de teste da revogação abaixo da entropia mínima | token com entropia equivalente à real |
+
+---
+
+## CORREÇÃO PÓS-AUDITORIA — 09/11/2026 (migração `0037`)
+
+> Origem: auditoria independente apontou que uma **solicitação pública sem
+> pagamento** podia ser convertida em venda paga. Esta seção registra a falha
+> reproduzida, a correção e as evidências — no mesmo padrão de estado
+> (**PASS** / **FAIL** / **BLOCKED** / **NOT RUN**) usado acima.
+
+### Base e ambiente
+
+| Item | Estado | Evidência |
+| --- | --- | --- |
+| Commit-base | **PASS** | `626cede13ec83802179fd7c989e672456ef41f99` — tip de `origin/arena/e7e73e28-prime-store` (`git ls-remote`) |
+| Área de trabalho isolada | **PASS** | `git worktree add` em cópia limpa a partir do commit-base; `git status --porcelain` vazio antes de qualquer alteração; nenhum arquivo herdado de outra sessão |
+| Postgres local | **PASS** | `PGDATA_DIR=/tmp/ps-guard-pgdata node scripts/local-db.mjs start` (porta 55432); todas as migrações aplicadas do zero |
+
+### A falha
+
+| # | Item | Estado | Evidência |
+| --- | --- | --- | --- |
+| 1 | Reproduzir a falha antes da correção | **FAIL (confirmado)** | Solicitação com 2 unidades (`requested`/`not_required`), `apply_payment_status(..., 'approved', ...)` → `{"result":"approved","order_status":"paid","payment_status":"approved","delivery_status":"ready"}` |
+| 2 | Medir o efeito no banco | **FAIL (confirmado)** | antes: 3 unidades `available`, 0 vendidas, 0 reservas, 0 pagamentos, 1 evento, 0 entregas · depois: 1 `available`, **2 `sold`**, 1 reserva, 1 pagamento, 4 eventos, **1 entrega ativa** com token privado |
+| 3 | Confirmar exposição pública | **FAIL (confirmado)** | `get_order_status` da solicitação passou a devolver `status = paid`, `payment = approved`, `delivery.link_ready = true` |
+
+### A correção
+
+| # | Item | Estado | Evidência |
+| --- | --- | --- | --- |
+| 4 | Guarda dentro de `apply_payment_status` | **PASS** | `20261109120000_0037_...sql`: após `select ... for update` e antes de qualquer escrita, `status = 'requested' OR payment_status = 'not_required'` → `ignored_no_payment_required` |
+| 5 | Nenhuma regra legítima alterada | **PASS** | `diff` do corpo da função 0035 → 0037 mostra **somente** a inserção do bloco de guarda (22 linhas, incluindo comentário) |
+| 6 | Handler de acompanhamento | **PASS** | `orderStatus.ts`: `requested`/`not_required` não entram na reconciliação (`isPaymentFreeRequest`); nenhuma consulta ao provedor é feita |
+| 7 | Varredura dos caminhos de pagamento | **PASS** | `apply_payment_status` chamada apenas por `mp-webhook` e `order-status`; `demo-payment` → `demo_approve_payment` e `internal_confirm_payment` exigem `pending_payment`; `admin_resolve_dispute` exige `disputed`/`charged_back`; `admin_rotate_delivery_token` exige entrega existente. Nenhum caminho contorna a guarda |
+| 8 | Teste de banco dedicado | **PASS** | `tests/db/19_not_required_guard.test.ts` — 9 testes (A–I) com snapshot completo antes/depois |
+
+### Testes executados
+
+| Verificação | Comando | Resultado |
+| --- | --- | --- |
+| Suíte de banco + unitários | `npm run test:db` | **264/264** em 21 arquivos (antes: 255/255 em 20) |
+| Suíte de interface | `npx vitest run` | **79/79** em 10 arquivos |
+| Teste específico da guarda | `npx vitest run --config vitest.db.config.ts tests/db/19_not_required_guard.test.ts` | **9/9** com a `0037` · **5 falhas + 4 passes** sem a `0037` (prova de que o teste detecta a falha) |
+| TypeScript | `npx tsc -b` | exit 0, sem erros |
+| Build | `npm run build` | `dist/` gerado (65 módulos) |
+| Bundle das Edge Functions | `npm run bundle:functions` | 8 funções empacotadas |
+| Migrações do zero | recriação em cada arquivo de teste | **36** (`0001`–`0037`) sem erro |
+
+### Escopo do diff
+
+`supabase/migrations/20261109120000_0037_bloqueio_solicitacao_sem_pagamento.sql`,
+`supabase/functions/_shared/handlers/orderStatus.ts`,
+`tests/db/19_not_required_guard.test.ts`,
+`docs/auditoria/automacao-entregas/EXECUTION-REGISTRY.md`,
+`docs/auditoria/automacao-entregas/RELATORIO-FINAL.md` — nenhum outro arquivo.
+
+### Limitações que permanecem
+
+| Item | Situação |
+| --- | --- |
+| Confirmação por provedor real (Mercado Pago/WyviPay) | **BLOCKED por decisão** — nenhuma credencial financeira usada; a guarda é testada pelo RPC `service_role`, o mesmo caminho do webhook |
+| Teste de handler HTTP cobrindo a reconciliação de `order-status` | **NOT RUN** — a correção do banco é a barreira efetiva e é testada diretamente; o ajuste do handler é defesa em profundidade (o caminho sem pagamento já não tinha `provider_payment_id`) |
+| Banco `main` divergente | A `main` não contém este backend; nada foi alterado nela |

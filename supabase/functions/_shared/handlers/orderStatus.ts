@@ -104,7 +104,17 @@ export async function handleOrderStatus(request: Request, deps: Deps): Promise<R
     }
 
     const providerPaymentId = status.payment?.provider_payment_id ?? null;
+
+    // Solicitação sem pagamento (migração 0033): `requested` / `not_required`
+    // não têm cobrança a reconciliar. Não consultamos o provedor nem tentamos
+    // confirmar nada — a consulta é somente leitura. O banco reforça a mesma
+    // regra em `apply_payment_status` (`ignored_no_payment_required`), portanto
+    // o handler não é a única barreira.
+    const isPaymentFreeRequest =
+      status.status === 'requested' || status.payment_status === 'not_required';
+
     const shouldReconcile =
+      !isPaymentFreeRequest &&
       Boolean(deps.config.mercadoPagoAccessToken) &&
       Boolean(providerPaymentId) &&
       (status.status === 'pending_payment' || status.payment?.status === 'in_process');

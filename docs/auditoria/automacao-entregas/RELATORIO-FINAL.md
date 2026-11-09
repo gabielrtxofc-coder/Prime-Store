@@ -225,3 +225,95 @@ Arquivos novos: 3 migrações, 2 arquivos de teste de banco, 1 de interface,
 (este relatório + `EXECUTION-REGISTRY.md`).
 
 O trabalho está commitado nesta branch, sem push para `main` e sem publicação.
+
+---
+
+## 12. Correção pós-auditoria — bloqueio de pagamento em solicitação sem cobrança (09/11/2026)
+
+**Base:** `626cede13ec83802179fd7c989e672456ef41f99` (`arena/e7e73e28-prime-store`)
+**Branch da correção:** `fix/prime-store-not-required-guard-20261108` (área de
+trabalho isolada, sem herdar alterações de outras sessões)
+
+### 12.1 Falha encontrada
+
+Uma **solicitação pública sem pagamento** (`status = 'requested'`,
+`payment_status = 'not_required'`, migração `0033`) podia ser convertida em
+**venda paga** chamando `apply_payment_status` com uma aprovação. O ramo
+`approved` não verificava o tipo de pedido: alocava unidades disponíveis
+(`allocate_late_units_for_order` — a solicitação não reserva estoque),
+gravava `paid_at`, marcava `paid`/`approved` e criava a entrega com token
+privado.
+
+Reprodução em PostgreSQL local, antes da correção (solicitação de 2 unidades a
+R$ 50,00):
+
+| Registro | Antes | Depois da aprovação forjada |
+| --- | --- | --- |
+| `orders.status` / `payment_status` | `requested` / `not_required` | **`paid` / `approved`** |
+| `orders.delivery_status` / `paid_at` | `not_ready` / `null` | **`ready` / preenchido** |
+| `stock_units` disponíveis / vendidas | 3 / 0 | **1 / 2** |
+| `stock_reservations` | 0 | **1** |
+| `payments` | 0 | **1** |
+| `order_events` | 1 | **4** |
+| `deliveries` / token de entrega | 0 / — | **1 ativa / emitido** |
+| `get_order_status` | `requested`, sem pagamento | **`paid`, `approved`, `link_ready: true`** |
+
+Retorno da função: `{"result":"approved","order_status":"paid","payment_status":"approved","delivery_status":"ready"}`.
+
+### 12.2 Correção aplicada
+
+| Arquivo | Mudança |
+| --- | --- |
+| `supabase/migrations/20261109120000_0037_bloqueio_solicitacao_sem_pagamento.sql` | Redefine `apply_payment_status` com o **mesmo conteúdo da `0035`** — `diff` do corpo mostra apenas a inserção da guarda — acrescentando, logo após `select ... for update` e **antes de qualquer escrita**, a rejeição de `status = 'requested'` ou `payment_status = 'not_required'` com resultado `ignored_no_payment_required` |
+| `supabase/functions/_shared/handlers/orderStatus.ts` | `requested` / `not_required` são excluídos da reconciliação (`isPaymentFreeRequest`): nenhuma consulta ao provedor, nenhuma tentativa de confirmar pagamento |
+| `tests/db/19_not_required_guard.test.ts` | 9 testes (A–I) chamando `apply_payment_status` diretamente como `service_role`, com snapshot antes/depois de pedido, itens, estoque, reservas, pagamentos, eventos, entregas e tokens privados |
+
+Depois da correção, a mesma tentativa devolve:
+
+```json
+{"result":"ignored_no_payment_required","order_status":"requested","payment_status":"not_required","delivery_status":"not_ready"}
+```
+
+e **nenhum** dos registros acima muda — inclusive `order_events` (a guarda não
+escreve evento) e o estoque (o pedido continua sem reserva e sem baixa).
+
+### 12.3 Caminhos de pagamento revisados
+
+| Caminho | Como chega à confirmação | Situação |
+| --- | --- | --- |
+| `order-status` (Edge Function) | RPC direto após consultar o provedor | passa a nem tentar em `requested`/`not_required`; se tentasse, a guarda responde `ignored_no_payment_required` |
+| `mp-webhook` (Edge Function) | RPC após validar assinatura e buscar o pagamento | bloqueado pela guarda (não há `provider_payment_id` ligado a solicitação) |
+| `demo-payment` → `demo_approve_payment` | exige `pending_payment` + produto demo | inalcançável para solicitação |
+| `internal_confirm_payment` | exige `pending_payment` + token privado + flag desligada por padrão | inalcançável para solicitação |
+| `admin_resolve_dispute` / `admin_rotate_delivery_token` | exigem `disputed`/`charged_back` ou entrega existente | inalcançáveis para solicitação |
+| `create_order` / `create_order_multi` | criam pedidos novos | não operam sobre solicitação existente |
+
+Vendas legítimas seguem idênticas: aprovação de um e de vários produtos,
+aprovação repetida (`already_applied`), recusa (`failed` + estoque devolvido),
+reembolso (entrega revogada) e estorno posterior (`charged_back`, entrega
+preservada como revogada).
+
+### 12.4 Evidência de execução
+
+| Verificação | Comando | Resultado |
+| --- | --- | --- |
+| Banco + unitários | `npm run test:db` | **264/264** em 21 arquivos, 0 falhas |
+| Interface | `npx vitest run` | **79/79** em 10 arquivos, 0 falhas |
+| Teste da guarda — com a migração | `vitest ... tests/db/19_not_required_guard.test.ts` | **9/9** |
+| Teste da guarda — sem a migração (controle) | idem, com a `0037` fora do diretório | **5 falhas / 4 passes** (A–E falham; F–I, vendas legítimas, seguem verdes) |
+| TypeScript | `npx tsc -b` | exit 0 |
+| Build | `npm run build` | `dist/` gerado (65 módulos) |
+| Bundle das funções | `npm run bundle:functions` | 8 funções |
+| Migrações do zero | recriação automática | **36** (`0001`–`0037`) |
+
+### 12.5 Limitações restantes
+
+1. **Nenhuma confirmação por provedor real** foi exercitada (sem credenciais
+   financeiras, conforme a restrição). A guarda é testada pelo mesmo RPC
+   `service_role` usado pelas Edge Functions.
+2. **Teste de handler HTTP para a reconciliação de `order-status`**: não criado.
+   A barreira efetiva é o banco (testada diretamente); o ajuste do handler é
+   defesa em profundidade.
+3. **`main` divergente**: a `main` (`0b50248`) não contém este backend. Nada foi
+   alterado nela; não houve merge.
+4. Nenhum dado, produto ou migração anterior foi removido ou reescrito.
