@@ -314,3 +314,20 @@ supabase functions deploy mp-webhook --no-verify-jwt
 
 Depois: criar os administradores, cadastrar 1 produto + 1 unidade de estoque pelo
 painel e percorrer o fluxo de compra com uma conta de teste do Mercado Pago.
+
+## Missão 10 — Reconciliação final (2026-11-09)
+
+Relatório: [missao-10-reconciliacao-final.md](missao-10-reconciliacao-final.md).
+M09 recuperada integralmente na branch fixa `arena/3b67fee3-prime-store`: único
+commit exclusivo `1de28ddbc0f568ab5de26bcc67a3d8a36bf0a318`, cinco arquivos, sem
+conflitos. Integração oficial será feita por PR intermediário para a branch
+`arena/66cda9f6-prime-store`, mantendo PR #2 como único caminho à main.
+
+Revalidação local: 127/127, 294/294, typecheck, build e bundles 8/8 aprovados;
+audit sem vulnerabilidades. Nenhuma escrita Supabase. Conector desativado:
+os resultados remotos M08/M09 são históricos, não revalidados nesta missão.
+Correção da assinatura admin-api/0038 já existia desde M07. Deploy, HTTP real,
+backup/PITR e admins reais/TOTP continuam pendentes; pagamentos congelados.
+Estado do merge ainda pendente no momento deste registro pré-integração;
+encerramento com SHAs e resultado efetivo será anexado ao PR #2.
+**Não pronta para lançamento.**

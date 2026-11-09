@@ -101,3 +101,12 @@ O arquivo `scripts/smoke-edge-functions.mjs` foi atualizado para remover a opç�
 ## 12. Veredito
 
 **MISSÃO PARCIAL.** A Prime Store não está pronta para lançamento. A aprovação exige no mínimo publicação comprovada da `admin-api`, validação HTTP real, evidência de backup recuperável, administradores reais com TOTP/AAL2 e resolução da branch/PR. Nenhuma pendência foi declarada concluída sem prova.
+
+## Nota de reconciliação M10
+
+Este documento registra evidências históricas, não o estado remoto atual.
+Veja [Missão 10](missao-10-reconciliacao-final.md) para ancestralidade, recuperação
+do commit M09 e validações reexecutadas. A chamada administrativa de quatro
+argumentos foi introduzida em M07 (`f046a82`), não corrigida em M09. O smoke
+não comprova oito funções nem ausência absoluta de efeitos de auditoria ou
+rate-limit; não foi executado remotamente na M10.
