@@ -331,3 +331,15 @@ backup/PITR e admins reais/TOTP continuam pendentes; pagamentos congelados.
 Estado do merge ainda pendente no momento deste registro pré-integração;
 encerramento com SHAs e resultado efetivo será anexado ao PR #2.
 **Não pronta para lançamento.**
+
+### Encerramento M10
+
+**CONCLUÍDA:** PR intermediário #3 integrado na oficial; PR #2 integrado à main
+em 2026-11-09 20:00:48 UTC por merge commit
+`0edf709f34480e3a1af56e65c190fe38f5f732bb`. Head oficial aprovado:
+`f1b060e8a4c9af96b5ace47109b3961e5b8910d3`, revalidado com 127/127 e 294/294,
+typecheck/build/bundles aprovados. Árvore da main final idêntica à validada;
+M09 e histórico oficial preservados; branches mantidas; nenhum workflow/check
+pós-merge configurado. Este encerramento documental é posterior ao merge e
+permanece na branch da sessão e no comentário do PR #2. Supabase não foi
+modificado nem revalidado; pagamentos congelados e lançamento não aprovado.

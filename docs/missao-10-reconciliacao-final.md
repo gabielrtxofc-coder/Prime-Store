@@ -152,3 +152,44 @@ Pendências reais e procedimento de confirmação (fora desta missão):
 6. Esclarecer a tag M07 com evidência original antes de qualquer recriação.
 
 Integração de código não publica Edge Function nem autoriza lançamento.
+
+## Encerramento comprovado — CONCLUÍDA
+
+PR intermediário [#3](https://github.com/gabielrtxofc-coder/Prime-Store/pull/3)
+MERGED às 19:58:09 UTC, merge commit
+`f1b060e8a4c9af96b5ace47109b3961e5b8910d3`.
+PR oficial [#2](https://github.com/gabielrtxofc-coder/Prime-Store/pull/2)
+MERGED às **20:00:48 UTC**, método **merge commit**, sem bypass/force/delete.
+
+| Referência | SHA final remoto da integração |
+|---|---|
+| main | `0edf709f34480e3a1af56e65c190fe38f5f732bb` |
+| arena/66cda9f6-prime-store | `f1b060e8a4c9af96b5ace47109b3961e5b8910d3` |
+| arena/529cc4db-prime-store | `1de28ddbc0f568ab5de26bcc67a3d8a36bf0a318` (inalterada) |
+| arena/3b67fee3-prime-store | candidata publicada `5a9a5ca56e85ec4b5906af6b0e21b93975f51eba`; depois avançada localmente para `f1b060e8a4c9af96b5ace47109b3961e5b8910d3` e acrescida deste encerramento documental |
+
+O SHA do commit documental final da sessão será registrado no comentário final
+do PR #2 (não é possível um documento conter o SHA do próprio commit).
+Este adendo pós-merge fica na branch da sessão; a main contém a versão
+pré-merge do relatório, com evidências de validação e referência ao encerramento
+no PR. Não foi aberto outro PR para main apenas para registrar o resultado.
+
+Última validação executada **no HEAD exato do PR #2**,
+`f1b060e8a4c9af96b5ace47109b3961e5b8910d3`, ainda na branch da sessão:
+127/127 e 294/294, 0 falhas; typecheck, build, bundles 8/8 e diff-check sucesso.
+Logs `.local/m10/head-test.log` e `.local/m10/head-db.log` (não versionados).
+
+Conferência posterior por fetch/API/ls-remote:
+- PR #2 em MERGED, origem oficial e destino main preservados;
+- pais da main final: baseline `8f37527e9fe41997020a8bab86cbb3b9272dcf8d`
+  e head aprovado `f1b060e8a4c9af96b5ace47109b3961e5b8910d3`;
+- `git diff --exit-code f1b060e... origin/main`: exit 0;
+- árvores iguais: `0c06a7ae3df3922c92379ef9ee0b0c430ef63b12`;
+- `git merge-base --is-ancestor` para o commit M09 e a ponta oficial inicial:
+  ambos exit 0. Nenhuma alteração válida foi perdida;
+- todas as branches existentes continuam no remoto; tags continuam ausentes;
+- statusCheckRollup vazio e runs da main vazios após integração: sem CI
+  pós-merge configurado, não confundir com CI aprovado.
+
+**CONCLUÍDA** para reconciliação, validações e merge. A Prime Store permanece
+**não pronta para lançamento** pelas pendências operacionais descritas acima.
