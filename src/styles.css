@@ -991,3 +991,15 @@ button:disabled { cursor: not-allowed; }
   .catalog-results-heading__actions { flex-wrap: wrap; gap: 10px; }
   .tracking-box__actions { flex-direction: column; align-items: flex-start; }
 }
+
+/* 03.2B–03.2E: filtros de período e painéis do painel administrativo */
+.admin-period { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.admin-period .form-control { height: 36px; }
+.admin-panel__header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.admin-panel__header h2 { margin: 0; }
+.admin-subheading { margin: 16px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.admin-list--ranked { list-style: none; padding-left: 0; counter-reset: rank; }
+.admin-list--ranked li { counter-increment: rank; }
+.admin-detail-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 12px; }
+.admin-detail-grid--stack { grid-template-columns: 1fr; margin-top: 4px; }
+.admin-order-banner { margin-top: 12px; }

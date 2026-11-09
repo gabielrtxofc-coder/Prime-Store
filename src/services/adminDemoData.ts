@@ -214,6 +214,44 @@ const orders: AdminOrderRow[] = [
     delivery_link_status: null,
     open_refund_requests: 0,
   },
+  {
+    id: 'cccccccc-0000-4000-8000-000000000004',
+    reference: 'PS-DEMO04',
+    product_id: DEMO_PRODUCT_AVULSO,
+    product_name: products[1].name,
+    quantity: 3,
+    unit_price_cents: 4990,
+    total_cents: 14970,
+    status: 'requested',
+    payment_status: 'not_required',
+    delivery_status: 'not_ready',
+    created_at: iso(-45),
+    paid_at: null,
+    reservation_expires_at: iso(-45),
+    delivery_id: null,
+    delivery_link_status: null,
+    open_refund_requests: 0,
+    items_count: 2,
+  },
+  {
+    id: 'cccccccc-0000-4000-8000-000000000005',
+    reference: 'PS-DEMO05',
+    product_id: DEMO_PRODUCT_MENSAL,
+    product_name: products[0].name,
+    quantity: 1,
+    unit_price_cents: 2990,
+    total_cents: 2990,
+    status: 'requested',
+    payment_status: 'not_required',
+    delivery_status: 'not_ready',
+    created_at: iso(-60 * 9),
+    paid_at: null,
+    reservation_expires_at: iso(-60 * 9),
+    delivery_id: null,
+    delivery_link_status: null,
+    open_refund_requests: 0,
+    items_count: 1,
+  },
 ];
 
 const refunds: AdminRefund[] = [
@@ -328,14 +366,21 @@ function listStock(payload: Record<string, unknown>): AdminStockList {
 
 function listOrders(payload: Record<string, unknown>): { items: AdminOrderRow[]; total: number; limit: number; offset: number } {
   const status = typeof payload.status === 'string' ? payload.status : null;
+  const paymentStatus = typeof payload.paymentStatus === 'string' ? payload.paymentStatus : null;
   const problemOnly = payload.problemOnly === true;
   const search = typeof payload.search === 'string' ? payload.search.toLowerCase() : '';
+  const from = typeof payload.from === 'string' ? Date.parse(payload.from) : null;
+  const to = typeof payload.to === 'string' ? Date.parse(payload.to) : null;
   const limit = typeof payload.limit === 'number' ? payload.limit : 20;
   const offset = typeof payload.offset === 'number' ? payload.offset : 0;
   const items = orders.filter((order) => {
     if (status && order.status !== status) return false;
+    if (paymentStatus && order.payment_status !== paymentStatus) return false;
     if (problemOnly && !['disputed', 'refund_pending', 'failed'].includes(order.status)) return false;
     if (search && !`${order.reference} ${order.product_name}`.toLowerCase().includes(search)) return false;
+    const created = Date.parse(order.created_at);
+    if (from !== null && !Number.isNaN(from) && created < from) return false;
+    if (to !== null && !Number.isNaN(to) && created > to) return false;
     return true;
   });
   return { items: items.slice(offset, offset + limit), total: items.length, limit, offset };
@@ -358,6 +403,7 @@ function orderDetail(orderId: string): AdminOrderDetail {
       created_at: order.created_at,
       paid_at: order.paid_at,
       reservation_expires_at: order.reservation_expires_at,
+      ...(order.items_count !== undefined ? { items_count: order.items_count } : {}),
     },
     payments: [
       {

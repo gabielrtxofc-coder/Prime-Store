@@ -52,12 +52,16 @@ export function AdminStock() {
   }, [productId, status, showCredentials]);
 
   useEffect(() => {
-    void adminApi.listProducts('', true).then((result) => setProducts(result.products)).catch(() => setProducts([]));
+    void adminApi.listProducts('', true)
+      .then((result) => setProducts(result.products))
+      .catch((productsError) => setError(describeBackendError(productsError)));
   }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   const addUnit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -65,8 +69,21 @@ export function AdminStock() {
       setError('Selecione o produto antes de cadastrar uma unidade.');
       return;
     }
+    const trimmedEmail = email.trim();
+    if (!EMAIL_PATTERN.test(trimmedEmail)) {
+      setError('Informe um e-mail/login válido (ex.: conta@exemplo.com).');
+      return;
+    }
+    if (password.length < 6) {
+      setError('A senha da conta deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    if (notes.trim().length > 500) {
+      setError('Observações podem ter no máximo 500 caracteres.');
+      return;
+    }
     try {
-      await adminApi.addStock({ productId, email: email.trim(), password, notes: notes.trim() });
+      await adminApi.addStock({ productId, email: trimmedEmail, password, notes: notes.trim() });
       setNotice('Unidade cadastrada. E-mail e senha foram cifrados antes de gravar.');
       setEmail('');
       setPassword('');
@@ -151,6 +168,37 @@ export function AdminStock() {
         </div>
       )}
 
+      {products.length > 0 && (
+        <div className="admin-panel">
+          <div className="admin-panel__header">
+            <h2>Estoque por produto</h2>
+            <span className="field-hint">Alerta de baixo estoque usa a regra existente do painel (≤ 2 disponíveis)</span>
+          </div>
+          <div className="admin-table-wrapper">
+            <table className="admin-table">
+              <thead>
+                <tr><th>Produto</th><th>Disponível</th><th>Situação</th></tr>
+              </thead>
+              <tbody>
+                {[...products]
+                  .sort((a, b) => a.available_units - b.available_units)
+                  .map((product) => (
+                    <tr key={product.id}>
+                      <td>{product.name}</td>
+                      <td>{product.available_units}</td>
+                      <td>
+                        {product.available_units === 0 && <span className="admin-badge is-off">sem estoque</span>}
+                        {product.available_units >= 1 && product.available_units <= 2 && <span className="admin-badge is-warn">estoque baixo</span>}
+                        {product.available_units > 2 && <span className="admin-badge is-on">ok</span>}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="admin-toolbar">
         <select
           className="form-control"
@@ -175,7 +223,7 @@ export function AdminStock() {
         </select>
         <label className="admin-inline-check">
           <input type="checkbox" checked={showCredentials} onChange={(event) => setShowCredentials(event.target.checked)} />
-          Exibir credenciais (registrado em auditoria)
+          Exibir credenciais (registrado em auditoria como stock_credentials_listed)
         </label>
         <button className="button button--secondary button--small" type="button" onClick={() => void load()}>Atualizar</button>
       </div>
@@ -255,7 +303,7 @@ export function AdminStock() {
             </div>
             <div className="form-field form-field--full">
               <label htmlFor="stock-notes">Observações internas (opcional)</label>
-              <input id="stock-notes" value={notes} onChange={(event) => setNotes(event.target.value)} />
+              <input id="stock-notes" value={notes} maxLength={500} onChange={(event) => setNotes(event.target.value)} />
             </div>
           </div>
           <button className="button button--primary" type="submit">Cadastrar unidade</button>

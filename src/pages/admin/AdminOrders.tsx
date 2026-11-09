@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatCurrency } from '../../lib/format';
 import {
   adminApi,
@@ -7,9 +7,37 @@ import {
   type DisputeOutcome,
 } from '../../services/adminApi';
 import { describeBackendError } from '../../services/backend/http';
+import { presetToRange, type PeriodPreset } from '../../lib/period';
+import { PeriodFilter } from '../../components/admin/PeriodFilter';
 
-const ORDER_STATUS = ['', 'pending_payment', 'paid', 'expired', 'cancelled', 'refund_pending', 'refunded', 'disputed', 'failed'] as const;
-const PAYMENT_STATUS = ['', 'pending', 'in_process', 'approved', 'rejected', 'cancelled', 'refunded', 'charged_back', 'amount_mismatch'] as const;
+// Estados reais do banco (enums `order_status`/`payment_status`).
+// `requested`/`not_required` existem desde a migração 0033 (solicitação sem pagamento).
+const ORDER_STATUS = ['', 'requested', 'pending_payment', 'paid', 'expired', 'cancelled', 'refund_pending', 'refunded', 'disputed', 'failed'] as const;
+const PAYMENT_STATUS = ['', 'not_required', 'pending', 'in_process', 'approved', 'rejected', 'cancelled', 'refunded', 'charged_back', 'amount_mismatch'] as const;
+
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  requested: 'requested — solicitação',
+  pending_payment: 'pending_payment — aguardando PIX',
+  paid: 'paid — pago',
+  expired: 'expired — expirado',
+  cancelled: 'cancelled — cancelado',
+  refund_pending: 'refund_pending — reembolso em análise',
+  refunded: 'refunded — reembolsado',
+  disputed: 'disputed — contestado',
+  failed: 'failed — não concluído',
+};
+
+const PAYMENT_STATUS_LABEL: Record<string, string> = {
+  not_required: 'not_required — sem pagamento (solicitação)',
+  pending: 'pending — aguardando',
+  in_process: 'in_process — em processamento',
+  approved: 'approved — aprovado',
+  rejected: 'rejected — recusado',
+  cancelled: 'cancelled — cancelado',
+  refunded: 'refunded — reembolsado',
+  charged_back: 'charged_back — chargeback',
+  amount_mismatch: 'amount_mismatch — divergência de valor',
+};
 
 export function AdminOrders() {
   const [list, setList] = useState<AdminOrderList | null>(null);
@@ -17,10 +45,15 @@ export function AdminOrders() {
   const [status, setStatus] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('');
   const [problemOnly, setProblemOnly] = useState(false);
+  const [preset, setPreset] = useState<PeriodPreset>('30d');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [detail, setDetail] = useState<AdminOrderDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const range = useMemo(() => presetToRange(preset, customFrom, customTo), [preset, customFrom, customTo]);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -30,6 +63,8 @@ export function AdminOrders() {
         status: status || null,
         paymentStatus: paymentStatus || null,
         problemOnly,
+        from: range.from,
+        to: range.to,
         limit: 100,
       });
       setList(result);
@@ -39,7 +74,7 @@ export function AdminOrders() {
     } finally {
       setBusy(false);
     }
-  }, [search, status, paymentStatus, problemOnly]);
+  }, [search, status, paymentStatus, problemOnly, range]);
 
   useEffect(() => {
     void load();
@@ -119,14 +154,23 @@ export function AdminOrders() {
         />
         <select className="form-control" value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Status do pedido">
           {ORDER_STATUS.map((value) => (
-            <option key={value || 'all'} value={value}>{value || 'Todos os pedidos'}</option>
+            <option key={value || 'all'} value={value}>{value ? ORDER_STATUS_LABEL[value] : 'Todos os pedidos'}</option>
           ))}
         </select>
         <select className="form-control" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value)} aria-label="Status do pagamento">
           {PAYMENT_STATUS.map((value) => (
-            <option key={value || 'all'} value={value}>{value || 'Todos os pagamentos'}</option>
+            <option key={value || 'all'} value={value}>{value ? PAYMENT_STATUS_LABEL[value] : 'Todos os pagamentos'}</option>
           ))}
         </select>
+        <PeriodFilter
+          idPrefix="orders"
+          preset={preset}
+          customFrom={customFrom}
+          customTo={customTo}
+          onPresetChange={setPreset}
+          onCustomFromChange={setCustomFrom}
+          onCustomToChange={setCustomTo}
+        />
         <label className="admin-inline-check">
           <input type="checkbox" checked={problemOnly} onChange={(event) => setProblemOnly(event.target.checked)} />
           Somente problemas
@@ -159,9 +203,13 @@ export function AdminOrders() {
                 <td>{order.quantity}</td>
                 <td>{formatCurrency(order.total_cents)}</td>
                 <td>{new Date(order.created_at).toLocaleString('pt-BR')}</td>
-                <td>{order.payment_status}</td>
+                <td>
+                  {order.payment_status}
+                  {order.payment_status === 'not_required' && <span className="admin-badge"> sem cobrança</span>}
+                </td>
                 <td>
                   {order.status}
+                  {order.status === 'requested' && <span className="admin-badge"> solicitação</span>}
                   {order.status === 'disputed' && <span className="admin-badge is-warn">contestar</span>}
                   {order.open_refund_requests > 0 && <span className="admin-badge is-warn">reembolso</span>}
                 </td>
@@ -177,7 +225,12 @@ export function AdminOrders() {
           </tbody>
         </table>
       </div>
-      {list && <p className="field-hint">{list.total} pedido(s) no total · exibindo {list.items.length}.</p>}
+      {list && (
+        <p className="field-hint">
+          {list.total} pedido(s) no total · exibindo {list.items.length} · ordenados do mais recente para o mais antigo (created_at) pelo servidor.
+          {list.total > list.items.length ? ` Há mais resultados do que os ${list.items.length} exibidos — refine os filtros.` : ''}
+        </p>
+      )}
 
       {detail && (
         <div className="admin-panel admin-order-detail">
@@ -192,14 +245,76 @@ export function AdminOrders() {
             <button className="button button--secondary button--small" type="button" onClick={() => setDetail(null)}>Fechar</button>
           </div>
 
-          <dl className="admin-detail-grid">
-            <div><dt>Status do pedido</dt><dd>{detail.order.status}</dd></div>
-            <div><dt>Status do pagamento</dt><dd>{detail.order.payment_status}</dd></div>
-            <div><dt>Entrega</dt><dd>{detail.order.delivery_status}</dd></div>
-            <div><dt>Expira a reserva</dt><dd>{new Date(detail.order.reservation_expires_at).toLocaleString('pt-BR')}</dd></div>
-            <div><dt>Pago em</dt><dd>{detail.order.paid_at ? new Date(detail.order.paid_at).toLocaleString('pt-BR') : '—'}</dd></div>
-            <div><dt>Unidades entregues</dt><dd>{detail.delivery_units.length}</dd></div>
-          </dl>
+          {/* buyer_name / buyer_email não são exibidos neste painel:
+              o painel administrativo não mostra dados pessoais desnecessários. */}
+          {(detail.order.status === 'requested' || detail.order.payment_status === 'not_required') && (
+            <div className="payment-warning admin-order-banner" role="note">
+              <p>
+                <strong>Solicitação sem pagamento.</strong> Pedido criado no modo atual da loja: não houve cobrança e não
+                há pagamento a confirmar. Nenhuma aprovação manual é possível ou necessária — trate como solicitação de
+                atendimento, nunca como venda paga.
+              </p>
+            </div>
+          )}
+
+          <div className="admin-detail-columns">
+            <section aria-label="Estado do pedido">
+              <h3 className="admin-subheading">Pedido</h3>
+              <dl className="admin-detail-grid admin-detail-grid--stack">
+                <div><dt>Status do pedido</dt><dd>{ORDER_STATUS_LABEL[detail.order.status] ?? detail.order.status}</dd></div>
+                <div><dt>Criado em</dt><dd>{new Date(detail.order.created_at).toLocaleString('pt-BR')}</dd></div>
+                <div><dt>Reserva expira em</dt><dd>{new Date(detail.order.reservation_expires_at).toLocaleString('pt-BR')}</dd></div>
+                <div><dt>Entrega</dt><dd>{detail.order.delivery_status}</dd></div>
+                <div><dt>Unidades entregues</dt><dd>{detail.delivery_units.length}</dd></div>
+              </dl>
+            </section>
+            <section aria-label="Estado do pagamento">
+              <h3 className="admin-subheading">Pagamento</h3>
+              <dl className="admin-detail-grid admin-detail-grid--stack">
+                <div><dt>Status do pagamento</dt><dd>{PAYMENT_STATUS_LABEL[detail.order.payment_status] ?? detail.order.payment_status}</dd></div>
+                <div><dt>Pago em</dt><dd>{detail.order.paid_at ? new Date(detail.order.paid_at).toLocaleString('pt-BR') : '—'}</dd></div>
+              </dl>
+            </section>
+          </div>
+
+          <section aria-label="Itens do pedido">
+            <h3 className="admin-subheading">Itens do pedido</h3>
+            <dl className="admin-detail-grid">
+              <div><dt>Produto</dt><dd>{detail.order.product_name}</dd></div>
+              <div><dt>Quantidade total</dt><dd>{detail.order.quantity}</dd></div>
+              {typeof detail.order.items_count === 'number' && detail.order.items_count > 1 && (
+                <div><dt>Itens distintos</dt><dd>{detail.order.items_count}</dd></div>
+              )}
+              <div><dt>Valor total</dt><dd>{formatCurrency(detail.order.total_cents)}</dd></div>
+            </dl>
+            <p className="field-hint">
+              O painel exibe o resumo registrado no pedido (produto, quantidade e valor). O detalhamento item a item não é
+              exposto pela API administrativa.
+            </p>
+          </section>
+
+          {detail.payments.length > 0 && (
+            <section aria-label="Registros de pagamento">
+              <h3 className="admin-subheading">Registros de pagamento</h3>
+              <div className="admin-table-wrapper">
+                <table className="admin-table">
+                  <thead>
+                    <tr><th>Provedor</th><th>Status</th><th>Valor</th><th>Criado em</th></tr>
+                  </thead>
+                  <tbody>
+                    {detail.payments.map((payment, index) => (
+                      <tr key={index}>
+                        <td>{String(payment.provider ?? '—')}</td>
+                        <td>{String(payment.status ?? '—')}</td>
+                        <td>{typeof payment.amount_cents === 'number' ? formatCurrency(payment.amount_cents) : '—'}</td>
+                        <td>{payment.created_at ? new Date(String(payment.created_at)).toLocaleString('pt-BR') : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           {(detail.order.status === 'disputed' || detail.order.payment_status === 'charged_back') && (
             <div className="admin-panel admin-nested">

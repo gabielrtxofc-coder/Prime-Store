@@ -164,7 +164,7 @@ describe('rota /admin (missão 03.2A)', () => {
     expect(screen.getByLabelText('Senha')).toBeInTheDocument();
     // Nenhum vestígio do painel autenticado:
     expect(screen.queryByRole('navigation', { name: 'Seções do painel' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Receita aprovada')).not.toBeInTheDocument();
+    expect(screen.queryByText('Receita aprovada (total)')).not.toBeInTheDocument();
     expect(screen.queryByText('Visão geral')).not.toBeInTheDocument();
     // O chrome público da loja não envolve o painel:
     expect(screen.queryByRole('navigation', { name: 'Navegação principal' })).not.toBeInTheDocument();
@@ -187,7 +187,7 @@ describe('rota /admin (missão 03.2A)', () => {
     expect(await screen.findByRole('heading', { name: 'Acesso negado' })).toBeInTheDocument();
     expect(screen.getByText('dono@prime-store.test')).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Seções do painel' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Receita aprovada')).not.toBeInTheDocument();
+    expect(screen.queryByText('Receita aprovada (total)')).not.toBeInTheDocument();
     expect(state.indicatorsMock).not.toHaveBeenCalled();
     expect(console.error).not.toHaveBeenCalled();
   });
@@ -226,7 +226,7 @@ describe('rota /admin (missão 03.2A)', () => {
     expect(state.verifyTotpMock).toHaveBeenCalledWith('factor-1', '123456');
     // Após a verificação, o painel é renderizado.
     expect(await screen.findByRole('navigation', { name: 'Seções do painel' })).toBeInTheDocument();
-    expect(await screen.findByText('Receita aprovada')).toBeInTheDocument();
+    expect(await screen.findByText('Receita aprovada (total)')).toBeInTheDocument();
     expect(state.indicatorsMock).toHaveBeenCalled();
     expect(console.error).not.toHaveBeenCalled();
   });
@@ -242,7 +242,7 @@ describe('rota /admin (missão 03.2A)', () => {
     expect(within(tabs).getByRole('button', { name: 'Estoque' })).toBeInTheDocument();
     expect(within(tabs).getByRole('button', { name: 'Pedidos' })).toBeInTheDocument();
 
-    expect(await screen.findByText('Receita aprovada')).toBeInTheDocument();
+    expect(await screen.findByText('Receita aprovada (total)')).toBeInTheDocument();
     expect(screen.getByText('Painel Prime Store')).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Navegação principal' })).not.toBeInTheDocument();
 

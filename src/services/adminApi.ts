@@ -83,6 +83,8 @@ export interface AdminOrderRow {
   delivery_id: string | null;
   delivery_link_status: string | null;
   open_refund_requests: number;
+  /** Pedidos multiproduto (migração 0033/0034): total de itens no carrinho. */
+  items_count?: number;
 }
 
 export interface AdminOrderList {
@@ -263,6 +265,9 @@ export const adminApi = {
     status?: string | null;
     paymentStatus?: string | null;
     problemOnly?: boolean;
+    /** Limites ISO sobre `created_at` (suportados pelo backend desde 0012). */
+    from?: string | null;
+    to?: string | null;
     limit?: number;
     offset?: number;
   }) => adminInvoke<AdminOrderList>('orders.list', params),
