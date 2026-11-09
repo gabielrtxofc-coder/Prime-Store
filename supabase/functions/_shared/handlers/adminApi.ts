@@ -14,7 +14,9 @@ import { ApiError, errorResponse, json, methodGuard, preflight, readJson } from 
 import { enforceRateLimit } from '../rateLimit.ts';
 import type { RpcFn } from '../rest.ts';
 import {
+  boundedInt,
   isUuid,
+  optionalIsoTimestamp,
   optionalString,
   pickKnownFields,
   requireEmail,
@@ -208,8 +210,8 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
             p_product_id: payload.productId ? requireUuid(payload.productId, 'productId') : null,
             p_status: optionalString(payload.status, 'status', { max: 20 }) ?? null,
             p_search: optionalString(payload.search, 'search', { max: 120 }) ?? null,
-            p_limit: Number(payload.limit ?? 100),
-            p_offset: Number(payload.offset ?? 0),
+            p_limit: boundedInt(payload.limit, { min: 1, max: 200, fallback: 100 }),
+            p_offset: boundedInt(payload.offset, { min: 0, max: 1_000_000, fallback: 0 }),
             p_include_credentials: includeCredentials,
           },
         );
@@ -360,11 +362,11 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
           p_search: optionalString(payload.search, 'search', { max: 120 }) ?? null,
           p_status: optionalString(payload.status, 'status', { max: 30 }) ?? null,
           p_payment_status: optionalString(payload.paymentStatus, 'paymentStatus', { max: 30 }) ?? null,
-          p_from: payload.from ?? null,
-          p_to: payload.to ?? null,
+          p_from: optionalIsoTimestamp(payload.from, 'from'),
+          p_to: optionalIsoTimestamp(payload.to, 'to'),
           p_problem_only: Boolean(payload.problemOnly),
-          p_limit: Number(payload.limit ?? 50),
-          p_offset: Number(payload.offset ?? 0),
+          p_limit: boundedInt(payload.limit, { min: 1, max: 200, fallback: 50 }),
+          p_offset: boundedInt(payload.offset, { min: 0, max: 1_000_000, fallback: 0 }),
         });
         return json(result);
       }
@@ -438,7 +440,7 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
 
       case 'audit.list':
         return json({
-          entries: await rpc('admin_audit_log', { p_limit: Number(payload.limit ?? 50) }),
+          entries: await rpc('admin_audit_log', { p_limit: boundedInt(payload.limit, { min: 1, max: 200, fallback: 50 }) }),
         });
 
       case 'reservations.expire':

@@ -1,7 +1,30 @@
 # Registro de progresso
 
-> Atualizado em 2026-11-01. Este arquivo existe para que outra sessão consiga
+> Atualizado em 2026-11-09. Este arquivo existe para que outra sessão consiga
 > retomar o trabalho sem depender do histórico de conversa.
+
+## Missão 06 (painel operacional) — auditoria completa, um defeito corrigido
+
+Relatório completo: [`missao-06-painel-operacional.md`](./missao-06-painel-operacional.md).
+
+- **Auditoria do Supabase/banco:** 22 tabelas com RLS; anon/authenticated sem GRANT
+  em tabela; acesso só por funções `SECURITY DEFINER`; `assert_admin()` com AAL2;
+  ENUMs de pedido/pagamento/estoque/entrega; estoque por unidades (sem contador);
+  histórico = `admin_audit_log` + `order_events` + trigger de preço.
+- **Corrigido (defeito real):** `admin-api` aceitava `from`/`to` arbitrários e
+  `limit`/`offset` via `Number()` — valores inválidos viravam erro 500 do PostgreSQL.
+  Agora `optionalIsoTimestamp` (422) e `boundedInt` (faixa segura) em
+  `orders.list`, `stock.list` e `audit.list`. Nada mudou no caminho feliz.
+- **Novo:** `tests/db/20_admin_api_http.test.ts` (12 casos): 401/400/422/503 estáveis,
+  CRUD de produto e `stock.add` **por HTTP persistidos no banco real** (trigger de
+  preço e auditoria verificados por SQL; duplicado → 409).
+- **Resultado:** `npm test` 118/118; `npm run test:db` **276/276** (+12); typecheck
+  limpo; build OK; 9 funções empacotam; 54/54 telas do painel sem estouro nas 9
+  larguras; loja pública inalterada.
+- **Fora desta missão (dependência externa):** rede para `*.supabase.co` (ausente no
+  ambiente), provisionamento dos dois administradores, chave `PRIME_ENCRYPTION_KEY`
+  e decisão de pagamentos (loja vende solicitação sem pagamento; WyviPay não
+  implementada). `main` intacta; PR #2 draft; sem deploy.
 
 ## Missão 06 (revisão independente) — bordas do fluxo corrigidas
 
