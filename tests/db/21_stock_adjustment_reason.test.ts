@@ -107,6 +107,15 @@ describe('motivos categorizados de ajuste de estoque (migração 0038)', () => {
     ).rejects.toMatchObject({ code: '22023', message: expect.stringContaining('invalid_adjustment_reason') });
   });
 
+  it('tentativa de injeção no motivo cai no enum e nunca executa SQL', async () => {
+    const seed = await seedProduct({ stockUnits: 1 });
+    const injection = `inventory_adjustment'); drop table public.stock_units;--`;
+    await expect(
+      asAdmin(`select public.admin_set_stock_unit_status($1, 'disabled', $2)`, [seed.units[0], injection]),
+    ).rejects.toMatchObject({ code: '22023', message: expect.stringContaining('invalid_adjustment_reason') });
+    expect(await sqlValue<string>(`select status from public.stock_units where id = $1`, [seed.units[0]])).toBe('available');
+  });
+
   it("motivo 'other' exige nota com pelo menos 5 caracteres", async () => {
     const seed = await seedProduct({ stockUnits: 1 });
     await expect(

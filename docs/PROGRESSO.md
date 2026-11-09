@@ -3,6 +3,33 @@
 > Atualizado em 2026-11-09. Este arquivo existe para que outra sessão consiga
 > retomar o trabalho sem depender do histórico de conversa.
 
+## Missão 07 (ativação operacional) — parte local CONCLUÍDA; remota BLOQUEADA
+
+Relatório completo: [`missao-07-ativacao-operacional.md`](./missao-07-ativacao-operacional.md).
+
+- **Bloqueio raiz (remoto):** app Supabase `disabled` nesta conversa + rede para
+  `*.supabase.co` inalcançável. Migrações 0033→0038 **não** aplicadas no real;
+  nenhuma Edge Function publicada; nenhum admin real provisionado; nenhuma
+  evidência de produção. Para concluir: ligar o app Supabase nesta conversa.
+- **Entregue e verificado localmente (commit `f046a82`):**
+  - diálogos de confirmação (confirmação explícita) para TODA ação destrutiva do
+    painel (ativar/desativar produto, desativar/reativar unidade, importar CSV,
+    revogar/rotacionar entrega, disputas, reembolsos, liberar reservas) — foco
+    inicial em Cancelar, Esc/fundo cancelam, anti-duplo-clique;
+  - migração **0038** — motivos categorizados de ajuste de estoque
+    (enum `stock_adjustment_reason`; desativação exige motivo; `other` exige nota
+    ≥ 5 chars; reativação limpa), gateway 422 estáveis, UI com seleção obrigatória;
+  - resiliência: auth fora do ar → **503 `auth_unavailable`** (falha fechada);
+    queda total do banco comprovada sem vazar internos; `is_admin` fail-closed;
+  - **testes:** 127/127 unit + **293/293** (PG local, 38 migrações do zero);
+    typecheck limpo; build OK; bundles 8/8 auto-contidos;
+  - re-auditoria: 0 tabelas sem RLS, 0 funções para anon, allowlist exata para
+    authenticated, 0 segredos em 247 arquivos, zero arquivos de pagamento no diff.
+- **Pendente de entrada humana:** ligar o app Supabase; dados reais dos 2 admins
+  (nome + e-mail Auth) para o provisionamento com TOTP.
+- **Classificação:** CONCLUÍDA (local) / BLOQUEADA (remota) / **PARCIAL (geral)**.
+  `main` intacta (`8f37527`); PR #2 draft; sem deploy; sem merge.
+
 ## Missão 06 (painel operacional) — auditoria completa, um defeito corrigido
 
 Relatório completo: [`missao-06-painel-operacional.md`](./missao-06-painel-operacional.md).
