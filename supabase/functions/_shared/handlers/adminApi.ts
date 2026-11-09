@@ -62,12 +62,21 @@ async function verifyUser(
   authorization: string,
 ): Promise<AuthUser> {
   const url = `${deps.config.supabaseUrl.replace(/\/+$/, '')}/auth/v1/user`;
-  const response = await deps.fetchImpl(url, {
-    headers: {
-      Authorization: authorization,
-      apikey: deps.config.anonKey || deps.config.serviceRoleKey,
-    },
-  });
+  let response: Response;
+  try {
+    response = await deps.fetchImpl(url, {
+      headers: {
+        Authorization: authorization,
+        apikey: deps.config.anonKey || deps.config.serviceRoleKey,
+      },
+    });
+  } catch (fetchError) {
+    // Provedor de auth fora do ar: falha fechada com 503 (nunca autoriza).
+    deps.log('auth.unavailable', {
+      reason: fetchError instanceof Error ? fetchError.message.slice(0, 120) : 'unknown',
+    });
+    throw new ApiError(503, 'auth_unavailable', 'Serviço de autenticação indisponível. Tente novamente em instantes.');
+  }
 
   if (!response.ok) {
     throw new ApiError(401, 'unauthorized', 'Sessão inválida ou expirada.');
@@ -283,9 +292,36 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
       case 'stock.setStatus': {
         const stockUnitId = requireUuid(payload.stockUnitId, 'stockUnitId');
         const status = requireString(payload.status, 'status', { max: 20 });
+        if (status !== 'available' && status !== 'disabled') {
+          throw new ApiError(422, 'invalid_status_change', 'Status deve ser available ou disabled.');
+        }
+        const reason = optionalString(payload.reason, 'reason', { max: 40 }) ?? null;
+        const note = optionalString(payload.note, 'note', { max: 300 }) ?? '';
+        const VALID_REASONS = new Set([
+          'inventory_adjustment',
+          'invalid_credential',
+          'compromised_credential',
+          'duplicate_import',
+          'data_correction',
+          'other',
+        ]);
+        if (status === 'disabled') {
+          if (!reason) {
+            // Mesmo código que o banco levanta (fonte de verdade em duas camadas).
+            throw new ApiError(422, 'adjustment_reason_required', 'Desativar uma unidade exige um motivo categorizado.');
+          }
+          if (!VALID_REASONS.has(reason)) {
+            throw new ApiError(422, 'invalid_adjustment_reason', 'Motivo de ajuste desconhecido.');
+          }
+          if (reason === 'other' && note.trim().length < 5) {
+            throw new ApiError(422, 'adjustment_reason_note_required', "Motivo 'outro' exige uma nota com pelo menos 5 caracteres.");
+          }
+        }
         return json(await rpc('admin_set_stock_unit_status', {
           p_stock_unit_id: stockUnitId,
           p_status: status,
+          p_reason: status === 'disabled' ? reason : null,
+          p_note: status === 'disabled' ? note : '',
         }));
       }
 

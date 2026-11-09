@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { adminApi, type AdminProduct, type AdminStockList, type AdminStockSummary, type ImportPreview, type ImportReport } from '../../services/adminApi';
+import { adminApi, STOCK_ADJUSTMENT_REASONS, type AdminProduct, type AdminStockList, type AdminStockSummary, type ImportPreview, type ImportReport, type StockAdjustmentReason } from '../../services/adminApi';
+import { ConfirmActionDialog } from '../../components/admin/ConfirmActionDialog';
 import { describeBackendError } from '../../services/backend/http';
 
 const STATUS_FILTERS = ['', 'available', 'reserved', 'sold', 'disabled'] as const;
@@ -30,6 +31,11 @@ export function AdminStock() {
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [report, setReport] = useState<ImportReport | null>(null);
   const [importBusy, setImportBusy] = useState(false);
+  const [pendingUnit, setPendingUnit] = useState<{ id: string; next: 'available' | 'disabled'; name: string } | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [confirmImport, setConfirmImport] = useState(false);
+  const [disableReason, setDisableReason] = useState<StockAdjustmentReason | ''>('');
+  const [disableNote, setDisableNote] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
@@ -94,15 +100,38 @@ export function AdminStock() {
     }
   };
 
-  const setUnitStatus = async (unitId: string, next: 'available' | 'disabled') => {
+  const setUnitStatus = (unitId: string, next: 'available' | 'disabled', name: string) => {
+    if (next === 'disabled') {
+      setDisableReason('');
+      setDisableNote('');
+    }
+    setPendingUnit({ id: unitId, next, name });
+  };
+
+  const confirmUnitStatus = async () => {
+    if (!pendingUnit) return;
+    setActionBusy(true);
     try {
-      await adminApi.setStockStatus(unitId, next);
-      setNotice(`Unidade ${next === 'available' ? 'reativada' : 'desativada'}.`);
+      await adminApi.setStockStatus(
+        pendingUnit.id,
+        pendingUnit.next,
+        pendingUnit.next === 'disabled' ? (disableReason || null) : null,
+        pendingUnit.next === 'disabled' ? disableNote.trim() : '',
+      );
+      setNotice(`Unidade ${pendingUnit.next === 'available' ? 'reativada' : 'desativada'}.`);
+      setPendingUnit(null);
       await load();
     } catch (statusError) {
       setError(describeBackendError(statusError));
+      setPendingUnit(null);
+    } finally {
+      setActionBusy(false);
     }
   };
+
+  const disableValid =
+    pendingUnit?.next !== 'disabled' ||
+    (disableReason !== '' && (disableReason !== 'other' || disableNote.trim().length >= 5));
 
   const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -245,7 +274,14 @@ export function AdminStock() {
             {(stock?.items ?? []).map((unit) => (
               <tr key={unit.id}>
                 <td>{unit.product_name}</td>
-                <td><span className={`admin-badge${unit.status === 'available' ? ' is-on' : ' is-off'}`}>{STATUS_LABEL[unit.status] ?? unit.status}</span></td>
+                <td>
+                  <span className={`admin-badge${unit.status === 'available' ? ' is-on' : ' is-off'}`}>{STATUS_LABEL[unit.status] ?? unit.status}</span>
+                  {unit.status === 'disabled' && unit.status_reason && (
+                    <span className="field-hint" title={unit.status_reason_note || undefined}>
+                      {STOCK_ADJUSTMENT_REASONS.find((reason) => reason.value === unit.status_reason)?.label ?? unit.status_reason}
+                    </span>
+                  )}
+                </td>
                 <td>
                   {showCredentials
                     ? <><code>{unit.email ?? '—'}</code><br /><code>{unit.password ?? '—'}</code></>
@@ -263,7 +299,7 @@ export function AdminStock() {
                     <button
                       className="link-button"
                       type="button"
-                      onClick={() => setUnitStatus(unit.id, unit.status === 'available' ? 'disabled' : 'available')}
+                      onClick={() => setUnitStatus(unit.id, unit.status === 'available' ? 'disabled' : 'available', unit.product_name)}
                     >
                       {unit.status === 'available' ? 'Desativar' : 'Reativar'}
                     </button>
@@ -327,7 +363,7 @@ export function AdminStock() {
             <button className="button button--secondary" type="button" onClick={runPreview} disabled={importBusy || csv.trim().length < 3}>
               Pré-visualizar
             </button>
-            <button className="button button--primary" type="button" onClick={runImport} disabled={importBusy || !preview || preview.valid_rows === 0}>
+            <button className="button button--primary" type="button" onClick={() => setConfirmImport(true)} disabled={importBusy || !preview || preview.valid_rows === 0}>
               Importar {preview ? `${preview.valid_rows} válidas` : ''}
             </button>
           </div>
@@ -366,6 +402,64 @@ export function AdminStock() {
           )}
         </section>
       </div>
+      <ConfirmActionDialog
+        open={pendingUnit !== null}
+        title={pendingUnit?.next === 'disabled' ? 'Desativar unidade?' : 'Reativar unidade?'}
+        description={
+          pendingUnit?.next === 'disabled'
+            ? `A unidade de ${pendingUnit?.name ?? ''} deixará de aparecer como disponível para venda. Pedidos já feitos não são alterados. Você pode reativá-la depois.`
+            : `A unidade de ${pendingUnit?.name ?? ''} voltará a aparecer como disponível para venda.`
+        }
+        confirmLabel={pendingUnit?.next === 'disabled' ? 'Desativar' : 'Reativar'}
+        danger={pendingUnit?.next === 'disabled'}
+        busy={actionBusy}
+        confirmDisabled={!disableValid}
+        onConfirm={() => void confirmUnitStatus()}
+        onCancel={() => setPendingUnit(null)}
+      >
+        {pendingUnit?.next === 'disabled' && (
+          <>
+            <div>
+              <label htmlFor="stock-disable-reason">Motivo do ajuste (obrigatório)</label>
+              <select
+                id="stock-disable-reason"
+                className="form-control"
+                value={disableReason}
+                onChange={(event) => setDisableReason(event.target.value as StockAdjustmentReason | '')}
+              >
+                <option value="">Selecione o motivo…</option>
+                {STOCK_ADJUSTMENT_REASONS.map((reason) => (
+                  <option key={reason.value} value={reason.value}>{reason.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="stock-disable-note">
+                {disableReason === 'other' ? 'Nota (obrigatória para "outro motivo")' : 'Nota (opcional)'}
+              </label>
+              <input
+                id="stock-disable-note"
+                className="form-control"
+                value={disableNote}
+                maxLength={300}
+                placeholder={disableReason === 'other' ? 'Descreva o motivo em pelo menos 5 caracteres' : 'Detalhe adicional para auditoria'}
+                onChange={(event) => setDisableNote(event.target.value)}
+              />
+              <p className="field-hint">Fica registrado na auditoria (admin_audit_log) com quem, quando e por quê.</p>
+            </div>
+          </>
+        )}
+      </ConfirmActionDialog>
+      <ConfirmActionDialog
+        open={confirmImport}
+        title="Importar unidades para o estoque?"
+        description="As linhas válidas da prévia serão gravadas como unidades cifradas no produto selecionado. A importação não pode ser desfeita em lote — unidades podem ser desativadas uma a uma depois."
+        confirmLabel="Importar"
+        danger
+        busy={importBusy}
+        onConfirm={() => { setConfirmImport(false); void runImport(); }}
+        onCancel={() => setConfirmImport(false)}
+      />
     </div>
   );
 }

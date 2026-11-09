@@ -9,6 +9,8 @@ import {
 import { describeBackendError } from '../../services/backend/http';
 import { presetToRange, type PeriodPreset } from '../../lib/period';
 import { PeriodFilter } from '../../components/admin/PeriodFilter';
+import { ConfirmActionDialog } from '../../components/admin/ConfirmActionDialog';
+import { useConfirmAction } from '../../components/admin/useConfirmAction';
 
 // Estados reais do banco (enums `order_status`/`payment_status`).
 // `requested`/`not_required` existem desde a migração 0033 (solicitação sem pagamento).
@@ -52,6 +54,7 @@ export function AdminOrders() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { pending: confirmAction, busy: confirmBusy, request: requestConfirm, cancel: cancelConfirm, confirm: runConfirm } = useConfirmAction();
 
   const range = useMemo(() => presetToRange(preset, customFrom, customTo), [preset, customFrom, customTo]);
 
@@ -89,53 +92,125 @@ export function AdminOrders() {
     }
   };
 
-  const revokeDelivery = async (deliveryId: string) => {
-    try {
-      await adminApi.revokeDelivery(deliveryId, 'Revogada pelo painel administrativo');
-      setNotice('Entrega revogada. O link deixa de revelar credenciais imediatamente.');
-      if (detail) await openDetail(detail.order.id);
-      await load();
-    } catch (revokeError) {
-      setError(describeBackendError(revokeError));
-    }
+  const askRevokeDelivery = (deliveryId: string, orderReference: string) => {
+    requestConfirm({
+      title: 'Revogar link de entrega?',
+      description: `Pedido ${orderReference}: o link de entrega deixará de revelar as credenciais imediatamente. Quem já salvou as credenciais não será afetado; quem tentar abrir o link verá uma página de link revogado. A revogação fica registrada em auditoria.`,
+      confirmLabel: 'Revogar link',
+      danger: true,
+      action: async () => {
+        try {
+          await adminApi.revokeDelivery(deliveryId, 'Revogada pelo painel administrativo');
+          setNotice('Entrega revogada. O link deixa de revelar credenciais imediatamente.');
+          if (detail) await openDetail(detail.order.id);
+          await load();
+        } catch (revokeError) {
+          setError(describeBackendError(revokeError));
+        }
+      },
+    });
   };
 
-  const rotateDelivery = async (deliveryId: string) => {
-    try {
-      const result = await adminApi.rotateDelivery(deliveryId);
-      setNotice(result.delivery_url ? `Novo link gerado: ${result.delivery_url}` : 'Novo link gerado.');
-      if (detail) await openDetail(detail.order.id);
-    } catch (rotateError) {
-      setError(describeBackendError(rotateError));
-    }
+  const askRotateDelivery = (deliveryId: string, orderReference: string) => {
+    requestConfirm({
+      title: 'Gerar novo link de entrega?',
+      description: `Pedido ${orderReference}: um novo link será gerado e o link atual deixará de funcionar imediatamente. As credenciais entregues não mudam — apenas a forma de acessá-las. Copie o novo link e envie-o ao cliente somente pelos canais habituais da loja.`,
+      confirmLabel: 'Gerar novo link',
+      danger: false,
+      action: async () => {
+        try {
+          const result = await adminApi.rotateDelivery(deliveryId);
+          setNotice(result.delivery_url ? `Novo link gerado: ${result.delivery_url}` : 'Novo link gerado.');
+          if (detail) await openDetail(detail.order.id);
+        } catch (rotateError) {
+          setError(describeBackendError(rotateError));
+        }
+      },
+    });
   };
 
-  const resolveDispute = async (orderId: string, outcome: DisputeOutcome) => {
-    try {
-      await adminApi.resolveDispute(orderId, outcome, `Decisão da disputa registrada no painel (${outcome}).`);
-      setNotice(
-        outcome === 'reinstated'
-          ? 'Disputa revertida: pedido marcado como pago e entrega liberada.'
-          : outcome === 'refund'
-            ? 'Disputa encerrada com reembolso: entrega revogada.'
-            : 'Disputa mantida em análise de reembolso.',
-      );
-      if (detail) await openDetail(detail.order.id);
-      await load();
-    } catch (disputeError) {
-      setError(describeBackendError(disputeError));
-    }
+  const DISPUTE_COPY: Record<DisputeOutcome, { title: string; description: string; confirmLabel: string; danger: boolean }> = {
+    refund: {
+      title: 'Reembolsar e encerrar contestação?',
+      description: 'O pedido será marcado como reembolsado e o link de entrega será revogado imediatamente. O reembolso em si é feito fora da loja (no Mercado Pago) — aqui fica registrado que você tratou o caso. A ação é registrada em auditoria.',
+      confirmLabel: 'Reembolsar e encerrar',
+      danger: true,
+    },
+    reinstated: {
+      title: 'Registrar contestação revertida?',
+      description: 'O pedido voltará a ser marcado como pago e a entrega será liberada para o cliente. Confirme apenas se o Mercado Pago efetivamente devolveu o valor para a loja. A decisão é registrada em auditoria.',
+      confirmLabel: 'Contestação revertida',
+      danger: false,
+    },
+    refund_pending: {
+      title: 'Manter contestação em análise?',
+      description: 'O pedido permanecerá em análise de reembolso, sem revogar a entrega nem liberar acesso definitivo. Você poderá voltar e tomar a decisão final depois.',
+      confirmLabel: 'Manter em análise',
+      danger: false,
+    },
   };
 
-  const resolveRefund = async (refundId: string, next: 'authorized' | 'processed' | 'rejected') => {
-    try {
-      await adminApi.resolveRefund(refundId, next, `Resolvido pelo painel (${next}).`);
-      setNotice(`Reembolso: ${next}.`);
-      if (detail) await openDetail(detail.order.id);
-      await load();
-    } catch (refundError) {
-      setError(describeBackendError(refundError));
-    }
+  const askResolveDispute = (orderId: string, orderReference: string, outcome: DisputeOutcome) => {
+    const copy = DISPUTE_COPY[outcome];
+    requestConfirm({
+      ...copy,
+      description: `Pedido ${orderReference}: ${copy.description}`,
+      action: async () => {
+        try {
+          await adminApi.resolveDispute(orderId, outcome, `Decisão da disputa registrada no painel (${outcome}).`);
+          setNotice(
+            outcome === 'reinstated'
+              ? 'Disputa revertida: pedido marcado como pago e entrega liberada.'
+              : outcome === 'refund'
+                ? 'Disputa encerrada com reembolso: entrega revogada.'
+                : 'Disputa mantida em análise de reembolso.',
+          );
+          if (detail) await openDetail(detail.order.id);
+          await load();
+        } catch (disputeError) {
+          setError(describeBackendError(disputeError));
+        }
+      },
+    });
+  };
+
+  const REFUND_COPY: Record<'authorized' | 'processed' | 'rejected', { title: string; description: string; confirmLabel: string; danger: boolean }> = {
+    authorized: {
+      title: 'Autorizar reembolso?',
+      description: 'O reembolso será autorizado e o pedido entrará na fila de execução. O dinheiro precisa ser devolvido fora da loja (no Mercado Pago). A autorização fica registrada em auditoria e o link de entrega continua ativo até o reembolso ser marcado como processado.',
+      confirmLabel: 'Autorizar',
+      danger: false,
+    },
+    processed: {
+      title: 'Marcar reembolso como processado?',
+      description: 'Confirme somente depois de devolver o dinheiro ao cliente. O link de entrega do pedido será revogado imediatamente e o caso será encerrado. A ação é registrada em auditoria.',
+      confirmLabel: 'Processado — revogar entrega',
+      danger: true,
+    },
+    rejected: {
+      title: 'Recusar reembolso?',
+      description: 'O pedido de reembolso será recusado e o caso será encerrado. O cliente pode pedir novamente; cada decisão fica registrada em auditoria.',
+      confirmLabel: 'Recusar reembolso',
+      danger: true,
+    },
+  };
+
+  const askResolveRefund = (refundId: string, orderReference: string, next: 'authorized' | 'processed' | 'rejected') => {
+    const copy = REFUND_COPY[next];
+    requestConfirm({
+      ...copy,
+      description: `Pedido ${orderReference}: ${copy.description}`,
+      action: async () => {
+        try {
+          await adminApi.resolveRefund(refundId, next, `Resolvido pelo painel (${next}).`);
+          setNotice(`Reembolso: ${next}.`);
+          if (detail) await openDetail(detail.order.id);
+          await load();
+        } catch (refundError) {
+          setError(describeBackendError(refundError));
+        }
+      },
+    });
   };
 
   return (
@@ -324,13 +399,13 @@ export function AdminOrders() {
                 não é reembolso. Registre o resultado após tratar o caso no Mercado Pago.
               </p>
               <div className="admin-row-actions">
-                <button className="button button--secondary button--small" type="button" onClick={() => resolveDispute(detail.order.id, 'refund')}>
+                <button className="button button--secondary button--small" type="button" onClick={() => askResolveDispute(detail.order.id, detail.order.reference, 'refund')}>
                   Reembolsar e encerrar
                 </button>
-                <button className="button button--secondary button--small" type="button" onClick={() => resolveDispute(detail.order.id, 'reinstated')}>
+                <button className="button button--secondary button--small" type="button" onClick={() => askResolveDispute(detail.order.id, detail.order.reference, 'reinstated')}>
                   Contestação revertida (valor recuperado)
                 </button>
-                <button className="button button--secondary button--small" type="button" onClick={() => resolveDispute(detail.order.id, 'refund_pending')}>
+                <button className="button button--secondary button--small" type="button" onClick={() => askResolveDispute(detail.order.id, detail.order.reference, 'refund_pending')}>
                   Manter em análise
                 </button>
               </div>
@@ -348,12 +423,12 @@ export function AdminOrders() {
                 <button
                   className="button button--secondary button--small"
                   type="button"
-                  onClick={() => revokeDelivery(detail.delivery!.id)}
+                  onClick={() => askRevokeDelivery(detail.delivery!.id, detail.order.reference)}
                   disabled={detail.delivery.status === 'revoked'}
                 >
                   Revogar link
                 </button>
-                <button className="button button--secondary button--small" type="button" onClick={() => rotateDelivery(detail.delivery!.id)}>
+                <button className="button button--secondary button--small" type="button" onClick={() => askRotateDelivery(detail.delivery!.id, detail.order.reference)}>
                   Gerar novo link
                 </button>
               </div>
@@ -373,9 +448,9 @@ export function AdminOrders() {
                     </div>
                     {(refund.status === 'pending' || refund.status === 'authorized') && (
                       <div className="admin-row-actions">
-                        <button className="link-button" type="button" onClick={() => resolveRefund(refund.id, 'authorized')}>Autorizar</button>
-                        <button className="link-button" type="button" onClick={() => resolveRefund(refund.id, 'processed')}>Processado</button>
-                        <button className="link-button" type="button" onClick={() => resolveRefund(refund.id, 'rejected')}>Recusar</button>
+                        <button className="link-button" type="button" onClick={() => askResolveRefund(refund.id, detail.order.reference, 'authorized')}>Autorizar</button>
+                        <button className="link-button" type="button" onClick={() => askResolveRefund(refund.id, detail.order.reference, 'processed')}>Processado</button>
+                        <button className="link-button" type="button" onClick={() => askResolveRefund(refund.id, detail.order.reference, 'rejected')}>Recusar</button>
                       </div>
                     )}
                   </li>
@@ -400,6 +475,16 @@ export function AdminOrders() {
           </div>
         </div>
       )}
+      <ConfirmActionDialog
+        open={confirmAction !== null}
+        title={confirmAction?.title ?? ''}
+        description={confirmAction?.description ?? ''}
+        confirmLabel={confirmAction?.confirmLabel ?? 'Confirmar'}
+        danger={confirmAction?.danger ?? true}
+        busy={confirmBusy}
+        onConfirm={() => void runConfirm()}
+        onCancel={cancelConfirm}
+      />
     </div>
   );
 }

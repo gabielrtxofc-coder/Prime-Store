@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminStock } from './AdminStock';
@@ -23,7 +23,10 @@ const api = vi.hoisted(() => ({
   commitImport: vi.fn(),
 }));
 
-vi.mock('../../services/adminApi', () => ({ adminApi: api }));
+vi.mock('../../services/adminApi', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/adminApi')>();
+  return { ...actual, adminApi: api };
+});
 
 const PRODUCT_ZERO: AdminProduct = {
   id: 'prod-zero',
@@ -72,6 +75,8 @@ const UNIT: AdminStockUnit = {
   updated_at: '2026-11-05T10:00:00.000Z',
   reservation_expires_at: null,
   reservation_order_id: null,
+  status_reason: null,
+  status_reason_note: '',
   email: null,
   password: null,
 };
@@ -185,10 +190,55 @@ describe('AdminStock (missão 03.2D)', () => {
     expect(api.previewImport).toHaveBeenCalledWith('prod-ok', expect.stringContaining('a@b.com'));
 
     await user.click(screen.getByRole('button', { name: /Importar 1 válidas/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(api.commitImport).not.toHaveBeenCalled(); // nada grava antes da confirmação
+    await user.click(within(dialog).getByRole('button', { name: 'Importar' }));
     await waitFor(() => {
       expect(api.commitImport).toHaveBeenCalledWith('prod-ok', expect.stringContaining('a@b.com'), expect.any(String));
     });
     expect(await screen.findByText(/Importadas:/)).toBeInTheDocument();
+  });
+
+  it('desativar unidade exige motivo categorizado e envia o motivo ao backend', async () => {
+    const user = userEvent.setup();
+    render(<AdminStock />);
+    await screen.findAllByText('Conta Abundante');
+
+    await user.click(screen.getByRole('button', { name: 'Desativar' }));
+    const dialog = await screen.findByRole('dialog');
+
+    // Sem motivo, o confirmar fica bloqueado e nada é enviado.
+    const confirmButton = within(dialog).getByRole('button', { name: 'Desativar' });
+    expect(confirmButton).toBeDisabled();
+    expect(api.setStockStatus).not.toHaveBeenCalled();
+
+    // Motivo "outro" exige nota com pelo menos 5 caracteres.
+    await user.selectOptions(screen.getByLabelText(/Motivo do ajuste/), 'other');
+    expect(confirmButton).toBeDisabled();
+    await user.type(screen.getByLabelText(/Nota/), 'conta vazou');
+    expect(confirmButton).toBeEnabled();
+
+    await user.click(confirmButton);
+    await waitFor(() => {
+      expect(api.setStockStatus).toHaveBeenCalledWith('unit-1', 'disabled', 'other', 'conta vazou');
+    });
+  });
+
+  it('reativar unidade não pede motivo', async () => {
+    const user = userEvent.setup();
+    const disabledUnit = { ...UNIT, status: 'disabled' as const, status_reason: 'invalid_credential' as const };
+    api.listStock.mockResolvedValue({ items: [disabledUnit], total: 1, limit: 100, offset: 0 });
+    api.setStockStatus.mockResolvedValue({ id: 'unit-1', status: 'available', reason: null, note: '' });
+    render(<AdminStock />);
+    await screen.findAllByText('Conta Abundante');
+
+    await user.click(screen.getByRole('button', { name: 'Reativar' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByLabelText(/Motivo do ajuste/)).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Reativar' }));
+    await waitFor(() => {
+      expect(api.setStockStatus).toHaveBeenCalledWith('unit-1', 'available', null, '');
+    });
   });
 
   it('erro de carga mostra alerta sem quebrar as demais seções', async () => {

@@ -11,6 +11,8 @@ import {
 import { formatCurrency } from '../../lib/format';
 import { presetToRange, type PeriodPreset } from '../../lib/period';
 import { PeriodFilter } from '../../components/admin/PeriodFilter';
+import { ConfirmActionDialog } from '../../components/admin/ConfirmActionDialog';
+import { useConfirmAction } from '../../components/admin/useConfirmAction';
 
 interface PeriodSummary {
   rangeFrom: string | null;
@@ -39,6 +41,7 @@ export function AdminOverview() {
   const [audit, setAudit] = useState<AdminAuditEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const { pending: confirmAction, busy: confirmBusy, request: requestConfirm, cancel: cancelConfirm, confirm: runConfirm } = useConfirmAction();
   const [busy, setBusy] = useState(false);
   const [preset, setPreset] = useState<PeriodPreset>('30d');
   const [customFrom, setCustomFrom] = useState('');
@@ -116,24 +119,60 @@ export function AdminOverview() {
     void load();
   }, [load]);
 
-  const resolveRefund = async (refundId: string, status: 'authorized' | 'processed' | 'rejected') => {
-    try {
-      await adminApi.resolveRefund(refundId, status, `Resolvido pelo painel (${status}).`);
-      setNotice(`Reembolso marcado como ${status}.`);
-      await load();
-    } catch (resolveError) {
-      setError(describeBackendError(resolveError));
-    }
+  const REFUND_COPY: Record<'authorized' | 'processed' | 'rejected', { title: string; description: string; confirmLabel: string; danger: boolean }> = {
+    authorized: {
+      title: 'Autorizar reembolso?',
+      description: 'O reembolso será autorizado e entrará na fila de execução. O dinheiro precisa ser devolvido fora da loja (no Mercado Pago). A autorização fica registrada em auditoria.',
+      confirmLabel: 'Autorizar',
+      danger: false,
+    },
+    processed: {
+      title: 'Marcar reembolso como processado?',
+      description: 'Confirme somente depois de devolver o dinheiro ao cliente. O link de entrega do pedido será revogado imediatamente e o caso será encerrado. A ação é registrada em auditoria.',
+      confirmLabel: 'Processado — revogar entrega',
+      danger: true,
+    },
+    rejected: {
+      title: 'Recusar reembolso?',
+      description: 'O pedido de reembolso será recusado e o caso será encerrado. O cliente pode pedir novamente; cada decisão fica registrada em auditoria.',
+      confirmLabel: 'Recusar reembolso',
+      danger: true,
+    },
   };
 
-  const expireNow = async () => {
-    try {
-      const result = await adminApi.expireReservations();
-      setNotice(`Reservas expiradas processadas: ${JSON.stringify(result)}`);
-      await load();
-    } catch (expireError) {
-      setError(describeBackendError(expireError));
-    }
+  const askResolveRefund = (refundId: string, reference: string, status: 'authorized' | 'processed' | 'rejected') => {
+    const copy = REFUND_COPY[status];
+    requestConfirm({
+      ...copy,
+      description: `Reembolso ${reference}: ${copy.description}`,
+      action: async () => {
+        try {
+          await adminApi.resolveRefund(refundId, status, `Resolvido pelo painel (${status}).`);
+          setNotice(`Reembolso marcado como ${status}.`);
+          await load();
+        } catch (resolveError) {
+          setError(describeBackendError(resolveError));
+        }
+      },
+    });
+  };
+
+  const expireNow = () => {
+    requestConfirm({
+      title: 'Liberar reservas vencidas?',
+      description: 'Reservas de credenciais com prazo vencido serão liberadas: as unidades voltam para o estoque disponível e os pedidos associados expiram. Pedidos pagos e entregas válidas não são afetados.',
+      confirmLabel: 'Liberar reservas vencidas',
+      danger: true,
+      action: async () => {
+        try {
+          const result = await adminApi.expireReservations();
+          setNotice(`Reservas expiradas processadas: ${JSON.stringify(result)}`);
+          await load();
+        } catch (expireError) {
+          setError(describeBackendError(expireError));
+        }
+      },
+    });
   };
 
   return (
@@ -299,13 +338,13 @@ export function AdminOverview() {
                   <span className="field-hint">{refund.reason}</span>
                 </div>
                 <div className="admin-row-actions">
-                  <button className="button button--secondary button--small" type="button" onClick={() => resolveRefund(refund.id, 'authorized')}>
+                  <button className="button button--secondary button--small" type="button" onClick={() => askResolveRefund(refund.id, refund.reference, 'authorized')}>
                     Autorizar
                   </button>
-                  <button className="button button--secondary button--small" type="button" onClick={() => resolveRefund(refund.id, 'processed')}>
+                  <button className="button button--secondary button--small" type="button" onClick={() => askResolveRefund(refund.id, refund.reference, 'processed')}>
                     Marcar como processado
                   </button>
-                  <button className="button button--secondary button--small" type="button" onClick={() => resolveRefund(refund.id, 'rejected')}>
+                  <button className="button button--secondary button--small" type="button" onClick={() => askResolveRefund(refund.id, refund.reference, 'rejected')}>
                     Recusar
                   </button>
                 </div>
@@ -331,6 +370,16 @@ export function AdminOverview() {
           </ul>
         )}
       </div>
+      <ConfirmActionDialog
+        open={confirmAction !== null}
+        title={confirmAction?.title ?? ''}
+        description={confirmAction?.description ?? ''}
+        confirmLabel={confirmAction?.confirmLabel ?? 'Confirmar'}
+        danger={confirmAction?.danger ?? true}
+        busy={confirmBusy}
+        onConfirm={() => void runConfirm()}
+        onCancel={cancelConfirm}
+      />
     </div>
   );
 }

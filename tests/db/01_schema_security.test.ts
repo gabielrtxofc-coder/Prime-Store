@@ -76,6 +76,7 @@ describe('banco, migrações e modelo de dados', () => {
       'order_status',
       'payment_status',
       'reservation_status',
+      'stock_adjustment_reason',
       'stock_unit_status',
     ]);
   });

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminProducts } from './AdminProducts';
@@ -194,6 +194,9 @@ describe('AdminProducts (missão 03.2C)', () => {
     await screen.findByText('Conta Alpha');
 
     await user.click(screen.getByRole('button', { name: 'Desativar' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(api.setProductActive).not.toHaveBeenCalled(); // desativa só após confirmar
+    await user.click(within(dialog).getByRole('button', { name: 'Desativar' }));
     expect(api.setProductActive).toHaveBeenCalledWith('prod-1', false);
 
     // Nunca oferece exclusão: pedidos antigos continuam íntegros.

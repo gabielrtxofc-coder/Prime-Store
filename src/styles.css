@@ -1071,3 +1071,33 @@ button:disabled { cursor: not-allowed; }
 /* P9 — input de arquivo da importação CSV: largura intrínseca maior que a tela
  * em celulares; passa a respeitar a largura do formulário. */
 .admin-page input[type='file'] { width: 100%; max-width: 100%; min-width: 0; font-size: 12px; }
+
+/* Missão 07 — diálogo de confirmação para ações sensíveis/destrutivas */
+.admin-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(4 8 14 / 72%);
+}
+.admin-dialog {
+  width: min(480px, 100%);
+  padding: 22px;
+  background: #141922;
+  border: 1px solid #2a3241;
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgb(0 0 0 / 45%);
+}
+.admin-dialog h2 { margin: 0 0 10px; font-size: 19px; line-height: 1.3; }
+.admin-dialog p { margin: 0 0 18px; color: var(--text-muted); font-size: 13.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.admin-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.button--danger { color: #fff; background: #b4232a; border: 1px solid #d93643; }
+.button--danger:hover:not(:disabled) { background: #cd2f38; border-color: #e14d5a; }
+@media (pointer: coarse) {
+  .admin-dialog__actions .button { min-height: 44px; }
+}
+.admin-dialog__fields { display: grid; gap: 10px; margin: 0 0 18px; }
+.admin-dialog__fields label { font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px; }
+.admin-dialog__fields .field-hint { margin: 0; }

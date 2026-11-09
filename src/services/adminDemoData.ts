@@ -126,6 +126,8 @@ const stockUnits: AdminStockUnit[] = [
     updated_at: iso(-60 * 48),
     reservation_expires_at: null,
     reservation_order_id: null,
+    status_reason: null,
+    status_reason_note: '',
   },
   {
     id: 'bbbbbbbb-0000-4000-8000-000000000002',
@@ -141,6 +143,8 @@ const stockUnits: AdminStockUnit[] = [
     updated_at: iso(-60 * 2),
     reservation_expires_at: iso(28),
     reservation_order_id: 'cccccccc-0000-4000-8000-000000000003',
+    status_reason: null,
+    status_reason_note: '',
   },
   {
     id: 'bbbbbbbb-0000-4000-8000-000000000003',
@@ -156,6 +160,8 @@ const stockUnits: AdminStockUnit[] = [
     updated_at: iso(-60 * 5),
     reservation_expires_at: null,
     reservation_order_id: null,
+    status_reason: null,
+    status_reason_note: '',
   },
 ];
 
@@ -527,6 +533,8 @@ export async function demoAdminInvoke<T>(action: string, payload: Record<string,
         updated_at: new Date().toISOString(),
         reservation_expires_at: null,
         reservation_order_id: null,
+        status_reason: null,
+        status_reason_note: '',
       };
       stockUnits.push(unit);
       return { unit: { id: unit.id, status: unit.status } } as T;
@@ -537,7 +545,17 @@ export async function demoAdminInvoke<T>(action: string, payload: Record<string,
     }
     case 'stock.setStatus': {
       const index = stockUnits.findIndex((item) => item.id === payload.stockUnitId);
-      if (index >= 0) stockUnits[index] = { ...stockUnits[index], status: payload.status as AdminStockUnit['status'] };
+      if (index >= 0) {
+        const nextStatus = payload.status as AdminStockUnit['status'];
+        stockUnits[index] = nextStatus === 'disabled'
+          ? {
+              ...stockUnits[index],
+              status: nextStatus,
+              status_reason: (payload.reason as AdminStockUnit['status_reason']) ?? null,
+              status_reason_note: String(payload.note ?? ''),
+            }
+          : { ...stockUnits[index], status: nextStatus, status_reason: null, status_reason_note: '' };
+      }
       return { stock_unit: stockUnits[index] ?? stockUnits[0] } as T;
     }
     case 'stock.import.preview': {

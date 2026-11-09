@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { categoryOptions as categories } from '../../data/categories';
 import { centsToInput, formatCurrency, parseBrlToCents } from '../../lib/format';
 import { adminApi, type AdminProduct, type ProductInput } from '../../services/adminApi';
+import { ConfirmActionDialog } from '../../components/admin/ConfirmActionDialog';
 import { describeBackendError } from '../../services/backend/http';
 
 interface FormState {
@@ -87,6 +88,8 @@ export function AdminProducts() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pendingToggle, setPendingToggle] = useState<AdminProduct | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -223,13 +226,23 @@ export function AdminProducts() {
     }
   };
 
-  const toggleActive = async (product: AdminProduct) => {
+  const toggleActive = (product: AdminProduct) => {
+    setPendingToggle(product);
+  };
+
+  const confirmToggleActive = async () => {
+    if (!pendingToggle) return;
+    setActionBusy(true);
     try {
-      await adminApi.setProductActive(product.id, !product.is_active);
-      setNotice(`${product.name}: ${product.is_active ? 'desativado' : 'ativado'}.`);
+      await adminApi.setProductActive(pendingToggle.id, !pendingToggle.is_active);
+      setNotice(`${pendingToggle.name}: ${pendingToggle.is_active ? 'desativado' : 'ativado'}.`);
+      setPendingToggle(null);
       await load();
     } catch (toggleError) {
       setError(describeBackendError(toggleError));
+      setPendingToggle(null);
+    } finally {
+      setActionBusy(false);
     }
   };
 
@@ -466,6 +479,20 @@ export function AdminProducts() {
           )}
         </div>
       </form>
+      <ConfirmActionDialog
+        open={pendingToggle !== null}
+        title={pendingToggle?.is_active ? 'Desativar produto?' : 'Reativar produto?'}
+        description={
+          pendingToggle?.is_active
+            ? `${pendingToggle?.name} sairá do catálogo da loja imediatamente (pedidos antigos mantêm o histórico). Você pode reativá-lo depois.`
+            : `${pendingToggle?.name ?? ''} voltará a aparecer no catálogo da loja para novos pedidos.`
+        }
+        confirmLabel={pendingToggle?.is_active ? 'Desativar' : 'Reativar'}
+        danger={pendingToggle?.is_active ?? false}
+        busy={actionBusy}
+        onConfirm={() => void confirmToggleActive()}
+        onCancel={() => setPendingToggle(null)}
+      />
     </div>
   );
 }

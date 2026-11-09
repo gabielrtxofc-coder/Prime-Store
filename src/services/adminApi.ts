@@ -46,10 +46,30 @@ export interface AdminStockUnit {
   updated_at: string;
   reservation_expires_at: string | null;
   reservation_order_id: string | null;
+  /** Motivo categorizado da desativação (migração 0038); null quando disponível. */
+  status_reason: StockAdjustmentReason | null;
+  status_reason_note: string;
   /** Presentes apenas quando `includeCredentials` é solicitado. */
   email?: string | null;
   password?: string | null;
 }
+
+export const STOCK_ADJUSTMENT_REASONS = [
+  { value: 'inventory_adjustment', label: 'Ajuste de inventário (contagem física)' },
+  { value: 'invalid_credential', label: 'Credencial inválida / já usada / expirada' },
+  { value: 'compromised_credential', label: 'Credencial comprometida (suspeita)' },
+  { value: 'duplicate_import', label: 'Importada em duplicidade' },
+  { value: 'data_correction', label: 'Correção de cadastro / produto errado' },
+  { value: 'other', label: 'Outro motivo (descreva na nota)' },
+] as const;
+
+export type StockAdjustmentReason =
+  | 'inventory_adjustment'
+  | 'invalid_credential'
+  | 'compromised_credential'
+  | 'duplicate_import'
+  | 'data_correction'
+  | 'other';
 
 export interface AdminStockList {
   items: AdminStockUnit[];
@@ -251,8 +271,16 @@ export const adminApi = {
     notes?: string;
   }) => adminInvoke<{ stock_unit: AdminStockUnit }>('stock.update', params),
 
-  setStockStatus: (stockUnitId: string, status: 'available' | 'disabled') =>
-    adminInvoke<{ stock_unit: AdminStockUnit }>('stock.setStatus', { stockUnitId, status }),
+  setStockStatus: (
+    stockUnitId: string,
+    status: 'available' | 'disabled',
+    reason?: StockAdjustmentReason | null,
+    note?: string,
+  ) =>
+    adminInvoke<{ id: string; status: string; reason: StockAdjustmentReason | null; note: string }>(
+      'stock.setStatus',
+      { stockUnitId, status, reason: reason ?? null, note: note ?? '' },
+    ),
 
   previewImport: (productId: string, csv: string) =>
     adminInvoke<ImportPreview>('stock.import.preview', { productId, csv }),
