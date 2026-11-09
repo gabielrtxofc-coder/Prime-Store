@@ -108,3 +108,37 @@ export function pickKnownFields(
   }
   return result;
 }
+
+/**
+ * Timestamp ISO 8601 opcional (ex.: filtros de período do painel).
+ *
+ * Aceita `2026-11-01`, `2026-11-01T12:00:00Z` e equivalentes com offset.
+ * Recusa qualquer outro formato (ex.: `"lixo"`) com 422 estável, em vez de
+ * deixar o PostgreSQL levantar erro cru de sintaxe (500 + log ruidoso).
+ */
+export function optionalIsoTimestamp(value: unknown, field: string): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string') {
+    throw new ApiError(422, 'invalid_payload', `Campo inválido: ${field}`);
+  }
+  const trimmed = value.trim();
+  const parsed = Date.parse(trimmed);
+  if (!Number.isFinite(parsed) || !/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    throw new ApiError(422, 'invalid_payload', `Campo inválido: ${field}`);
+  }
+  return new Date(parsed).toISOString();
+}
+
+/**
+ * Inteiro limitado a [min, max] com valor padrão seguro.
+ *
+ * Valores não numéricos, NaN e fora da faixa são convertidos para o padrão
+ * em vez de propagados: evita `NaN`/estouro no banco e páginas sem dados.
+ */
+export function boundedInt(value: unknown, options: { min?: number; max?: number; fallback: number }): number {
+  const min = options.min ?? 0;
+  const max = options.max ?? 100;
+  const raw = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : Number.NaN;
+  if (!Number.isFinite(raw)) return options.fallback;
+  return Math.min(max, Math.max(min, Math.trunc(raw)));
+}

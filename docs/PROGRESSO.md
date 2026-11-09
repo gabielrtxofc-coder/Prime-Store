@@ -1,7 +1,81 @@
 # Registro de progresso
 
-> Atualizado em 2026-11-01. Este arquivo existe para que outra sessão consiga
+> Atualizado em 2026-11-09. Este arquivo existe para que outra sessão consiga
 > retomar o trabalho sem depender do histórico de conversa.
+
+## Missão 08 (reconciliação Supabase) — migrações aplicadas; funções/smoke BLOQUEADOS
+
+Relatório completo: [`missao-08-reconciliacao-supabase.md`](./missao-08-reconciliacao-supabase.md).
+
+- **Aplicadas no remoto** (aditivas, via `create_migration` 2026-11-09 17:14–17:16Z):
+  `m08_0034_pedidos_multiproduto`, `m08_0035_pagamento_multiproduto`,
+  `m08_0036_entrega_multiproduto`, `m08_0037_bloqueio_solicitacao_sem_pagamento`,
+  `m08_0038_motivos_ajuste_estoque`. 0033 preservada (já aplicada ×2 no histórico);
+  0030 confirmada no histórico (`grants_rls_public_catalog`).
+- **Verificação pós-aplicação:** 20/20 tabelas com RLS; 0 policies; 0 grants
+  anon/authenticated; 61 funções SECURITY DEFINER com `search_path` fixo; 23 funções de
+  `authenticated` (só `admin_*` + `is_admin`); dados inalterados (products 2, orders 8,
+  stock_units 27, admin_users 0); cron ativo, 0 falhas; cofre com chave AES-256-GCM de
+  32 bytes íntegra; `internal_confirmation_enabled=false`.
+- **BLOCKED (honestamente):** republicação de `admin-api` no remoto (ferramentas de
+  função sem efeito nesta sessão; rede para `*.supabase.co` inalcançável) — a ação
+  `stock.setStatus` remota ficaria quebrada após a 0038 e está inalcançável
+  (`auth.users=0`); smoke HTTP (sem rede/anon key); verificação de backup (conector sem
+  ferramenta); provisionamento dos 2 admins (faltam dados reais).
+- **Corrigido:** contagem "9 funções" → 8 (docs M06/PROGRESSO); `bundle-functions.mjs`
+  com `charset: 'utf8'`.
+- **Classificação:** **PARCIAL** (local OK: `npm test` 127/127; bundles 8/8; test:db
+  293/293 @ `c644e1e`). `main` intacta; PR #2 intacto; tag de segurança intacta.
+
+## Missão 07 (ativação operacional) — parte local CONCLUÍDA; remota BLOQUEADA
+
+Relatório completo: [`missao-07-ativacao-operacional.md`](./missao-07-ativacao-operacional.md).
+
+- **Bloqueio raiz (remoto):** app Supabase `disabled` nesta conversa + rede para
+  `*.supabase.co` inalcançável. Migrações 0033→0038 **não** aplicadas no real;
+  nenhuma Edge Function publicada; nenhum admin real provisionado; nenhuma
+  evidência de produção. Para concluir: ligar o app Supabase nesta conversa.
+- **Entregue e verificado localmente (commit `f046a82`):**
+  - diálogos de confirmação (confirmação explícita) para TODA ação destrutiva do
+    painel (ativar/desativar produto, desativar/reativar unidade, importar CSV,
+    revogar/rotacionar entrega, disputas, reembolsos, liberar reservas) — foco
+    inicial em Cancelar, Esc/fundo cancelam, anti-duplo-clique;
+  - migração **0038** — motivos categorizados de ajuste de estoque
+    (enum `stock_adjustment_reason`; desativação exige motivo; `other` exige nota
+    ≥ 5 chars; reativação limpa), gateway 422 estáveis, UI com seleção obrigatória;
+  - resiliência: auth fora do ar → **503 `auth_unavailable`** (falha fechada);
+    queda total do banco comprovada sem vazar internos; `is_admin` fail-closed;
+  - **testes:** 127/127 unit + **293/293** (PG local, 38 migrações do zero);
+    typecheck limpo; build OK; bundles 8/8 auto-contidos;
+  - re-auditoria: 0 tabelas sem RLS, 0 funções para anon, allowlist exata para
+    authenticated, 0 segredos em 247 arquivos, zero arquivos de pagamento no diff.
+- **Pendente de entrada humana:** ligar o app Supabase; dados reais dos 2 admins
+  (nome + e-mail Auth) para o provisionamento com TOTP.
+- **Classificação:** CONCLUÍDA (local) / BLOQUEADA (remota) / **PARCIAL (geral)**.
+  `main` intacta (`8f37527`); PR #2 draft; sem deploy; sem merge.
+
+## Missão 06 (painel operacional) — auditoria completa, um defeito corrigido
+
+Relatório completo: [`missao-06-painel-operacional.md`](./missao-06-painel-operacional.md).
+
+- **Auditoria do Supabase/banco:** 22 tabelas com RLS; anon/authenticated sem GRANT
+  em tabela; acesso só por funções `SECURITY DEFINER`; `assert_admin()` com AAL2;
+  ENUMs de pedido/pagamento/estoque/entrega; estoque por unidades (sem contador);
+  histórico = `admin_audit_log` + `order_events` + trigger de preço.
+- **Corrigido (defeito real):** `admin-api` aceitava `from`/`to` arbitrários e
+  `limit`/`offset` via `Number()` — valores inválidos viravam erro 500 do PostgreSQL.
+  Agora `optionalIsoTimestamp` (422) e `boundedInt` (faixa segura) em
+  `orders.list`, `stock.list` e `audit.list`. Nada mudou no caminho feliz.
+- **Novo:** `tests/db/20_admin_api_http.test.ts` (12 casos): 401/400/422/503 estáveis,
+  CRUD de produto e `stock.add` **por HTTP persistidos no banco real** (trigger de
+  preço e auditoria verificados por SQL; duplicado → 409).
+- **Resultado:** `npm test` 118/118; `npm run test:db` **276/276** (+12); typecheck
+  limpo; build OK; 8 funções empacotam; 54/54 telas do painel sem estouro nas 9
+  larguras; loja pública inalterada.
+- **Fora desta missão (dependência externa):** rede para `*.supabase.co` (ausente no
+  ambiente), provisionamento dos dois administradores, chave `PRIME_ENCRYPTION_KEY`
+  e decisão de pagamentos (loja vende solicitação sem pagamento; WyviPay não
+  implementada). `main` intacta; PR #2 draft; sem deploy.
 
 ## Missão 06 (revisão independente) — bordas do fluxo corrigidas
 
@@ -105,6 +179,27 @@ relatório com evidências em [`auditoria/missao-03/RELATORIO.md`](./auditoria/m
 Bloqueado por dependência externa (nada declarado como validado):
 `MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET` de teste; e-mails dos dois administradores;
 egress de rede para invocar as funções e reexecutar os Advisors do painel.
+
+## Missão 09 — Fechamento operacional (2026-11-09)
+
+**Estado geral: PARCIAL — não pronta para lançamento e sem merge.** Relatório completo: [`missao-09-fechamento-operacional.md`](missao-09-fechamento-operacional.md).
+
+Concluído e comprovado:
+- Supabase `eorlmqolbknrplvdbbtl` correto; migrações 0034–0038 no histórico remoto; 8 Edge Functions remotas; RLS em 20/20 tabelas.
+- Assinatura remota `admin_set_stock_unit_status(uuid,text,text,text)` conferida; código local de `admin-api` já usa os parâmetros pós-0038, mantém JWT de usuário/AAL2 e bundles sem credenciais.
+- Contagens de dados batem com as referências; `max_items_per_order=10`, `internal_confirmation_enabled=false`; pagamentos não foram alterados.
+- `npm test` 127/127; `npm run test:db` 294/294; bundle 8/8; typecheck e build aprovados.
+- Smoke de Edge Functions restringido a chamadas sem escrita; script de provisionamento agora deixa SQL de inserção comentado até haver UUIDs/nome reais.
+
+Ainda pendente/bloqueado:
+- `admin-api` remota permanece v4, `verify_jwt=true`; não há confirmação de publicação corrigida.
+- Smoke HTTP externo não foi executado (conector não oferece invocação e faltou credencial pública utilizável no ambiente).
+- Backup/PITR não pode ser consultado pelo conector; estado **não confirmado**.
+- `auth.users=0`, `admin_users=0`; provisionamento real e TOTP dependem do operador.
+- PR #2 continua draft e aponta para `arena/66cda9f6-prime-store`, mas a sessão foi vinculada à branch fixa `arena/529cc4db-prime-store`; alterações desta sessão não atualizam aquele PR automaticamente.
+- Tag `safety/m07-start-cd87b3d` não apareceu nas tags consultadas do remoto; precisa de esclarecimento, sem recriação automática.
+
+Não declarar pronto para lançamento até a publicação, smoke real, backup, admins/TOTP e reconciliação de branch/PR serem comprovados. Nenhuma migração reaplicada, nenhum dado real alterado, nenhuma integração de pagamento ativada e nenhum merge executado.
 
 ## Missão 02 (backend) — histórico
 
@@ -219,3 +314,20 @@ supabase functions deploy mp-webhook --no-verify-jwt
 
 Depois: criar os administradores, cadastrar 1 produto + 1 unidade de estoque pelo
 painel e percorrer o fluxo de compra com uma conta de teste do Mercado Pago.
+
+## Missão 10 — Reconciliação final (2026-11-09)
+
+Relatório: [missao-10-reconciliacao-final.md](missao-10-reconciliacao-final.md).
+M09 recuperada integralmente na branch fixa `arena/3b67fee3-prime-store`: único
+commit exclusivo `1de28ddbc0f568ab5de26bcc67a3d8a36bf0a318`, cinco arquivos, sem
+conflitos. Integração oficial será feita por PR intermediário para a branch
+`arena/66cda9f6-prime-store`, mantendo PR #2 como único caminho à main.
+
+Revalidação local: 127/127, 294/294, typecheck, build e bundles 8/8 aprovados;
+audit sem vulnerabilidades. Nenhuma escrita Supabase. Conector desativado:
+os resultados remotos M08/M09 são históricos, não revalidados nesta missão.
+Correção da assinatura admin-api/0038 já existia desde M07. Deploy, HTTP real,
+backup/PITR e admins reais/TOTP continuam pendentes; pagamentos congelados.
+Estado do merge ainda pendente no momento deste registro pré-integração;
+encerramento com SHAs e resultado efetivo será anexado ao PR #2.
+**Não pronta para lançamento.**

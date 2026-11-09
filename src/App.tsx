@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { AboutPage } from './pages/AboutPage';
 import { CartPage } from './pages/CartPage';
@@ -18,21 +18,38 @@ import { SiteLayout } from './components/SiteLayout';
 import { privacySections, refundSections, termsSections } from './data/legalContent';
 
 /**
- * Rotas da experiência pública (missão 08).
+ * Missão 03.2A — painel administrativo restaurado sob demanda.
  *
- * Ficaram fora do roteador, de propósito:
- *  - `/pagamento` (fluxo de cobrança): depende da integração de pagamento;
- *  - `/admin` (painel): funcionalidade administrativa não é exposta ao visitante.
+ * O painel continua fora do bundle público: o `import()` dinâmico faz o Vite
+ * emitir um chunk separado (`AdminPage-*.js`), carregado apenas quando alguém
+ * abre `/admin`. A proteção real não depende desta rota — ela acontece no
+ * backend (`admin-api` com JWT) e no banco (`assert_admin()`: allowlist +
+ * AAL2/TOTP) — a rota só devolve a interface já desenvolvida.
  *
- * `/entrega/:token` passou a ser público de propósito: é a entrega digital do
- * pedido. A rota não libera nada por si — a credencial só é devolvida pela Edge
- * Function `delivery` quando o token privado existe, a entrega está ativa e o
- * pedido está pago e pronto. Sem isso a página mostra "Entrega indisponível".
+ * `/pagamento` permanece FORA do roteador de propósito: a cobrança depende da
+ * integração de pagamento (não autorizada).
  *
- * Os arquivos continuam no repositório (`pages/PaymentPage.tsx`,
- * `pages/DeliveryPage.tsx`, `pages/admin/*`, `pages/demo/PaymentCheckoutPage.tsx`)
- * para a fase seguinte.
+ * `/entrega/:token` é público de propósito: é a entrega digital do pedido. A
+ * rota não libera nada por si — a credencial só é devolvida pela Edge Function
+ * `delivery` quando o token privado existe, a entrega está ativa e o pedido
+ * está pago e pronto. Sem isso a página mostra "Entrega indisponível".
  */
+const AdminPage = lazy(() =>
+  import('./pages/admin/AdminPage').then((module) => ({ default: module.AdminPage })),
+);
+
+/** Apresentação de carregamento enquanto o chunk do painel é baixado. */
+function AdminLoadingFallback() {
+  return (
+    <section className="container page-section" aria-busy="true">
+      <p className="loading-line">
+        <span className="loading-spinner" aria-hidden="true" />
+        Carregando o painel administrativo…
+      </p>
+    </section>
+  );
+}
+
 function RouteEffects() {
   const location = useLocation();
 
@@ -56,7 +73,9 @@ function RouteEffects() {
       ? 'Detalhes do produto'
       : location.pathname.startsWith('/pedido')
         ? 'Pedido'
-        : (titleByPath[location.pathname] ?? 'Página não encontrada');
+        : location.pathname.startsWith('/admin')
+          ? 'Administração'
+          : (titleByPath[location.pathname] ?? 'Página não encontrada');
     document.title = `Prime Store — ${routeTitle}`;
   }, [location.pathname]);
 
@@ -68,6 +87,26 @@ export function App() {
     <>
       <RouteEffects />
       <Routes>
+        {/* Administração: chunk carregado sob demanda; autenticação e MFA no
+            backend/banco continuam sendo a proteção real. Caminhos internos
+            (`/admin/*`) renderizam o mesmo AdminPage, cuja navegação é por
+            abas — não existem sub-rotas administrativas nesta fase. */}
+        <Route
+          path="admin"
+          element={
+            <Suspense fallback={<AdminLoadingFallback />}>
+              <AdminPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="admin/*"
+          element={
+            <Suspense fallback={<AdminLoadingFallback />}>
+              <AdminPage />
+            </Suspense>
+          }
+        />
         <Route element={<SiteLayout />}>
           <Route index element={<HomePage />} />
           <Route path="produtos" element={<CatalogPage />} />

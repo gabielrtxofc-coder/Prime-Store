@@ -572,14 +572,19 @@ describe('acompanhamento e privacidade', () => {
     expect(screen.queryByText(/Acesso avulso/i)).not.toBeInTheDocument();
   });
 
-  it('rotas de pagamento e administração não existem mais', async () => {
+  it('a rota de pagamento não existe; a rota administrativa foi restaurada (missão 03.2A)', async () => {
     stubBackend();
     const payment = renderShopAt('/pagamento');
     expect(await screen.findByRole('heading', { name: 'Não encontramos esta página' })).toBeInTheDocument();
     payment.unmount();
 
+    // Acesso direto a /admin (missão 03.2A): abre o painel, mas sem sessão
+    // administrativa renderiza o login — nunca a 404 pública, nunca dados do painel.
     renderShopAt('/admin');
-    expect(await screen.findByRole('heading', { name: 'Não encontramos esta página' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Painel administrativo' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Não encontramos esta página' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Seções do painel' })).not.toBeInTheDocument();
+    expect(document.title).toBe('Prime Store — Administração');
   });
 });
 

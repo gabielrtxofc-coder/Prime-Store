@@ -14,7 +14,9 @@ import { ApiError, errorResponse, json, methodGuard, preflight, readJson } from 
 import { enforceRateLimit } from '../rateLimit.ts';
 import type { RpcFn } from '../rest.ts';
 import {
+  boundedInt,
   isUuid,
+  optionalIsoTimestamp,
   optionalString,
   pickKnownFields,
   requireEmail,
@@ -60,12 +62,21 @@ async function verifyUser(
   authorization: string,
 ): Promise<AuthUser> {
   const url = `${deps.config.supabaseUrl.replace(/\/+$/, '')}/auth/v1/user`;
-  const response = await deps.fetchImpl(url, {
-    headers: {
-      Authorization: authorization,
-      apikey: deps.config.anonKey || deps.config.serviceRoleKey,
-    },
-  });
+  let response: Response;
+  try {
+    response = await deps.fetchImpl(url, {
+      headers: {
+        Authorization: authorization,
+        apikey: deps.config.anonKey || deps.config.serviceRoleKey,
+      },
+    });
+  } catch (fetchError) {
+    // Provedor de auth fora do ar: falha fechada com 503 (nunca autoriza).
+    deps.log('auth.unavailable', {
+      reason: fetchError instanceof Error ? fetchError.message.slice(0, 120) : 'unknown',
+    });
+    throw new ApiError(503, 'auth_unavailable', 'Serviço de autenticação indisponível. Tente novamente em instantes.');
+  }
 
   if (!response.ok) {
     throw new ApiError(401, 'unauthorized', 'Sessão inválida ou expirada.');
@@ -208,8 +219,8 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
             p_product_id: payload.productId ? requireUuid(payload.productId, 'productId') : null,
             p_status: optionalString(payload.status, 'status', { max: 20 }) ?? null,
             p_search: optionalString(payload.search, 'search', { max: 120 }) ?? null,
-            p_limit: Number(payload.limit ?? 100),
-            p_offset: Number(payload.offset ?? 0),
+            p_limit: boundedInt(payload.limit, { min: 1, max: 200, fallback: 100 }),
+            p_offset: boundedInt(payload.offset, { min: 0, max: 1_000_000, fallback: 0 }),
             p_include_credentials: includeCredentials,
           },
         );
@@ -281,9 +292,36 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
       case 'stock.setStatus': {
         const stockUnitId = requireUuid(payload.stockUnitId, 'stockUnitId');
         const status = requireString(payload.status, 'status', { max: 20 });
+        if (status !== 'available' && status !== 'disabled') {
+          throw new ApiError(422, 'invalid_status_change', 'Status deve ser available ou disabled.');
+        }
+        const reason = optionalString(payload.reason, 'reason', { max: 40 }) ?? null;
+        const note = optionalString(payload.note, 'note', { max: 300 }) ?? '';
+        const VALID_REASONS = new Set([
+          'inventory_adjustment',
+          'invalid_credential',
+          'compromised_credential',
+          'duplicate_import',
+          'data_correction',
+          'other',
+        ]);
+        if (status === 'disabled') {
+          if (!reason) {
+            // Mesmo código que o banco levanta (fonte de verdade em duas camadas).
+            throw new ApiError(422, 'adjustment_reason_required', 'Desativar uma unidade exige um motivo categorizado.');
+          }
+          if (!VALID_REASONS.has(reason)) {
+            throw new ApiError(422, 'invalid_adjustment_reason', 'Motivo de ajuste desconhecido.');
+          }
+          if (reason === 'other' && note.trim().length < 5) {
+            throw new ApiError(422, 'adjustment_reason_note_required', "Motivo 'outro' exige uma nota com pelo menos 5 caracteres.");
+          }
+        }
         return json(await rpc('admin_set_stock_unit_status', {
           p_stock_unit_id: stockUnitId,
           p_status: status,
+          p_reason: status === 'disabled' ? reason : null,
+          p_note: status === 'disabled' ? note : '',
         }));
       }
 
@@ -360,11 +398,11 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
           p_search: optionalString(payload.search, 'search', { max: 120 }) ?? null,
           p_status: optionalString(payload.status, 'status', { max: 30 }) ?? null,
           p_payment_status: optionalString(payload.paymentStatus, 'paymentStatus', { max: 30 }) ?? null,
-          p_from: payload.from ?? null,
-          p_to: payload.to ?? null,
+          p_from: optionalIsoTimestamp(payload.from, 'from'),
+          p_to: optionalIsoTimestamp(payload.to, 'to'),
           p_problem_only: Boolean(payload.problemOnly),
-          p_limit: Number(payload.limit ?? 50),
-          p_offset: Number(payload.offset ?? 0),
+          p_limit: boundedInt(payload.limit, { min: 1, max: 200, fallback: 50 }),
+          p_offset: boundedInt(payload.offset, { min: 0, max: 1_000_000, fallback: 0 }),
         });
         return json(result);
       }
@@ -438,7 +476,7 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
 
       case 'audit.list':
         return json({
-          entries: await rpc('admin_audit_log', { p_limit: Number(payload.limit ?? 50) }),
+          entries: await rpc('admin_audit_log', { p_limit: boundedInt(payload.limit, { min: 1, max: 200, fallback: 50 }) }),
         });
 
       case 'reservations.expire':

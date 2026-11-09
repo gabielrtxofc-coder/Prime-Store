@@ -412,7 +412,7 @@ describe('autorização administrativa, estoque e entregas', () => {
     const seed = await seedProduct({ stockUnits: 0 });
     const unitId = await seedStockUnit(seed.productId, 'reativar@exemplo.com', 'senha');
 
-    await asAdmin(adminId, `select public.admin_set_stock_unit_status($1, 'disabled')`, [unitId]);
+    await asAdmin(adminId, `select public.admin_set_stock_unit_status($1, 'disabled', 'inventory_adjustment')`, [unitId]);
     let status = await sqlValue<string>(`select status from public.stock_units where id = $1`, [unitId]);
     expect(status).toBe('disabled');
 

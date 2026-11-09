@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { categoryOptions as categories } from '../../data/categories';
 import { centsToInput, formatCurrency, parseBrlToCents } from '../../lib/format';
 import { adminApi, type AdminProduct, type ProductInput } from '../../services/adminApi';
+import { ConfirmActionDialog } from '../../components/admin/ConfirmActionDialog';
 import { describeBackendError } from '../../services/backend/http';
 
 interface FormState {
@@ -57,13 +58,38 @@ const slugify = (value: string): string =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
 
+/** Custo pode ser zero (produto sem custo informado); negativo nunca. */
+function parseCostToCents(input: string): number | null {
+  const trimmed = input.trim();
+  if (!trimmed) return 0;
+  const normalized = trimmed.includes(',')
+    ? trimmed.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.')
+    : trimmed.replace(/[^\d.-]/g, '');
+  const value = Number(normalized);
+  if (!Number.isFinite(value) || value < 0) return null;
+  return Math.round(value * 100);
+}
+
+/** Inteiro em uma faixa, ou null se inválido/vazio. */
+function parseBoundedInt(input: string, min: number, max: number): number | null {
+  if (!input.trim()) return null;
+  const value = Number(input);
+  if (!Number.isInteger(value) || value < min || value > max) return null;
+  return value;
+}
+
 export function AdminProducts() {
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState<'' | 'active' | 'inactive'>('');
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [detail, setDetail] = useState<{ product: AdminProduct; price_history: Array<Record<string, unknown>> } | null>(null);
+  const [detailBusy, setDetailBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pendingToggle, setPendingToggle] = useState<AdminProduct | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -78,6 +104,24 @@ export function AdminProducts() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const visibleProducts = products.filter((product) => {
+    if (activeFilter === 'active') return product.is_active;
+    if (activeFilter === 'inactive') return !product.is_active;
+    return true;
+  });
+
+  const openDetail = async (productId: string) => {
+    setDetailBusy(true);
+    try {
+      setDetail(await adminApi.getProduct(productId));
+      setError(null);
+    } catch (detailError) {
+      setError(describeBackendError(detailError));
+    } finally {
+      setDetailBusy(false);
+    }
+  };
 
   const update = (field: keyof FormState, value: string | boolean) =>
     setForm((previous) => ({ ...previous, [field]: value }));
@@ -110,24 +154,45 @@ export function AdminProducts() {
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
-    const priceCents = parseBrlToCents(form.price);
-    if (priceCents === null) {
-      setError('Informe o preço de venda em reais (ex.: 49,90).');
+    const name = form.name.trim();
+    if (name.length < 3) {
+      setError('Informe o nome do produto (mínimo de 3 caracteres).');
       return;
     }
-    const costCents = form.cost.trim() ? parseBrlToCents(form.cost) : 0;
+    const priceCents = parseBrlToCents(form.price);
+    if (priceCents === null) {
+      setError('Informe o preço de venda em reais, maior que zero (ex.: 49,90).');
+      return;
+    }
+    const costCents = parseCostToCents(form.cost);
     if (costCents === null) {
-      setError('Custo de aquisição inválido. Use apenas números (ex.: 12,50).');
+      setError('Custo de aquisição inválido. Use zero ou um valor positivo (ex.: 12,50).');
+      return;
+    }
+    const maxQuantity = parseBoundedInt(form.maxQuantity, 1, 20);
+    if (maxQuantity === null) {
+      setError('Quantidade máxima por pedido deve ser um inteiro entre 1 e 20.');
+      return;
+    }
+    const validityRaw = form.validityDays.trim();
+    const validityDays = validityRaw ? parseBoundedInt(validityRaw, 1, 3650) : null;
+    if (validityRaw && validityDays === null) {
+      setError('Validade do acesso deve ser um inteiro de dias entre 1 e 3650 (ou vazio para sem validade).');
+      return;
+    }
+    const slug = form.id ? undefined : slugify(form.slug || form.name);
+    if (!form.id && !slug) {
+      setError('Informe um slug válido: letras minúsculas, números e hífens.');
       return;
     }
     const payload: ProductInput = {
-      name: form.name.trim(),
-      slug: form.id ? undefined : slugify(form.slug || form.name),
+      name,
+      slug,
       category_id: form.categoryId,
       price_cents: priceCents,
       cost_cents: costCents,
-      max_quantity_per_order: Number(form.maxQuantity) || 1,
-      access_validity_days: form.validityDays.trim() ? Number(form.validityDays) : null,
+      max_quantity_per_order: maxQuantity,
+      access_validity_days: validityDays,
       access_validity_label: form.validityLabel.trim() || null,
       short_description: form.shortDescription.trim(),
       description: form.description.trim(),
@@ -161,13 +226,23 @@ export function AdminProducts() {
     }
   };
 
-  const toggleActive = async (product: AdminProduct) => {
+  const toggleActive = (product: AdminProduct) => {
+    setPendingToggle(product);
+  };
+
+  const confirmToggleActive = async () => {
+    if (!pendingToggle) return;
+    setActionBusy(true);
     try {
-      await adminApi.setProductActive(product.id, !product.is_active);
-      setNotice(`${product.name}: ${product.is_active ? 'desativado' : 'ativado'}.`);
+      await adminApi.setProductActive(pendingToggle.id, !pendingToggle.is_active);
+      setNotice(`${pendingToggle.name}: ${pendingToggle.is_active ? 'desativado' : 'ativado'}.`);
+      setPendingToggle(null);
       await load();
     } catch (toggleError) {
       setError(describeBackendError(toggleError));
+      setPendingToggle(null);
+    } finally {
+      setActionBusy(false);
     }
   };
 
@@ -185,10 +260,24 @@ export function AdminProducts() {
           onChange={(event) => setSearch(event.target.value)}
           aria-label="Buscar produtos"
         />
+        <select
+          className="form-control"
+          value={activeFilter}
+          onChange={(event) => setActiveFilter(event.target.value as '' | 'active' | 'inactive')}
+          aria-label="Filtrar por situação"
+        >
+          <option value="">Todos (ativos e inativos)</option>
+          <option value="active">Somente ativos</option>
+          <option value="inactive">Somente inativos</option>
+        </select>
         <button className="button button--secondary button--small" type="button" onClick={() => { setForm(EMPTY_FORM); setNotice(null); }}>
           Novo produto
         </button>
       </div>
+      <p className="field-hint">
+        Produtos não são excluídos do banco: use Desativar para retirá-los do catálogo. Pedidos antigos mantêm o nome e o
+        preço do momento da compra.
+      </p>
 
       <div className="admin-table-wrapper">
         <table className="admin-table">
@@ -205,7 +294,7 @@ export function AdminProducts() {
             </tr>
           </thead>
           <tbody>
-            {products.map((product) => (
+            {visibleProducts.map((product) => (
               <tr key={product.id}>
                 <td>
                   <strong>{product.name}</strong>
@@ -224,6 +313,7 @@ export function AdminProducts() {
                   </span>
                 </td>
                 <td className="admin-row-actions">
+                  <button className="link-button" type="button" onClick={() => openDetail(product.id)} disabled={detailBusy}>Detalhes</button>
                   <button className="link-button" type="button" onClick={() => edit(product)}>Editar</button>
                   <button className="link-button" type="button" onClick={() => toggleActive(product)}>
                     {product.is_active ? 'Desativar' : 'Ativar'}
@@ -231,14 +321,63 @@ export function AdminProducts() {
                 </td>
               </tr>
             ))}
-            {products.length === 0 && (
+            {visibleProducts.length === 0 && (
               <tr>
-                <td colSpan={8} className="field-hint">Nenhum produto cadastrado. Use o formulário abaixo para criar o primeiro.</td>
+                <td colSpan={8} className="field-hint">
+                  {products.length === 0
+                    ? 'Nenhum produto encontrado. Ajuste a busca ou crie um novo produto abaixo.'
+                    : 'Nenhum produto neste filtro. Ajuste a situação acima.'}
+                </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {detail && (
+        <section className="admin-panel" aria-label="Detalhes do produto">
+          <div className="admin-panel__header">
+            <h2>Detalhes — {detail.product.name}</h2>
+            <button className="button button--secondary button--small" type="button" onClick={() => setDetail(null)}>Fechar</button>
+          </div>
+          <dl className="admin-detail-grid">
+            <div><dt>Slug</dt><dd>/{detail.product.slug}</dd></div>
+            <div><dt>Categoria</dt><dd>{detail.product.category_label}</dd></div>
+            <div><dt>Situação</dt><dd>{detail.product.is_active ? 'ativo' : 'inativo'}{detail.product.is_featured ? ' · destacado' : ''}</dd></div>
+            <div><dt>Preço</dt><dd>{formatCurrency(detail.product.price_cents)}</dd></div>
+            <div><dt>Custo</dt><dd>{formatCurrency(detail.product.cost_cents)}</dd></div>
+            <div><dt>Margem</dt><dd>{formatCurrency(detail.product.margin_cents)}</dd></div>
+            <div><dt>Estoque</dt><dd>{detail.product.available_units} disponíveis · {detail.product.reserved_units} reservadas · {detail.product.sold_units} vendidas</dd></div>
+            <div><dt>Qtd. máx. por pedido</dt><dd>{detail.product.max_quantity_per_order}</dd></div>
+            <div><dt>Validade</dt><dd>{detail.product.access_validity_days ? `${detail.product.access_validity_days} dias` : 'sem validade'}{detail.product.access_validity_label ? ` · ${detail.product.access_validity_label}` : ''}</dd></div>
+            <div><dt>Modalidade</dt><dd>{detail.product.modality}</dd></div>
+            <div><dt>Período</dt><dd>{detail.product.period}</dd></div>
+            <div><dt>Atualizado em</dt><dd>{new Date(detail.product.updated_at).toLocaleString('pt-BR')}</dd></div>
+          </dl>
+          {detail.product.description && <p>{detail.product.description}</p>}
+          {detail.price_history.length > 0 && (
+            <>
+              <h3 className="admin-subheading">Histórico de preço</h3>
+              <table className="admin-table">
+                <thead>
+                  <tr><th>Data</th><th>Preço anterior</th><th>Preço novo</th><th>Custo anterior</th><th>Custo novo</th></tr>
+                </thead>
+                <tbody>
+                  {detail.price_history.map((entry, index) => (
+                    <tr key={index}>
+                      <td>{entry.changed_at ? new Date(String(entry.changed_at)).toLocaleString('pt-BR') : '—'}</td>
+                      <td>{typeof entry.old_price_cents === 'number' ? formatCurrency(entry.old_price_cents) : '—'}</td>
+                      <td>{typeof entry.new_price_cents === 'number' ? formatCurrency(entry.new_price_cents) : '—'}</td>
+                      <td>{typeof entry.old_cost_cents === 'number' ? formatCurrency(entry.old_cost_cents) : '—'}</td>
+                      <td>{typeof entry.new_cost_cents === 'number' ? formatCurrency(entry.new_cost_cents) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </section>
+      )}
 
       <form className="admin-panel admin-form" onSubmit={submit}>
         <h2>{form.id ? 'Editar produto' : 'Novo produto'}</h2>
@@ -340,6 +479,20 @@ export function AdminProducts() {
           )}
         </div>
       </form>
+      <ConfirmActionDialog
+        open={pendingToggle !== null}
+        title={pendingToggle?.is_active ? 'Desativar produto?' : 'Reativar produto?'}
+        description={
+          pendingToggle?.is_active
+            ? `${pendingToggle?.name} sairá do catálogo da loja imediatamente (pedidos antigos mantêm o histórico). Você pode reativá-lo depois.`
+            : `${pendingToggle?.name ?? ''} voltará a aparecer no catálogo da loja para novos pedidos.`
+        }
+        confirmLabel={pendingToggle?.is_active ? 'Desativar' : 'Reativar'}
+        danger={pendingToggle?.is_active ?? false}
+        busy={actionBusy}
+        onConfirm={() => void confirmToggleActive()}
+        onCancel={() => setPendingToggle(null)}
+      />
     </div>
   );
 }

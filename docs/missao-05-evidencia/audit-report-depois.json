@@ -1,0 +1,290 @@
+{
+  "320": {
+    "overview": {
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "offenders": []
+    }
+  },
+  "360": {
+    "overview": {
+      "innerWidth": 360,
+      "scrollWidth": 360,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 360,
+      "scrollWidth": 360,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 360,
+      "scrollWidth": 360,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 360,
+      "scrollWidth": 360,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 360,
+      "scrollWidth": 360,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 360,
+      "scrollWidth": 360,
+      "offenders": []
+    }
+  },
+  "375": {
+    "overview": {
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "offenders": []
+    }
+  },
+  "390": {
+    "overview": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "offenders": []
+    }
+  },
+  "414": {
+    "overview": {
+      "innerWidth": 414,
+      "scrollWidth": 414,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 414,
+      "scrollWidth": 414,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 414,
+      "scrollWidth": 414,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 414,
+      "scrollWidth": 414,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 414,
+      "scrollWidth": 414,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 414,
+      "scrollWidth": 414,
+      "offenders": []
+    }
+  },
+  "768": {
+    "overview": {
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "offenders": []
+    }
+  },
+  "1024": {
+    "overview": {
+      "innerWidth": 1024,
+      "scrollWidth": 1024,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 1024,
+      "scrollWidth": 1024,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 1024,
+      "scrollWidth": 1024,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 1024,
+      "scrollWidth": 1024,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 1024,
+      "scrollWidth": 1024,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 1024,
+      "scrollWidth": 1024,
+      "offenders": []
+    }
+  },
+  "1280": {
+    "overview": {
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "offenders": []
+    }
+  },
+  "1440": {
+    "overview": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "offenders": []
+    }
+  }
+}

@@ -991,3 +991,113 @@ button:disabled { cursor: not-allowed; }
   .catalog-results-heading__actions { flex-wrap: wrap; gap: 10px; }
   .tracking-box__actions { flex-direction: column; align-items: flex-start; }
 }
+
+/* 03.2B–03.2E: filtros de período e painéis do painel administrativo */
+.admin-period { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.admin-period .form-control { height: 36px; }
+.admin-panel__header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.admin-panel__header h2 { margin: 0; }
+.admin-subheading { margin: 16px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.admin-list--ranked { list-style: none; padding-left: 0; counter-reset: rank; }
+.admin-list--ranked li { counter-increment: rank; }
+.admin-detail-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 12px; }
+.admin-detail-grid--stack { grid-template-columns: 1fr; margin-top: 4px; }
+.admin-order-banner { margin-top: 12px; }
+
+/* ---------------------------------------------------------------------------
+ * Missão 05 — correção estrutural e responsividade do painel administrativo
+ * Preserva o funcionamento; apenas ajusta larguras, quebras e áreas de toque.
+ * ------------------------------------------------------------------------ */
+
+/* P1 — .admin-section é grade de coluna única. Sem minmax(0,1fr), o trilho
+ * implícito vira max-content do filho mais largo (ex.: tabela com cabeçalhos
+ * nowrap) e empurra a página inteira para fora da tela. */
+.admin-section { grid-template-columns: minmax(0, 1fr); }
+.admin-section > * { min-width: 0; }
+
+/* P2 — itens flexíveis (selects com opções longas, inputs) podem encolher
+ * abaixo do min-content; elimina o estouro horizontal nas barras de filtros. */
+.admin-toolbar > * { min-width: 0; }
+.admin-toolbar .form-control { flex: 1 1 170px; width: auto; max-width: 100%; }
+.admin-header__actions { flex-wrap: wrap; }
+.admin-period { min-width: 0; max-width: 100%; }
+.admin-period .form-control { max-width: 100%; }
+@media (max-width: 560px) {
+  .admin-period { width: 100%; }
+  .admin-period .form-control { flex: 1 1 140px; }
+}
+
+/* P3 — pisos absolutos acima da largura útil em telas pequenas: passam a
+ * respeitar a largura disponível (min(100%, …)). */
+.admin-columns { grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); }
+.admin-detail-columns { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+
+/* P4 — histórico/eventos: empilham em telas estreitas em vez de cortar. */
+@media (max-width: 640px) {
+  .admin-audit li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+
+/* P5 — textos longos e valores inesperados quebram dentro do seu espaço. */
+.admin-table td { overflow-wrap: anywhere; }
+.admin-audit span,
+.admin-list li,
+.admin-detail-grid dd,
+.admin-metric small,
+.admin-panel__header span { overflow-wrap: anywhere; }
+.admin-fingerprint { word-break: break-all; }
+.admin-panel__header { min-width: 0; }
+.admin-panel__header > * { min-width: 0; }
+
+/* P6 — rolagem horizontal fica contida no wrapper da tabela; a página inteira
+ * nunca precisa rolar (as tabelas ganham largura mínima legível no celular). */
+.admin-table-wrapper { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+@media (max-width: 640px) {
+  .admin-table { min-width: 620px; }
+}
+
+/* P7 — alvos de toque confortáveis em telas sensíveis ao toque. */
+@media (pointer: coarse) {
+  .admin-tab,
+  .link-button,
+  .admin-row-actions .button,
+  .admin-toolbar .button,
+  .admin-panel__header .button { min-height: 44px; }
+  .link-button { display: inline-flex; align-items: center; }
+}
+
+/* P8 — paginação visual dos painéis fica integralmente dentro do container. */
+.admin-order-detail { max-width: 100%; }
+
+/* P9 — input de arquivo da importação CSV: largura intrínseca maior que a tela
+ * em celulares; passa a respeitar a largura do formulário. */
+.admin-page input[type='file'] { width: 100%; max-width: 100%; min-width: 0; font-size: 12px; }
+
+/* Missão 07 — diálogo de confirmação para ações sensíveis/destrutivas */
+.admin-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(4 8 14 / 72%);
+}
+.admin-dialog {
+  width: min(480px, 100%);
+  padding: 22px;
+  background: #141922;
+  border: 1px solid #2a3241;
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgb(0 0 0 / 45%);
+}
+.admin-dialog h2 { margin: 0 0 10px; font-size: 19px; line-height: 1.3; }
+.admin-dialog p { margin: 0 0 18px; color: var(--text-muted); font-size: 13.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.admin-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.button--danger { color: #fff; background: #b4232a; border: 1px solid #d93643; }
+.button--danger:hover:not(:disabled) { background: #cd2f38; border-color: #e14d5a; }
+@media (pointer: coarse) {
+  .admin-dialog__actions .button { min-height: 44px; }
+}
+.admin-dialog__fields { display: grid; gap: 10px; margin: 0 0 18px; }
+.admin-dialog__fields label { font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px; }
+.admin-dialog__fields .field-hint { margin: 0; }
