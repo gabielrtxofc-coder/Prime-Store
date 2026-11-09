@@ -1,0 +1,4478 @@
+{
+  "320": {
+    "overview": {
+      "innerWidth": 320,
+      "scrollWidth": 656,
+      "offenders": [
+        {
+          "tag": "div.admin-toolbar",
+          "text": "PeríodoÚltimos 7 diasÚltimos 30 diasÚltimos 90 diasTodo o pe",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Atualizar dados",
+          "right": 416,
+          "left": 275
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "No período selecionadoDatas reais de criação dos pedidos (cr",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "No período selecionadoDatas reais de criação dos pedidos (cr",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Datas reais de criação dos pedidos (created_at) · desde 10/1",
+          "right": 635,
+          "left": 296
+        },
+        {
+          "tag": "div.admin-metrics",
+          "text": "Pedidos recebidos5Todos os estados, inclusive solicitaçõesSo",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Solicitações sem pagamento2status requested · não são vendas",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Solicitações sem pagamento",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "2",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "small",
+          "text": "status requested · não são vendas",
+          "right": 404,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Vendas pagas1status paid · pagamento aprovado",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Vendas pagas",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "status paid · pagamento aprovado",
+          "right": 595,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Pedidos reembolsados0status refunded",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Pedidos reembolsados",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "0",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "small",
+          "text": "status refunded",
+          "right": 344,
+          "left": 257
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pedidos recentes",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "PedidoProdutoCriadoValorPagamentoEstadoPS-DEMO01Conta stream",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Acumulado geral (servidor)Totais históricos calculados pelo ",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "Acumulado geral (servidor)Totais históricos calculados pelo ",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Totais históricos calculados pelo banco · nunca inclui not_r",
+          "right": 398,
+          "left": 68
+        },
+        {
+          "tag": "div.admin-metrics",
+          "text": "Receita aprovada (total)R$ 29,90paid + refund_pending, histó",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Receita (30 dias)R$ 29,90mesmo critério, últimos 30 dias",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Receita (30 dias)",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "R$ 29,90",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "small",
+          "text": "mesmo critério, últimos 30 dias",
+          "right": 406,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Pedidos pagos (total)15 pedidos no total",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Pedidos pagos (total)",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "5 pedidos no total",
+          "right": 560,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Reservas ativas1",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Reservas ativas",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Reembolsos abertos10 pedido(s) reembolsado(s)",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Reembolsos abertos",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "0 pedido(s) reembolsado(s)",
+          "right": 612,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Unidades disponíveis11 reservada(s)",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Unidades disponíveis",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "small",
+          "text": "1 reservada(s)",
+          "right": 337,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Unidades vendidas1",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Unidades vendidas",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Entregas ativas10 revogada(s)",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Entregas ativas",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "small",
+          "text": "0 revogada(s)",
+          "right": 334,
+          "left": 257
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Estoque baixo (≤ 2 unidades)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-list",
+          "text": "Licença de software (exemplo)0 disponíveis",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "Licença de software (exemplo)0 disponíveis",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "0 disponíveis",
+          "right": 635,
+          "left": 542
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Mais vendidos (total histórico)Unidades vendidas registradas",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "Mais vendidos (total histórico)Unidades vendidas registradas",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Unidades vendidas registradas no estoque — não é um ranking ",
+          "right": 443,
+          "left": 68
+        },
+        {
+          "tag": "ol.admin-list.admin-list--ranked",
+          "text": "Conta streaming — 30 dias (exemplo)4 unidade(s)Licença de so",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "Conta streaming — 30 dias (exemplo)4 unidade(s)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "4 unidade(s)",
+          "right": 635,
+          "left": 546
+        },
+        {
+          "tag": "li",
+          "text": "Licença de software (exemplo)2 unidade(s)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "2 unidade(s)",
+          "right": 635,
+          "left": 546
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Reembolsos pendentesPS-DEMO02Licença de software (exemplo) ·",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "h2",
+          "text": "Reembolsos pendentes",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-list",
+          "text": "PS-DEMO02Licença de software (exemplo) · R$ 49,90payment_cha",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "PS-DEMO02Licença de software (exemplo) · R$ 49,90payment_cha",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-row-actions",
+          "text": "AutorizarMarcar como processadoRecusar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Autorizar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Marcar como processado",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Recusar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Últimas ações administrativas08/11/2026, 14:05:47product.cre",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "h2",
+          "text": "Últimas ações administrativas",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-audit",
+          "text": "08/11/2026, 14:05:47product.createdproduct · aaaaaaaa…08/11/",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "08/11/2026, 14:05:47product.createdproduct · aaaaaaaa…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "08/11/2026, 14:05:47",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "product.created",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "product · aaaaaaaa…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "08/11/2026, 08:05:47stock.importedimport_batch",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "08/11/2026, 08:05:47",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "stock.imported",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "import_batch",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 12:05:47delivery.revokeddelivery · dddddddd…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 12:05:47",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "delivery.revoked",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "delivery · dddddddd…",
+          "right": 635,
+          "left": 37
+        }
+      ]
+    },
+    "products": {
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 320,
+      "scrollWidth": 362,
+      "offenders": [
+        {
+          "tag": "div.admin-metrics.admin-metrics--compact",
+          "text": "Total3Disponíveis1Reservadas1Vendidas1Desativadas0",
+          "right": 348,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Disponíveis1",
+          "right": 348,
+          "left": 188
+        },
+        {
+          "tag": "span",
+          "text": "Disponíveis",
+          "right": 331,
+          "left": 205
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 331,
+          "left": 205
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Vendidas1",
+          "right": 348,
+          "left": 188
+        },
+        {
+          "tag": "span",
+          "text": "Vendidas",
+          "right": 331,
+          "left": 205
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 331,
+          "left": 205
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Estoque por produtoAlerta de baixo estoque usa a regra exist",
+          "right": 348,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "Estoque por produtoAlerta de baixo estoque usa a regra exist",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Alerta de baixo estoque usa a regra existente do painel (≤ 2",
+          "right": 327,
+          "left": 68
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "ProdutoDisponívelSituaçãoLicença de software (exemplo)0sem e",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-toolbar",
+          "text": "Todos os produtosConta streaming — 30 dias (exemplo)Licença ",
+          "right": 348,
+          "left": 16
+        },
+        {
+          "tag": "select.form-control",
+          "text": "Todos os produtosConta streaming — 30 dias (exemplo)Licença ",
+          "right": 348,
+          "left": 16
+        },
+        {
+          "tag": "select.form-control",
+          "text": "Todos os statusdisponívelreservadavendidadesativada",
+          "right": 348,
+          "left": 16
+        },
+        {
+          "tag": "label.admin-inline-check",
+          "text": "Exibir credenciais (registrado em auditoria como stock_crede",
+          "right": 348,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "ProdutoStatusCredencialFingerprintReservaCriada emAçõesConta",
+          "right": 348,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-columns",
+          "text": "Adicionar unidadeA credencial é cifrada (AES-256-GCM) antes ",
+          "right": 348,
+          "left": 16
+        },
+        {
+          "tag": "form.admin-panel.admin-form",
+          "text": "Adicionar unidadeA credencial é cifrada (AES-256-GCM) antes ",
+          "right": 348,
+          "left": 16
+        },
+        {
+          "tag": "h2",
+          "text": "Adicionar unidade",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "A credencial é cifrada (AES-256-GCM) antes de chegar ao banc",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "div.form-grid",
+          "text": "ProdutoSelecione…Conta streaming — 30 dias (exemplo)Licença ",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "div.form-field.form-field--full",
+          "text": "ProdutoSelecione…Conta streaming — 30 dias (exemplo)Licença ",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "label",
+          "text": "Produto",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "select",
+          "text": "Selecione…Conta streaming — 30 dias (exemplo)Licença de soft",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "div.form-field",
+          "text": "E-mail / login da conta",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "label",
+          "text": "E-mail / login da conta",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "input",
+          "text": "",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "div.form-field",
+          "text": "Senha da conta",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "label",
+          "text": "Senha da conta",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "input",
+          "text": "",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "div.form-field.form-field--full",
+          "text": "Observações internas (opcional)",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "label",
+          "text": "Observações internas (opcional)",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "input",
+          "text": "",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "section.admin-panel.admin-form",
+          "text": "Importar CSVFormato: uma credencial por linha, email,senha,o",
+          "right": 348,
+          "left": 16
+        },
+        {
+          "tag": "h2",
+          "text": "Importar CSV",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "Formato: uma credencial por linha, email,senha,observação. C",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "input",
+          "text": "",
+          "right": 362,
+          "left": 37
+        },
+        {
+          "tag": "textarea.admin-csv",
+          "text": "",
+          "right": 327,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-row-actions",
+          "text": "Pré-visualizarImportar",
+          "right": 327,
+          "left": 37
+        }
+      ]
+    },
+    "orders": {
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 320,
+      "scrollWidth": 418,
+      "offenders": [
+        {
+          "tag": "div.admin-toolbar",
+          "text": "Todos os pedidosrequested — solicitaçãopending_payment — agu",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "select.form-control",
+          "text": "Todos os pedidosrequested — solicitaçãopending_payment — agu",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "select.form-control",
+          "text": "Todos os pagamentosnot_required — sem pagamento (solicitação",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "PedidoProdutoQtd.ValorCriadoPagamentoPedidoEntregaPS-DEMO01C",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "5 pedido(s) no total · exibindo 5 · ordenados do mais recent",
+          "right": 418,
+          "left": 47
+        },
+        {
+          "tag": "div.admin-panel.admin-order-detail",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-order-detail__header",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h2",
+          "text": "Pedido PS-DEMO01",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "Conta streaming — 30 dias (exemplo) · 1 unidade(s) · R$ 29,9",
+          "right": 397,
+          "left": 68
+        },
+        {
+          "tag": "div.admin-detail-columns",
+          "text": "PedidoStatus do pedidopaid — pagoCriado em09/11/2026, 08:05:",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "section",
+          "text": "PedidoStatus do pedidopaid — pagoCriado em09/11/2026, 08:05:",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pedido",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dl.admin-detail-grid.admin-detail-grid--stack",
+          "text": "Status do pedidopaid — pagoCriado em09/11/2026, 08:05:47Rese",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Status do pedidopaid — pago",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Status do pedido",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "paid — pago",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Criado em09/11/2026, 08:05:47",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Criado em",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "09/11/2026, 08:05:47",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Reserva expira em09/11/2026, 09:35:47",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Reserva expira em",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "09/11/2026, 09:35:47",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Entregaready",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Entrega",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "ready",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Unidades entregues1",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Unidades entregues",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "1",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "section",
+          "text": "PagamentoStatus do pagamentoapproved — aprovadoPago em09/11/",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pagamento",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dl.admin-detail-grid.admin-detail-grid--stack",
+          "text": "Status do pagamentoapproved — aprovadoPago em09/11/2026, 09:",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Status do pagamentoapproved — aprovado",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Status do pagamento",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "approved — aprovado",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Pago em09/11/2026, 09:05:47",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Pago em",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "09/11/2026, 09:05:47",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "section",
+          "text": "Itens do pedidoProdutoConta streaming — 30 dias (exemplo)Qua",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Itens do pedido",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dl.admin-detail-grid",
+          "text": "ProdutoConta streaming — 30 dias (exemplo)Quantidade total1V",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Quantidade total1",
+          "right": 397,
+          "left": 223
+        },
+        {
+          "tag": "dt",
+          "text": "Quantidade total",
+          "right": 397,
+          "left": 223
+        },
+        {
+          "tag": "dd",
+          "text": "1",
+          "right": 397,
+          "left": 223
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "O painel exibe o resumo registrado no pedido (produto, quant",
+          "right": 397,
+          "left": 68
+        },
+        {
+          "tag": "section",
+          "text": "Registros de pagamentoProvedorStatusValorCriado emdemoapprov",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Registros de pagamento",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "ProvedorStatusValorCriado emdemoapprovedR$ 29,9009/11/2026, ",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-panel.admin-nested",
+          "text": "Link de entregaEstado: active · visualizações: 2Revogar link",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3",
+          "text": "Link de entrega",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "Estado: active · visualizações: 2",
+          "right": 376,
+          "left": 89
+        },
+        {
+          "tag": "div.admin-row-actions",
+          "text": "Revogar linkGerar novo link",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Gerar novo link",
+          "right": 325,
+          "left": 186
+        },
+        {
+          "tag": "div.admin-panel.admin-nested",
+          "text": "Histórico09/11/2026, 08:05:47order_createdcustomer09/11/2026",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3",
+          "text": "Histórico",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "ul.admin-audit",
+          "text": "09/11/2026, 08:05:47order_createdcustomer09/11/2026, 09:05:4",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 08:05:47order_createdcustomer",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 08:05:47",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "strong",
+          "text": "order_created",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "span",
+          "text": "customer",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 09:05:47demo_payment_approvedsystem",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 09:05:47",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "strong",
+          "text": "demo_payment_approved",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "span",
+          "text": "system",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 09:05:47delivery_createdsystem",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 09:05:47",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "strong",
+          "text": "delivery_created",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "span",
+          "text": "system",
+          "right": 376,
+          "left": 58
+        }
+      ]
+    }
+  },
+  "360": {
+    "overview": {
+      "innerWidth": 360,
+      "scrollWidth": 656,
+      "offenders": [
+        {
+          "tag": "div.admin-toolbar",
+          "text": "PeríodoÚltimos 7 diasÚltimos 30 diasÚltimos 90 diasTodo o pe",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Atualizar dados",
+          "right": 416,
+          "left": 275
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "No período selecionadoDatas reais de criação dos pedidos (cr",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "No período selecionadoDatas reais de criação dos pedidos (cr",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Datas reais de criação dos pedidos (created_at) · desde 10/1",
+          "right": 635,
+          "left": 296
+        },
+        {
+          "tag": "div.admin-metrics",
+          "text": "Pedidos recebidos5Todos os estados, inclusive solicitaçõesSo",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Solicitações sem pagamento2status requested · não são vendas",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Solicitações sem pagamento",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "2",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "small",
+          "text": "status requested · não são vendas",
+          "right": 404,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Vendas pagas1status paid · pagamento aprovado",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Vendas pagas",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "status paid · pagamento aprovado",
+          "right": 595,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Pedidos reembolsados0status refunded",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Pedidos reembolsados",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "0",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pedidos recentes",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "PedidoProdutoCriadoValorPagamentoEstadoPS-DEMO01Conta stream",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Acumulado geral (servidor)Totais históricos calculados pelo ",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "Acumulado geral (servidor)Totais históricos calculados pelo ",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Totais históricos calculados pelo banco · nunca inclui not_r",
+          "right": 398,
+          "left": 68
+        },
+        {
+          "tag": "div.admin-metrics",
+          "text": "Receita aprovada (total)R$ 29,90paid + refund_pending, histó",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Receita (30 dias)R$ 29,90mesmo critério, últimos 30 dias",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Receita (30 dias)",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "R$ 29,90",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "small",
+          "text": "mesmo critério, últimos 30 dias",
+          "right": 406,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Pedidos pagos (total)15 pedidos no total",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Pedidos pagos (total)",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "5 pedidos no total",
+          "right": 560,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Reservas ativas1",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Reservas ativas",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Reembolsos abertos10 pedido(s) reembolsado(s)",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Reembolsos abertos",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "0 pedido(s) reembolsado(s)",
+          "right": 612,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Unidades disponíveis11 reservada(s)",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Unidades disponíveis",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Unidades vendidas1",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Unidades vendidas",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Entregas ativas10 revogada(s)",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Entregas ativas",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Estoque baixo (≤ 2 unidades)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-list",
+          "text": "Licença de software (exemplo)0 disponíveis",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "Licença de software (exemplo)0 disponíveis",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "0 disponíveis",
+          "right": 635,
+          "left": 542
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Mais vendidos (total histórico)Unidades vendidas registradas",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "Mais vendidos (total histórico)Unidades vendidas registradas",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Unidades vendidas registradas no estoque — não é um ranking ",
+          "right": 443,
+          "left": 68
+        },
+        {
+          "tag": "ol.admin-list.admin-list--ranked",
+          "text": "Conta streaming — 30 dias (exemplo)4 unidade(s)Licença de so",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "Conta streaming — 30 dias (exemplo)4 unidade(s)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "4 unidade(s)",
+          "right": 635,
+          "left": 546
+        },
+        {
+          "tag": "li",
+          "text": "Licença de software (exemplo)2 unidade(s)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "2 unidade(s)",
+          "right": 635,
+          "left": 546
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Reembolsos pendentesPS-DEMO02Licença de software (exemplo) ·",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "h2",
+          "text": "Reembolsos pendentes",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-list",
+          "text": "PS-DEMO02Licença de software (exemplo) · R$ 49,90payment_cha",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "PS-DEMO02Licença de software (exemplo) · R$ 49,90payment_cha",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-row-actions",
+          "text": "AutorizarMarcar como processadoRecusar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Autorizar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Marcar como processado",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Recusar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Últimas ações administrativas08/11/2026, 14:05:53product.cre",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "h2",
+          "text": "Últimas ações administrativas",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-audit",
+          "text": "08/11/2026, 14:05:53product.createdproduct · aaaaaaaa…08/11/",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "08/11/2026, 14:05:53product.createdproduct · aaaaaaaa…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "08/11/2026, 14:05:53",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "product.created",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "product · aaaaaaaa…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "08/11/2026, 08:05:53stock.importedimport_batch",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "08/11/2026, 08:05:53",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "stock.imported",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "import_batch",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 12:05:53delivery.revokeddelivery · dddddddd…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 12:05:53",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "delivery.revoked",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "delivery · dddddddd…",
+          "right": 635,
+          "left": 37
+        }
+      ]
+    },
+    "products": {
+      "innerWidth": 360,
+      "scrollWidth": 360,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 360,
+      "scrollWidth": 362,
+      "offenders": [
+        {
+          "tag": "input",
+          "text": "",
+          "right": 362,
+          "left": 37
+        }
+      ]
+    },
+    "orders": {
+      "innerWidth": 360,
+      "scrollWidth": 360,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 360,
+      "scrollWidth": 360,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 360,
+      "scrollWidth": 418,
+      "offenders": [
+        {
+          "tag": "div.admin-toolbar",
+          "text": "Todos os pedidosrequested — solicitaçãopending_payment — agu",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "select.form-control",
+          "text": "Todos os pedidosrequested — solicitaçãopending_payment — agu",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "select.form-control",
+          "text": "Todos os pagamentosnot_required — sem pagamento (solicitação",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "PedidoProdutoQtd.ValorCriadoPagamentoPedidoEntregaPS-DEMO01C",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "5 pedido(s) no total · exibindo 5 · ordenados do mais recent",
+          "right": 418,
+          "left": 47
+        },
+        {
+          "tag": "div.admin-panel.admin-order-detail",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-order-detail__header",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h2",
+          "text": "Pedido PS-DEMO01",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "Conta streaming — 30 dias (exemplo) · 1 unidade(s) · R$ 29,9",
+          "right": 397,
+          "left": 68
+        },
+        {
+          "tag": "div.admin-detail-columns",
+          "text": "PedidoStatus do pedidopaid — pagoCriado em09/11/2026, 08:05:",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "section",
+          "text": "PedidoStatus do pedidopaid — pagoCriado em09/11/2026, 08:05:",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pedido",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dl.admin-detail-grid.admin-detail-grid--stack",
+          "text": "Status do pedidopaid — pagoCriado em09/11/2026, 08:05:53Rese",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Status do pedidopaid — pago",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Status do pedido",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "paid — pago",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Criado em09/11/2026, 08:05:53",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Criado em",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "09/11/2026, 08:05:53",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Reserva expira em09/11/2026, 09:35:53",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Reserva expira em",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "09/11/2026, 09:35:53",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Entregaready",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Entrega",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "ready",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Unidades entregues1",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Unidades entregues",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "1",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "section",
+          "text": "PagamentoStatus do pagamentoapproved — aprovadoPago em09/11/",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pagamento",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dl.admin-detail-grid.admin-detail-grid--stack",
+          "text": "Status do pagamentoapproved — aprovadoPago em09/11/2026, 09:",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Status do pagamentoapproved — aprovado",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Status do pagamento",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "approved — aprovado",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Pago em09/11/2026, 09:05:53",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Pago em",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "09/11/2026, 09:05:53",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "section",
+          "text": "Itens do pedidoProdutoConta streaming — 30 dias (exemplo)Qua",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Itens do pedido",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dl.admin-detail-grid",
+          "text": "ProdutoConta streaming — 30 dias (exemplo)Quantidade total1V",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Quantidade total1",
+          "right": 397,
+          "left": 223
+        },
+        {
+          "tag": "dt",
+          "text": "Quantidade total",
+          "right": 397,
+          "left": 223
+        },
+        {
+          "tag": "dd",
+          "text": "1",
+          "right": 397,
+          "left": 223
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "O painel exibe o resumo registrado no pedido (produto, quant",
+          "right": 397,
+          "left": 68
+        },
+        {
+          "tag": "section",
+          "text": "Registros de pagamentoProvedorStatusValorCriado emdemoapprov",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Registros de pagamento",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "ProvedorStatusValorCriado emdemoapprovedR$ 29,9009/11/2026, ",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-panel.admin-nested",
+          "text": "Link de entregaEstado: active · visualizações: 2Revogar link",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3",
+          "text": "Link de entrega",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "Estado: active · visualizações: 2",
+          "right": 376,
+          "left": 89
+        },
+        {
+          "tag": "div.admin-row-actions",
+          "text": "Revogar linkGerar novo link",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "div.admin-panel.admin-nested",
+          "text": "Histórico09/11/2026, 08:05:53order_createdcustomer09/11/2026",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3",
+          "text": "Histórico",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "ul.admin-audit",
+          "text": "09/11/2026, 08:05:53order_createdcustomer09/11/2026, 09:05:5",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 08:05:53order_createdcustomer",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 08:05:53",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "strong",
+          "text": "order_created",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "span",
+          "text": "customer",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 09:05:53demo_payment_approvedsystem",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 09:05:53",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "strong",
+          "text": "demo_payment_approved",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "span",
+          "text": "system",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 09:05:53delivery_createdsystem",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 09:05:53",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "strong",
+          "text": "delivery_created",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "span",
+          "text": "system",
+          "right": 376,
+          "left": 58
+        }
+      ]
+    }
+  },
+  "375": {
+    "overview": {
+      "innerWidth": 375,
+      "scrollWidth": 656,
+      "offenders": [
+        {
+          "tag": "div.admin-toolbar",
+          "text": "PeríodoÚltimos 7 diasÚltimos 30 diasÚltimos 90 diasTodo o pe",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Atualizar dados",
+          "right": 416,
+          "left": 275
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "No período selecionadoDatas reais de criação dos pedidos (cr",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "No período selecionadoDatas reais de criação dos pedidos (cr",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Datas reais de criação dos pedidos (created_at) · desde 10/1",
+          "right": 635,
+          "left": 296
+        },
+        {
+          "tag": "div.admin-metrics",
+          "text": "Pedidos recebidos5Todos os estados, inclusive solicitaçõesSo",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Solicitações sem pagamento2status requested · não são vendas",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Solicitações sem pagamento",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "2",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "small",
+          "text": "status requested · não são vendas",
+          "right": 404,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Vendas pagas1status paid · pagamento aprovado",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Vendas pagas",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "status paid · pagamento aprovado",
+          "right": 595,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Pedidos reembolsados0status refunded",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Pedidos reembolsados",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "0",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pedidos recentes",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "PedidoProdutoCriadoValorPagamentoEstadoPS-DEMO01Conta stream",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Acumulado geral (servidor)Totais históricos calculados pelo ",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "Acumulado geral (servidor)Totais históricos calculados pelo ",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Totais históricos calculados pelo banco · nunca inclui not_r",
+          "right": 398,
+          "left": 68
+        },
+        {
+          "tag": "div.admin-metrics",
+          "text": "Receita aprovada (total)R$ 29,90paid + refund_pending, histó",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Receita (30 dias)R$ 29,90mesmo critério, últimos 30 dias",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Receita (30 dias)",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "R$ 29,90",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "small",
+          "text": "mesmo critério, últimos 30 dias",
+          "right": 406,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Pedidos pagos (total)15 pedidos no total",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Pedidos pagos (total)",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "5 pedidos no total",
+          "right": 560,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Reservas ativas1",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Reservas ativas",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Reembolsos abertos10 pedido(s) reembolsado(s)",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Reembolsos abertos",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "0 pedido(s) reembolsado(s)",
+          "right": 612,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Unidades disponíveis11 reservada(s)",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Unidades disponíveis",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Unidades vendidas1",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Unidades vendidas",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Entregas ativas10 revogada(s)",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Entregas ativas",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Estoque baixo (≤ 2 unidades)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-list",
+          "text": "Licença de software (exemplo)0 disponíveis",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "Licença de software (exemplo)0 disponíveis",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "0 disponíveis",
+          "right": 635,
+          "left": 542
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Mais vendidos (total histórico)Unidades vendidas registradas",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "Mais vendidos (total histórico)Unidades vendidas registradas",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Unidades vendidas registradas no estoque — não é um ranking ",
+          "right": 443,
+          "left": 68
+        },
+        {
+          "tag": "ol.admin-list.admin-list--ranked",
+          "text": "Conta streaming — 30 dias (exemplo)4 unidade(s)Licença de so",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "Conta streaming — 30 dias (exemplo)4 unidade(s)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "4 unidade(s)",
+          "right": 635,
+          "left": 546
+        },
+        {
+          "tag": "li",
+          "text": "Licença de software (exemplo)2 unidade(s)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "2 unidade(s)",
+          "right": 635,
+          "left": 546
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Reembolsos pendentesPS-DEMO02Licença de software (exemplo) ·",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "h2",
+          "text": "Reembolsos pendentes",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-list",
+          "text": "PS-DEMO02Licença de software (exemplo) · R$ 49,90payment_cha",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "PS-DEMO02Licença de software (exemplo) · R$ 49,90payment_cha",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-row-actions",
+          "text": "AutorizarMarcar como processadoRecusar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Autorizar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Marcar como processado",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Recusar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Últimas ações administrativas08/11/2026, 14:05:58product.cre",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "h2",
+          "text": "Últimas ações administrativas",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-audit",
+          "text": "08/11/2026, 14:05:58product.createdproduct · aaaaaaaa…08/11/",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "08/11/2026, 14:05:58product.createdproduct · aaaaaaaa…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "08/11/2026, 14:05:58",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "product.created",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "product · aaaaaaaa…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "08/11/2026, 08:05:58stock.importedimport_batch",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "08/11/2026, 08:05:58",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "stock.imported",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "import_batch",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 12:05:58delivery.revokeddelivery · dddddddd…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 12:05:58",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "delivery.revoked",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "delivery · dddddddd…",
+          "right": 635,
+          "left": 37
+        }
+      ]
+    },
+    "products": {
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 375,
+      "scrollWidth": 418,
+      "offenders": [
+        {
+          "tag": "div.admin-toolbar",
+          "text": "Todos os pedidosrequested — solicitaçãopending_payment — agu",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "select.form-control",
+          "text": "Todos os pedidosrequested — solicitaçãopending_payment — agu",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "select.form-control",
+          "text": "Todos os pagamentosnot_required — sem pagamento (solicitação",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "PedidoProdutoQtd.ValorCriadoPagamentoPedidoEntregaPS-DEMO01C",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "5 pedido(s) no total · exibindo 5 · ordenados do mais recent",
+          "right": 418,
+          "left": 47
+        },
+        {
+          "tag": "div.admin-panel.admin-order-detail",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-order-detail__header",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h2",
+          "text": "Pedido PS-DEMO01",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "Conta streaming — 30 dias (exemplo) · 1 unidade(s) · R$ 29,9",
+          "right": 397,
+          "left": 68
+        },
+        {
+          "tag": "div.admin-detail-columns",
+          "text": "PedidoStatus do pedidopaid — pagoCriado em09/11/2026, 08:05:",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "section",
+          "text": "PedidoStatus do pedidopaid — pagoCriado em09/11/2026, 08:05:",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pedido",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dl.admin-detail-grid.admin-detail-grid--stack",
+          "text": "Status do pedidopaid — pagoCriado em09/11/2026, 08:05:58Rese",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Status do pedidopaid — pago",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Status do pedido",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "paid — pago",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Criado em09/11/2026, 08:05:58",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Criado em",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "09/11/2026, 08:05:58",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Reserva expira em09/11/2026, 09:35:58",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Reserva expira em",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "09/11/2026, 09:35:58",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Entregaready",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Entrega",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "ready",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Unidades entregues1",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Unidades entregues",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "1",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "section",
+          "text": "PagamentoStatus do pagamentoapproved — aprovadoPago em09/11/",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pagamento",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dl.admin-detail-grid.admin-detail-grid--stack",
+          "text": "Status do pagamentoapproved — aprovadoPago em09/11/2026, 09:",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Status do pagamentoapproved — aprovado",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Status do pagamento",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "approved — aprovado",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Pago em09/11/2026, 09:05:58",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Pago em",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "09/11/2026, 09:05:58",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "section",
+          "text": "Itens do pedidoProdutoConta streaming — 30 dias (exemplo)Qua",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Itens do pedido",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dl.admin-detail-grid",
+          "text": "ProdutoConta streaming — 30 dias (exemplo)Quantidade total1V",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Quantidade total1",
+          "right": 397,
+          "left": 223
+        },
+        {
+          "tag": "dt",
+          "text": "Quantidade total",
+          "right": 397,
+          "left": 223
+        },
+        {
+          "tag": "dd",
+          "text": "1",
+          "right": 397,
+          "left": 223
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "O painel exibe o resumo registrado no pedido (produto, quant",
+          "right": 397,
+          "left": 68
+        },
+        {
+          "tag": "section",
+          "text": "Registros de pagamentoProvedorStatusValorCriado emdemoapprov",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Registros de pagamento",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "ProvedorStatusValorCriado emdemoapprovedR$ 29,9009/11/2026, ",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-panel.admin-nested",
+          "text": "Link de entregaEstado: active · visualizações: 2Revogar link",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3",
+          "text": "Link de entrega",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "Estado: active · visualizações: 2",
+          "right": 376,
+          "left": 89
+        },
+        {
+          "tag": "div.admin-row-actions",
+          "text": "Revogar linkGerar novo link",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "div.admin-panel.admin-nested",
+          "text": "Histórico09/11/2026, 08:05:58order_createdcustomer09/11/2026",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3",
+          "text": "Histórico",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "ul.admin-audit",
+          "text": "09/11/2026, 08:05:58order_createdcustomer09/11/2026, 09:05:5",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 08:05:58order_createdcustomer",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 08:05:58",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "strong",
+          "text": "order_created",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "span",
+          "text": "customer",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 09:05:58demo_payment_approvedsystem",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 09:05:58",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "strong",
+          "text": "demo_payment_approved",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "span",
+          "text": "system",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 09:05:58delivery_createdsystem",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 09:05:58",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "strong",
+          "text": "delivery_created",
+          "right": 376,
+          "left": 58
+        },
+        {
+          "tag": "span",
+          "text": "system",
+          "right": 376,
+          "left": 58
+        }
+      ]
+    }
+  },
+  "390": {
+    "overview": {
+      "innerWidth": 390,
+      "scrollWidth": 656,
+      "offenders": [
+        {
+          "tag": "div.admin-toolbar",
+          "text": "PeríodoÚltimos 7 diasÚltimos 30 diasÚltimos 90 diasTodo o pe",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Atualizar dados",
+          "right": 416,
+          "left": 275
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "No período selecionadoDatas reais de criação dos pedidos (cr",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "No período selecionadoDatas reais de criação dos pedidos (cr",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Datas reais de criação dos pedidos (created_at) · desde 10/1",
+          "right": 635,
+          "left": 296
+        },
+        {
+          "tag": "div.admin-metrics",
+          "text": "Pedidos recebidos5Todos os estados, inclusive solicitaçõesSo",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Solicitações sem pagamento2status requested · não são vendas",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Solicitações sem pagamento",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "2",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "small",
+          "text": "status requested · não são vendas",
+          "right": 404,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Vendas pagas1status paid · pagamento aprovado",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Vendas pagas",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "status paid · pagamento aprovado",
+          "right": 595,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Pedidos reembolsados0status refunded",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Pedidos reembolsados",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "0",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pedidos recentes",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "PedidoProdutoCriadoValorPagamentoEstadoPS-DEMO01Conta stream",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Acumulado geral (servidor)Totais históricos calculados pelo ",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "Acumulado geral (servidor)Totais históricos calculados pelo ",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Totais históricos calculados pelo banco · nunca inclui not_r",
+          "right": 398,
+          "left": 68
+        },
+        {
+          "tag": "div.admin-metrics",
+          "text": "Receita aprovada (total)R$ 29,90paid + refund_pending, histó",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Receita (30 dias)R$ 29,90mesmo critério, últimos 30 dias",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Receita (30 dias)",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "R$ 29,90",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "small",
+          "text": "mesmo critério, últimos 30 dias",
+          "right": 406,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Pedidos pagos (total)15 pedidos no total",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Pedidos pagos (total)",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "5 pedidos no total",
+          "right": 560,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Reservas ativas1",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Reservas ativas",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Reembolsos abertos10 pedido(s) reembolsado(s)",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Reembolsos abertos",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "0 pedido(s) reembolsado(s)",
+          "right": 612,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Unidades disponíveis11 reservada(s)",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Unidades disponíveis",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Unidades vendidas1",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Unidades vendidas",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Entregas ativas10 revogada(s)",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "span",
+          "text": "Entregas ativas",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 415,
+          "left": 257
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Estoque baixo (≤ 2 unidades)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-list",
+          "text": "Licença de software (exemplo)0 disponíveis",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "Licença de software (exemplo)0 disponíveis",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "0 disponíveis",
+          "right": 635,
+          "left": 542
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Mais vendidos (total histórico)Unidades vendidas registradas",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "Mais vendidos (total histórico)Unidades vendidas registradas",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Unidades vendidas registradas no estoque — não é um ranking ",
+          "right": 443,
+          "left": 68
+        },
+        {
+          "tag": "ol.admin-list.admin-list--ranked",
+          "text": "Conta streaming — 30 dias (exemplo)4 unidade(s)Licença de so",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "Conta streaming — 30 dias (exemplo)4 unidade(s)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "4 unidade(s)",
+          "right": 635,
+          "left": 546
+        },
+        {
+          "tag": "li",
+          "text": "Licença de software (exemplo)2 unidade(s)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "2 unidade(s)",
+          "right": 635,
+          "left": 546
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Reembolsos pendentesPS-DEMO02Licença de software (exemplo) ·",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "h2",
+          "text": "Reembolsos pendentes",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-list",
+          "text": "PS-DEMO02Licença de software (exemplo) · R$ 49,90payment_cha",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "PS-DEMO02Licença de software (exemplo) · R$ 49,90payment_cha",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-row-actions",
+          "text": "AutorizarMarcar como processadoRecusar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Autorizar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Marcar como processado",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Recusar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Últimas ações administrativas08/11/2026, 14:06:03product.cre",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "h2",
+          "text": "Últimas ações administrativas",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-audit",
+          "text": "08/11/2026, 14:06:03product.createdproduct · aaaaaaaa…08/11/",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "08/11/2026, 14:06:03product.createdproduct · aaaaaaaa…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "08/11/2026, 14:06:03",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "product.created",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "product · aaaaaaaa…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "08/11/2026, 08:06:03stock.importedimport_batch",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "08/11/2026, 08:06:03",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "stock.imported",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "import_batch",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 12:06:03delivery.revokeddelivery · dddddddd…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 12:06:03",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "delivery.revoked",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "delivery · dddddddd…",
+          "right": 635,
+          "left": 37
+        }
+      ]
+    },
+    "products": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 390,
+      "scrollWidth": 418,
+      "offenders": [
+        {
+          "tag": "div.admin-toolbar",
+          "text": "Todos os pedidosrequested — solicitaçãopending_payment — agu",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "select.form-control",
+          "text": "Todos os pedidosrequested — solicitaçãopending_payment — agu",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "select.form-control",
+          "text": "Todos os pagamentosnot_required — sem pagamento (solicitação",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "PedidoProdutoQtd.ValorCriadoPagamentoPedidoEntregaPS-DEMO01C",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "5 pedido(s) no total · exibindo 5 · ordenados do mais recent",
+          "right": 418,
+          "left": 47
+        },
+        {
+          "tag": "div.admin-panel.admin-order-detail",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-order-detail__header",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h2",
+          "text": "Pedido PS-DEMO01",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "Conta streaming — 30 dias (exemplo) · 1 unidade(s) · R$ 29,9",
+          "right": 397,
+          "left": 68
+        },
+        {
+          "tag": "div.admin-detail-columns",
+          "text": "PedidoStatus do pedidopaid — pagoCriado em09/11/2026, 08:06:",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "section",
+          "text": "PedidoStatus do pedidopaid — pagoCriado em09/11/2026, 08:06:",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pedido",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dl.admin-detail-grid.admin-detail-grid--stack",
+          "text": "Status do pedidopaid — pagoCriado em09/11/2026, 08:06:03Rese",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Status do pedidopaid — pago",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Status do pedido",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "paid — pago",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Criado em09/11/2026, 08:06:03",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Criado em",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "09/11/2026, 08:06:03",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Reserva expira em09/11/2026, 09:36:03",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Reserva expira em",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "09/11/2026, 09:36:03",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Entregaready",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Entrega",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "ready",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Unidades entregues1",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Unidades entregues",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "1",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "section",
+          "text": "PagamentoStatus do pagamentoapproved — aprovadoPago em09/11/",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pagamento",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dl.admin-detail-grid.admin-detail-grid--stack",
+          "text": "Status do pagamentoapproved — aprovadoPago em09/11/2026, 09:",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Status do pagamentoapproved — aprovado",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Status do pagamento",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "approved — aprovado",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Pago em09/11/2026, 09:06:03",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dt",
+          "text": "Pago em",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dd",
+          "text": "09/11/2026, 09:06:03",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "section",
+          "text": "Itens do pedidoProdutoConta streaming — 30 dias (exemplo)Qua",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Itens do pedido",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "dl.admin-detail-grid",
+          "text": "ProdutoConta streaming — 30 dias (exemplo)Quantidade total1V",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div",
+          "text": "Quantidade total1",
+          "right": 397,
+          "left": 223
+        },
+        {
+          "tag": "dt",
+          "text": "Quantidade total",
+          "right": 397,
+          "left": 223
+        },
+        {
+          "tag": "dd",
+          "text": "1",
+          "right": 397,
+          "left": 223
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "O painel exibe o resumo registrado no pedido (produto, quant",
+          "right": 397,
+          "left": 68
+        },
+        {
+          "tag": "section",
+          "text": "Registros de pagamentoProvedorStatusValorCriado emdemoapprov",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Registros de pagamento",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "ProvedorStatusValorCriado emdemoapprovedR$ 29,9009/11/2026, ",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-panel.admin-nested",
+          "text": "Link de entregaEstado: active · visualizações: 2Revogar link",
+          "right": 397,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-panel.admin-nested",
+          "text": "Histórico09/11/2026, 08:06:03order_createdcustomer09/11/2026",
+          "right": 397,
+          "left": 37
+        }
+      ]
+    }
+  },
+  "414": {
+    "overview": {
+      "innerWidth": 414,
+      "scrollWidth": 656,
+      "offenders": [
+        {
+          "tag": "div.admin-toolbar",
+          "text": "PeríodoÚltimos 7 diasÚltimos 30 diasÚltimos 90 diasTodo o pe",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Atualizar dados",
+          "right": 416,
+          "left": 275
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "No período selecionadoDatas reais de criação dos pedidos (cr",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "No período selecionadoDatas reais de criação dos pedidos (cr",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Datas reais de criação dos pedidos (created_at) · desde 10/1",
+          "right": 635,
+          "left": 296
+        },
+        {
+          "tag": "div.admin-metrics",
+          "text": "Pedidos recebidos5Todos os estados, inclusive solicitaçõesSo",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Solicitações sem pagamento2status requested · não são vendas",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Vendas pagas1status paid · pagamento aprovado",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Vendas pagas",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "status paid · pagamento aprovado",
+          "right": 595,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Pedidos reembolsados0status refunded",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Pedidos recentes",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "PedidoProdutoCriadoValorPagamentoEstadoPS-DEMO01Conta stream",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Acumulado geral (servidor)Totais históricos calculados pelo ",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "Acumulado geral (servidor)Totais históricos calculados pelo ",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-metrics",
+          "text": "Receita aprovada (total)R$ 29,90paid + refund_pending, histó",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Receita (30 dias)R$ 29,90mesmo critério, últimos 30 dias",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Pedidos pagos (total)15 pedidos no total",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Pedidos pagos (total)",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "5 pedidos no total",
+          "right": 560,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Reservas ativas1",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Reembolsos abertos10 pedido(s) reembolsado(s)",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Reembolsos abertos",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "small",
+          "text": "0 pedido(s) reembolsado(s)",
+          "right": 612,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Unidades disponíveis11 reservada(s)",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Unidades vendidas1",
+          "right": 635,
+          "left": 444
+        },
+        {
+          "tag": "span",
+          "text": "Unidades vendidas",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "strong",
+          "text": "1",
+          "right": 618,
+          "left": 461
+        },
+        {
+          "tag": "div.admin-metric",
+          "text": "Entregas ativas10 revogada(s)",
+          "right": 432,
+          "left": 240
+        },
+        {
+          "tag": "h3.admin-subheading",
+          "text": "Estoque baixo (≤ 2 unidades)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-list",
+          "text": "Licença de software (exemplo)0 disponíveis",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "Licença de software (exemplo)0 disponíveis",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "0 disponíveis",
+          "right": 635,
+          "left": 542
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Mais vendidos (total histórico)Unidades vendidas registradas",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-panel__header",
+          "text": "Mais vendidos (total histórico)Unidades vendidas registradas",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span.field-hint",
+          "text": "Unidades vendidas registradas no estoque — não é um ranking ",
+          "right": 443,
+          "left": 68
+        },
+        {
+          "tag": "ol.admin-list.admin-list--ranked",
+          "text": "Conta streaming — 30 dias (exemplo)4 unidade(s)Licença de so",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "Conta streaming — 30 dias (exemplo)4 unidade(s)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "4 unidade(s)",
+          "right": 635,
+          "left": 546
+        },
+        {
+          "tag": "li",
+          "text": "Licença de software (exemplo)2 unidade(s)",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "2 unidade(s)",
+          "right": 635,
+          "left": 546
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Reembolsos pendentesPS-DEMO02Licença de software (exemplo) ·",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "h2",
+          "text": "Reembolsos pendentes",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-list",
+          "text": "PS-DEMO02Licença de software (exemplo) · R$ 49,90payment_cha",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "PS-DEMO02Licença de software (exemplo) · R$ 49,90payment_cha",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "div.admin-row-actions",
+          "text": "AutorizarMarcar como processadoRecusar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Autorizar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Marcar como processado",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "button.button.button--secondary.button--small",
+          "text": "Recusar",
+          "right": 635,
+          "left": 426
+        },
+        {
+          "tag": "div.admin-panel",
+          "text": "Últimas ações administrativas08/11/2026, 14:06:08product.cre",
+          "right": 656,
+          "left": 16
+        },
+        {
+          "tag": "h2",
+          "text": "Últimas ações administrativas",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "ul.admin-audit",
+          "text": "08/11/2026, 14:06:08product.createdproduct · aaaaaaaa…08/11/",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "08/11/2026, 14:06:08product.createdproduct · aaaaaaaa…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "08/11/2026, 14:06:08",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "product.created",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "product · aaaaaaaa…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "08/11/2026, 08:06:08stock.importedimport_batch",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "08/11/2026, 08:06:08",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "stock.imported",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "import_batch",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "li",
+          "text": "09/11/2026, 12:06:08delivery.revokeddelivery · dddddddd…",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "code",
+          "text": "09/11/2026, 12:06:08",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "strong",
+          "text": "delivery.revoked",
+          "right": 635,
+          "left": 37
+        },
+        {
+          "tag": "span",
+          "text": "delivery · dddddddd…",
+          "right": 635,
+          "left": 37
+        }
+      ]
+    },
+    "products": {
+      "innerWidth": 414,
+      "scrollWidth": 414,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 414,
+      "scrollWidth": 414,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 414,
+      "scrollWidth": 414,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 414,
+      "scrollWidth": 414,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 414,
+      "scrollWidth": 418,
+      "offenders": [
+        {
+          "tag": "div.admin-toolbar",
+          "text": "Todos os pedidosrequested — solicitaçãopending_payment — agu",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "select.form-control",
+          "text": "Todos os pedidosrequested — solicitaçãopending_payment — agu",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "select.form-control",
+          "text": "Todos os pagamentosnot_required — sem pagamento (solicitação",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "div.admin-table-wrapper",
+          "text": "PedidoProdutoQtd.ValorCriadoPagamentoPedidoEntregaPS-DEMO01C",
+          "right": 418,
+          "left": 16
+        },
+        {
+          "tag": "p.field-hint",
+          "text": "5 pedido(s) no total · exibindo 5 · ordenados do mais recent",
+          "right": 418,
+          "left": 47
+        },
+        {
+          "tag": "div.admin-panel.admin-order-detail",
+          "text": "Pedido PS-DEMO01Conta streaming — 30 dias (exemplo) · 1 unid",
+          "right": 418,
+          "left": 16
+        }
+      ]
+    }
+  },
+  "768": {
+    "overview": {
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "offenders": []
+    }
+  },
+  "1024": {
+    "overview": {
+      "innerWidth": 1024,
+      "scrollWidth": 1024,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 1024,
+      "scrollWidth": 1024,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 1024,
+      "scrollWidth": 1024,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 1024,
+      "scrollWidth": 1024,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 1024,
+      "scrollWidth": 1024,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 1024,
+      "scrollWidth": 1024,
+      "offenders": []
+    }
+  },
+  "1280": {
+    "overview": {
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "offenders": []
+    }
+  },
+  "1440": {
+    "overview": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "offenders": []
+    },
+    "products": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "offenders": []
+    },
+    "stock": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "offenders": []
+    },
+    "orders": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "offenders": []
+    },
+    "products-detail": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "offenders": []
+    },
+    "orders-detail": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "offenders": []
+    }
+  }
+}

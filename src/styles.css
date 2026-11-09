@@ -1003,3 +1003,71 @@ button:disabled { cursor: not-allowed; }
 .admin-detail-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 12px; }
 .admin-detail-grid--stack { grid-template-columns: 1fr; margin-top: 4px; }
 .admin-order-banner { margin-top: 12px; }
+
+/* ---------------------------------------------------------------------------
+ * Missão 05 — correção estrutural e responsividade do painel administrativo
+ * Preserva o funcionamento; apenas ajusta larguras, quebras e áreas de toque.
+ * ------------------------------------------------------------------------ */
+
+/* P1 — .admin-section é grade de coluna única. Sem minmax(0,1fr), o trilho
+ * implícito vira max-content do filho mais largo (ex.: tabela com cabeçalhos
+ * nowrap) e empurra a página inteira para fora da tela. */
+.admin-section { grid-template-columns: minmax(0, 1fr); }
+.admin-section > * { min-width: 0; }
+
+/* P2 — itens flexíveis (selects com opções longas, inputs) podem encolher
+ * abaixo do min-content; elimina o estouro horizontal nas barras de filtros. */
+.admin-toolbar > * { min-width: 0; }
+.admin-toolbar .form-control { flex: 1 1 170px; width: auto; max-width: 100%; }
+.admin-header__actions { flex-wrap: wrap; }
+.admin-period { min-width: 0; max-width: 100%; }
+.admin-period .form-control { max-width: 100%; }
+@media (max-width: 560px) {
+  .admin-period { width: 100%; }
+  .admin-period .form-control { flex: 1 1 140px; }
+}
+
+/* P3 — pisos absolutos acima da largura útil em telas pequenas: passam a
+ * respeitar a largura disponível (min(100%, …)). */
+.admin-columns { grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); }
+.admin-detail-columns { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+
+/* P4 — histórico/eventos: empilham em telas estreitas em vez de cortar. */
+@media (max-width: 640px) {
+  .admin-audit li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+
+/* P5 — textos longos e valores inesperados quebram dentro do seu espaço. */
+.admin-table td { overflow-wrap: anywhere; }
+.admin-audit span,
+.admin-list li,
+.admin-detail-grid dd,
+.admin-metric small,
+.admin-panel__header span { overflow-wrap: anywhere; }
+.admin-fingerprint { word-break: break-all; }
+.admin-panel__header { min-width: 0; }
+.admin-panel__header > * { min-width: 0; }
+
+/* P6 — rolagem horizontal fica contida no wrapper da tabela; a página inteira
+ * nunca precisa rolar (as tabelas ganham largura mínima legível no celular). */
+.admin-table-wrapper { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+@media (max-width: 640px) {
+  .admin-table { min-width: 620px; }
+}
+
+/* P7 — alvos de toque confortáveis em telas sensíveis ao toque. */
+@media (pointer: coarse) {
+  .admin-tab,
+  .link-button,
+  .admin-row-actions .button,
+  .admin-toolbar .button,
+  .admin-panel__header .button { min-height: 44px; }
+  .link-button { display: inline-flex; align-items: center; }
+}
+
+/* P8 — paginação visual dos painéis fica integralmente dentro do container. */
+.admin-order-detail { max-width: 100%; }
+
+/* P9 — input de arquivo da importação CSV: largura intrínseca maior que a tela
+ * em celulares; passa a respeitar a largura do formulário. */
+.admin-page input[type='file'] { width: 100%; max-width: 100%; min-width: 0; font-size: 12px; }
