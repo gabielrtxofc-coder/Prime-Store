@@ -3,6 +3,30 @@
 > Atualizado em 2026-11-09. Este arquivo existe para que outra sessão consiga
 > retomar o trabalho sem depender do histórico de conversa.
 
+## Missão 08 (reconciliação Supabase) — migrações aplicadas; funções/smoke BLOQUEADOS
+
+Relatório completo: [`missao-08-reconciliacao-supabase.md`](./missao-08-reconciliacao-supabase.md).
+
+- **Aplicadas no remoto** (aditivas, via `create_migration` 2026-11-09 17:14–17:16Z):
+  `m08_0034_pedidos_multiproduto`, `m08_0035_pagamento_multiproduto`,
+  `m08_0036_entrega_multiproduto`, `m08_0037_bloqueio_solicitacao_sem_pagamento`,
+  `m08_0038_motivos_ajuste_estoque`. 0033 preservada (já aplicada ×2 no histórico);
+  0030 confirmada no histórico (`grants_rls_public_catalog`).
+- **Verificação pós-aplicação:** 20/20 tabelas com RLS; 0 policies; 0 grants
+  anon/authenticated; 61 funções SECURITY DEFINER com `search_path` fixo; 23 funções de
+  `authenticated` (só `admin_*` + `is_admin`); dados inalterados (products 2, orders 8,
+  stock_units 27, admin_users 0); cron ativo, 0 falhas; cofre com chave AES-256-GCM de
+  32 bytes íntegra; `internal_confirmation_enabled=false`.
+- **BLOCKED (honestamente):** republicação de `admin-api` no remoto (ferramentas de
+  função sem efeito nesta sessão; rede para `*.supabase.co` inalcançável) — a ação
+  `stock.setStatus` remota ficaria quebrada após a 0038 e está inalcançável
+  (`auth.users=0`); smoke HTTP (sem rede/anon key); verificação de backup (conector sem
+  ferramenta); provisionamento dos 2 admins (faltam dados reais).
+- **Corrigido:** contagem "9 funções" → 8 (docs M06/PROGRESSO); `bundle-functions.mjs`
+  com `charset: 'utf8'`.
+- **Classificação:** **PARCIAL** (local OK: `npm test` 127/127; bundles 8/8; test:db
+  293/293 @ `c644e1e`). `main` intacta; PR #2 intacto; tag de segurança intacta.
+
 ## Missão 07 (ativação operacional) — parte local CONCLUÍDA; remota BLOQUEADA
 
 Relatório completo: [`missao-07-ativacao-operacional.md`](./missao-07-ativacao-operacional.md).
@@ -46,7 +70,7 @@ Relatório completo: [`missao-06-painel-operacional.md`](./missao-06-painel-oper
   CRUD de produto e `stock.add` **por HTTP persistidos no banco real** (trigger de
   preço e auditoria verificados por SQL; duplicado → 409).
 - **Resultado:** `npm test` 118/118; `npm run test:db` **276/276** (+12); typecheck
-  limpo; build OK; 9 funções empacotam; 54/54 telas do painel sem estouro nas 9
+  limpo; build OK; 8 funções empacotam; 54/54 telas do painel sem estouro nas 9
   larguras; loja pública inalterada.
 - **Fora desta missão (dependência externa):** rede para `*.supabase.co` (ausente no
   ambiente), provisionamento dos dois administradores, chave `PRIME_ENCRYPTION_KEY`

@@ -143,7 +143,7 @@ PostgreSQL 18.6 real, schema recriado pelas 37 migrações, sem rede e sem produ
 | `npm run test:db` (PostgreSQL real) | **276/276** (22 arquivos) — baseline 264 + 12 novos |
 | `npm run typecheck` | limpo |
 | `npm run build` | OK (`AdminPage-*.js`, gzip ~73 kB) |
-| `npm run bundle:functions` | 9 funções empacotadas OK |
+| `npm run bundle:functions` | 8 funções empacotadas OK |
 | Auditoria visual (9 larguras) do painel | **54/54 telas sem estouro** (igual à Missão 05) |
 
 ## 6. O que NÃO existe / limitações (sem suavização)

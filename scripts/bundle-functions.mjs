@@ -34,6 +34,7 @@ for (const slug of slugs.sort()) {
     bundle: true,
     format: 'esm',
     platform: 'neutral',
+    charset: 'utf8',
     target: 'es2022',
     legalComments: 'none',
     banner: { js: `// Edge Function: ${slug} - bundle gerado por scripts/bundle-functions.mjs` },
