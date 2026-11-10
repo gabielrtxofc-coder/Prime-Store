@@ -125,6 +125,15 @@ integração intermediária; o resultado efetivo será registrado no encerrament
 consulta remota nem deploy. É necessário ativar o conector para novas leituras;
 rede do workspace permite apenas hosts de GitHub e registros de pacotes.
 
+**Atualização Missão 11 (2026-11-09):** o conector supabase aparece
+**conectado mas desligado** nesta conversa — segue **sem consulta remota** na
+Missão 11 (nenhuma leitura de secrets, funções, RLS ou migrações ao vivo; nenhum
+deploy; nenhum dado alterado). Os registros M08–M10 continuam sendo evidência
+histórica, não verificação atual. Migrações novas criadas localmente na Missão 11
+(`0039` replay_solicitacao_seguro, `0040` admin_list_items_count) **não foram
+aplicadas remotamente** — aplicação é pendência do operador, com o conector
+ligado e revisão prévia. Ver `docs/wyvipay-integracao.md` §6.2.
+
 M08/M09 registram: oito funções; admin-api v4 com verify_jwt=true; 0034–0038
 aplicadas; RLS 20/20; nenhum administrador; PRIME_ENCRYPTION_KEY via fallback
 Vault; pagamentos congelados. **Não são provas atuais**. O contrato SQL foi
