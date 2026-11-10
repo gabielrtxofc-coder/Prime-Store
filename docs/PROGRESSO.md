@@ -375,3 +375,6 @@ relatório).
 Pendências críticas seguem inalteradas: publicação das 8 Edge Functions,
 aplicação de `0039`/`0040` no real, admins reais + TOTP, backup/PITR,
 tag M07, revisão jurídica, WyviPay D1–D11. **Não pronta para lançamento.**
+
+**PR da Missão 11 (aberto, sem merge):** https://github.com/gabielrtxofc-coder/Prime-Store/pull/4
+(origem `arena/6296b54a-prime-store` → `main`; 6 commits organizados por grupo).

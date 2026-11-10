@@ -254,7 +254,7 @@ Infra: PostgreSQL 18.6 local via `scripts/local-db.mjs` (cluster em
 - `docs/PROGRESSO.md` atualizado com o estado da Missão 11.
 - Evidência visual: `docs/missao-11-evidencia/` (audit-report.json + PNGs).
 - Commits organizados por grupo nesta branch; **PR para `main` aberto sem
-  merge** (link no `PROGRESSO.md` ao final).
+  merge:** https://github.com/gabielrtxofc-coder/Prime-Store/pull/4 (6 commits).
 
 ## 10. Prontidão de lançamento (percentual)
 
