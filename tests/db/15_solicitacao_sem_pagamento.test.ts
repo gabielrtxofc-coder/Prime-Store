@@ -230,6 +230,72 @@ describe('solicitação de pedido sem pagamento', () => {
     ).rejects.toThrow(/order_not_found/);
   }, 20000);
 
+  it('replay com itens diferentes é idempotency_conflict e não toca no pedido original (0039)', async () => {
+    const first = await seedProduct({ stockUnits: 5 });
+    const second = await seedProduct({ stockUnits: 5 });
+    const idempotencyKey = randomToken(16);
+    const tokenHash = sha256Hex(randomToken());
+
+    const created = await createRequest([{ product_id: first.productId, quantity: 1 }], {
+      idempotencyKey,
+      tokenHash,
+    });
+
+    // Mesma chave com OUTRO produto: conflito controlado, sem replay silencioso.
+    await expect(
+      createRequest([{ product_id: second.productId, quantity: 1 }], { idempotencyKey, tokenHash }),
+    ).rejects.toThrow(/idempotency_conflict/);
+
+    // Mesma chave com quantidade diferente: também é conflito.
+    await expect(
+      createRequest([{ product_id: first.productId, quantity: 2 }], { idempotencyKey, tokenHash }),
+    ).rejects.toThrow(/idempotency_conflict/);
+
+    // Nada mudou no pedido original: um único pedido, itens intactos e o token
+    // original continua abrindo o acompanhamento (o chamador divergente não
+    // assumiu a consulta nem recebeu os dados de outro pedido).
+    expect(
+      await sqlValue<number>('select count(*)::int from public.orders where idempotency_key = $1', [idempotencyKey]),
+    ).toBe(1);
+    expect(
+      await sqlValue<number>('select count(*)::int from public.order_items where order_id = $1', [
+        created.order.order_id,
+      ]),
+    ).toBe(1);
+
+    const status = await runSql<{ result: { reference: string } }>(
+      'select public.get_order_status($1, $2) as result',
+      [created.order.order_id, tokenHash],
+    );
+    expect(status[0].result.reference).toBe(created.order.reference);
+  }, 30000);
+
+  it('duas solicitações simultâneas com a mesma chave criam um único pedido (corrida 0039)', async () => {
+    const product = await seedProduct({ stockUnits: 5 });
+    const idempotencyKey = randomToken(16);
+    const tokenHash = sha256Hex(randomToken());
+    const items = [{ product_id: product.productId, quantity: 1 }];
+
+    // `runAs` abre uma conexão por chamada: as duas execuções correm em
+    // transações concorrentes de verdade e a segunda encontra o caminho de
+    // unique_violation (antes: 500 cru; agora: replay idempotente).
+    const [first, second] = await Promise.all([
+      createRequest(items, { idempotencyKey, tokenHash }),
+      createRequest(items, { idempotencyKey, tokenHash }),
+    ]);
+
+    expect(first.order.order_id).toBe(second.order.order_id);
+    expect(first.idempotent_replay).not.toBe(second.idempotent_replay);
+    expect(
+      await sqlValue<number>('select count(*)::int from public.orders where idempotency_key = $1', [idempotencyKey]),
+    ).toBe(1);
+    expect(
+      await sqlValue<number>('select count(*)::int from public.order_items where order_id = $1', [
+        first.order.order_id,
+      ]),
+    ).toBe(1);
+  }, 30000);
+
   it('acompanhamento devolve itens, estado e contato somente com o código privado', async () => {
     const first = await seedProduct({ priceCents: 1290, stockUnits: 3, maxQuantity: 2 });
     const second = await seedProduct({ priceCents: 4990, stockUnits: 3 });
