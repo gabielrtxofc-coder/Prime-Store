@@ -1,6 +1,6 @@
 # Registro de progresso
 
-> Atualizado em 2026-11-09. Este arquivo existe para que outra sessão consiga
+> Atualizado em 2026-11-10. Este arquivo existe para que outra sessão consiga
 > retomar o trabalho sem depender do histórico de conversa.
 
 ## Missão 08 (reconciliação Supabase) — migrações aplicadas; funções/smoke BLOQUEADOS
@@ -378,3 +378,76 @@ tag M07, revisão jurídica, WyviPay D1–D11. **Não pronta para lançamento.**
 
 **PR da Missão 11 (aberto, sem merge):** https://github.com/gabielrtxofc-coder/Prime-Store/pull/4
 (origem `arena/6296b54a-prime-store` → `main`; 6 commits organizados por grupo).
+
+## Missão 12 — Fechamento operacional (2026-11-10) — APROVADO
+
+Relatório: [missao-12-fechamento-operacional.md](missao-12-fechamento-operacional.md).
+PR #4 **MERGED** em `89033be` (2026-11-10T04:19:35Z, 41 arquivos, 8 commits).
+
+- **Aplicadas no remoto** (via conector; CLI bloqueado por rede — registrado
+  no relatório §3): `m12_0039` v`20261110042840` (md5 `8c290fa5…`),
+  `m12_0039b` v`20261110043144` (corpo exato da 0039 — correção do erro de
+  transcrição do primeiro create, §5 do relatório), `m12_0040` v`20261110043636`
+  (md5 `995ef094…`), `m12_0041` v`20261110043706` (md5 `7e06ceac…`).
+  Probe da 0039 com rollback: ok, `orders=8` inalterado.
+- **8/8 Edge Functions publicadas:** admin-api v5 `verify_jwt=true`;
+  catalog v7, create-order v8, delivery v5, demo-payment v4, mp-webhook v6,
+  order-request v2, order-status v6 — todos `false`.
+- **Smoke 10/10** (fetch_page + pg_net): ver §9 do relatório; `mp-webhook`
+  respondeu `503 webhook_not_configured` (fail-closed sem segredo).
+- **Auditoria:** SQL equivalente (não Advisors oficiais): 0 funções sem
+  search_path, 20 tabelas RLS/0 policies, anon 0, auth 23; auth TOTP pronto
+  (`mfa_allow_low_aal=false`, `disable_signup`); 11 secrets por nome, **0
+  `MP_*`/`WYVI_*`**; contagens baseline congeladas (products 2, orders 8,
+  stock_units 27, admin_users 0, auth_users 0, …).
+- **Erros registrados (não escondidos):** erro de transcrição do corpo da
+  0039 (corrigido pela 0039b, md5 provado) e bloqueio de rede do CLI
+  (caminho executado = conector).
+- **Estado:** **APROVADO**. Lacunas abertas ao final: `config.toml` sem as
+  seções `demo-payment`/`order-request`, smoke do script sem essas duas
+  funções, teste 23 e arquivo da 0041 perdidos como untracked no reset do
+  workspace, tag `safety/m07-start-cd87b3d` inexistente. → Missão 13.
+- **Transferido:** admins reais + TOTP = PENDENTE DO OPERADOR; backup/PITR =
+  **DISPENSADO** (decisão do operador); pagamentos = PENDENTE DO OPERADOR
+  (desativados); domínio/`STORE_URL` = PENDENTE DO OPERADOR; revisão jurídica
+  = PENDENTE DO OPERADOR.
+- **Não declarada pronta para lançamento.**
+
+## Missão 13 — Fechamento final (2026-11-10) — APROVADO (escopo autônomo)
+
+Relatório: [missao-13-fechamento-final.md](missao-13-fechamento-final.md).
+Branch `arena/74b080f3-prime-store` sobre `main` `89033be`.
+
+- **Grupo B:** migrações reconciliadas — 0039 → `20261110042840`, 0040 →
+  `20261110043636` (renomes), 0039b criado como cópia byte-idêntica da 0039,
+  0041 reconstruído com o SQL exato aplicado; 42 arquivos locais, 0
+  duplicatas, md5s remotos reprovados nos três âncoras; 41 registros no
+  remoto.
+- **Grupo C:** `config.toml` com 8 seções = 8 funções (`demo-payment` e
+  `order-request` adicionadas, `verify_jwt=false`), TOML validado, 0
+  duplicatas, 0 secrets.
+- **Grupo D:** smoke cobre 8/8 funções com payloads inválidos; execução
+  direta bloqueada (egress) → `fetch_page` (GET) + `pg_net` (POSTs) →
+  **11/11 verificações PASS**; `node --check` OK.
+- **Grupo E:** auditoria remota read-only — auth TOTP inalterado, contagens =
+  baseline exato, md5s batem, 8/8 funções com versões/`verify_jwt` da M12,
+  11 secrets sem `MP_*`/`WYVI_*`, 65 funções públicas todas com
+  `search_path=public, pg_temp` (0 mutável), anon 0 / auth 23.
+- **Grupo F:** tag `safety/m07-start-cd87b3d` **recriada** (prova: nome na
+  doc M07, sha `cd87b3da…` via API, data 2026-11-09 coerente, prefixo no
+  próprio nome) e **push confirmada** (`ls-remote`).
+- **Grupo G:** docs M12 (16 seções), M13, PROGRESSO (este), WyviPay D1–D11
+  (D7 recuperado da fonte, §6.2 atualizado, sem API inventada),
+  `provisionamento-admin.md` (placeholders) e
+  `checklist-operador-prime-store.md` (sem backup, sem tarefas técnicas).
+- **Grupo H:** `npm test` **136/136**; `test:db` **308/308** (304 + 4 do
+  teste 23 reconstruído `tests/db/23_search_path_total.test.ts` — cobre
+  funções invoker, lacuna real que motivou a 0041); typecheck 0; build 0;
+  bundle **8/8**; audit 0.
+- **Grupo I:** commits agrupados, push, PR para `main` com evidências,
+  integração por merge commit somente com tudo verde.
+- **Prontidão (fórmula explícita no relatório §10):** 9/13 = **69%**;
+  itens autônomos 9/9 = 100%; backup fora do denominador (**DISPENSADO**).
+- **Pendências do operador:** admins + TOTP, domínio/origens, decisão de
+  pagamentos (WyviPay D1–D11 / MP), revisão jurídica, smoke final da sua
+  máquina. **Não declarada pronta para lançamento.**

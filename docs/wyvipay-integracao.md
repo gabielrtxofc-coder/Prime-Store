@@ -11,7 +11,11 @@
 > migração criada ou aplicada para a WyviPay, nenhuma credencial criada/lida,
 > nenhuma cobrança emitida, nenhum valor movimentado.
 >
-> Data da síntese: 2026-11-09. Fonte primária citada ao lado de cada tabela.
+> Data da síntese: 2026-11-09. **Atualização Missão 13 (2026-11-10):**
+> estado remoto revalidado — 8/8 funções publicadas, migrações 0034–0038 e
+> 0039–0041 confirmadas no histórico, secrets sem `MP_*`/`WyviPay`, D7
+> recuperado da fonte (§6.1), §6.2 e §8 atualizados. Nenhum endpoint novo
+> foi adicionado nem nada implementado.
 
 ---
 
@@ -30,7 +34,7 @@
 | `payments.provider` | `CHECK` restrito a `('mercado_pago','demo')` (migrações `0007`/`0026`) — **não** inclui `wyvipay` | grep das migrações |
 | Credenciais | Nenhuma `MP_*` nem `WYVI_*` configurada (registro M08); nenhum segredo no repositório (varredura M10) | `RELATORIO.md` §5.3; `docs/missao-10-reconciliacao-final.md` |
 | Presença da WyviPay no código | **Zero ocorrências** de `wy_test_`/`wy_live_`/`wyvipay` no repositório | `RELATORIO.md` §5.3 |
-| Testes de pagamento | 16 arquivos de banco + dublês `tests/unit/fakeMp.ts` e `tests/db/mpSignature.ts`; suíte verde na Missão 11 (297/297) | execução Missão 11 |
+| Testes de pagamento | 16 arquivos de banco + dublês `tests/unit/fakeMp.ts` e `tests/db/mpSignature.ts`; suíte verde na Missão 13 (`npm test` 136/136; `test:db` 308/308) | execução Missão 13 |
 
 **Conclusão da auditoria:** não há fluxo de cobrança vivo a substituir — a
 integração WyviPay **reabriria** um fluxo deliberadamente congelado (vantagem:
@@ -137,7 +141,7 @@ dependências).
 
 | # | Risco | Gravidade | Status na Missão 11 |
 | --- | --- | --- | --- |
-| **R1** | Cobrança multi-item vs máquina mono-produto | crítico | **MITIGADO no banco.** Migração `0034` (pedido + reserva + alocação + entrega multi-item) e `0035` (`apply_payment_status` multi-item) foram criadas na Missão 08 e **constam como aplicadas remotamente** nos registros M08–M10 ("0034–0038 aplicadas"). Resta, na etapa 6 do plano, ligar o handler `create-order` a `create_order_multi` — hoje ele ainda chama o fluxo mono (`create_order`) e, sem secrets, responde `503 payment_not_configured`. **Ressalva:** a evidência remota está bloqueada (§6), então a aplicação real deve ser reconfirmada pelo operador |
+| **R1** | Cobrança multi-item vs máquina mono-produto | crítico | **MITIGADO no banco e RECONFIRMADO na Missão 13.** Migrações `0034` (pedido + reserva + alocação + entrega multi-item) e `0035` (`apply_payment_status` multi-item) constam **no histórico remoto real** (`list_migrations` M13: `m08_0034…`–`m08_0038…` presentes; antes citadas como aplicadas nos registros M08–M10 ("0034–0038 aplicadas"). Resta, na etapa 6 do plano, ligar o handler `create-order` a `create_order_multi` — hoje ele ainda chama o fluxo mono (`create_order`) e, sem secrets, responde `503 payment_not_configured` |
 | **R2** | Rotação semanal de chaves (`wy_*` trocadas toda segunda; antiga morre no mesmo instante; evento `chave.rotacionada` não entrega a chave) | crítico | **Pendente de decisão operacional** — procedimento Caminho A/B/C no RELATORIO §6.1; exige responsável nomeado (D6) |
 | **R3** | Divergência documental `wy_test_` (501 × "cria cobranças" × "não é mais devolvido") | alto | **Em aberto** — inferência documental do RELATORIO §5; só a primeira chamada autenticada resolve (etapa 2, D3) |
 | **R4** | Confusão "demo da loja" × "ambiente de teste da WyviPay" (`teste: true` em produção liberaria pedido real) | alto | **Controle obrigatório** previsto: recusar `teste: true` quando `WYVI_ENVIRONMENT=production` (RELATORIO §6, controle 9) |
@@ -188,22 +192,27 @@ mono-produto é a falha mais cara do projeto — R1; hoje cumprida no banco por
 | D4 | Destino de webhook cadastrado + `whsec_` no cofre (aparece **uma vez**) | etapa 4 |
 | D5 | Decisões de produto da etapa 0 | todas |
 | D6 | Processo humano da rotação semanal com responsável | operação contínua |
+| D7 | Servidor PostgreSQL local para `npm run test:db` | verificação automática da suíte de banco — **atendido**: `embedded-postgres` + `scripts/local-db.mjs` (suíte 308/308 na M13) |
 | D8 | Credencial de deploy de Edge Functions (CLI/token) | etapas 4, 6, 11 |
 | D9 | Saída de rede para `api.wyvipay.com.br` (shell bloqueado; sandbox tem) | testes de contrato no CI |
-| D10 | Decidir sobre histórico de migrações (27 registros × 36 arquivos) | `db push` perigoso |
+| D10 | Decidir sobre histórico de migrações (citação da fonte: 27 registros × 36 arquivos) | `db push` perigoso — **atualização M13:** 41 registros remotos × 42 arquivos locais; divergência de nomes da era inicial é histórica e conhecida; nenhum `db push` está planejado |
 | D11 | Revisão jurídica de termos/reembolsos/taxas | publicação |
 
-### 6.2 Bloqueio remoto — status na Missão 11
+### 6.2 Estado remoto — atualização nas Missões 12/13 (2026-11-10)
 
-- O conector **supabase** está **conectado mas DESLIGADO** nesta conversa:
-  **nenhuma consulta remota foi feita na Missão 11** (secrets, funções, RLS,
-  migrações aplicadas — tudo preservado dos registros M08–M10, não confirmado
-  ao vivo). Liga-lo é pré-requisito para qualquer leitura/validação remota.
-- Migrações **0039** (`replay_solicitacao_seguro`) e **0040**
-  (`admin_list_items_count`) foram criadas localmente na Missão 11 e
-  **não aplicadas remotamente** (aplicação é pendência do operador — não
-  reaplicar as demais).
-- Nenhuma Edge Function foi publicada; nenhum segredo criado ou alterado.
+- O conector **supabase** foi ligado nas Missões 12/13 e **todas as leituras
+  promovidas foram refeitas ao vivo**: 41 migrações no histórico (inclui
+  `m08_0034`–`m08_0038` **e** as quatro M12: `0039`, `0039b`, `0040`,
+  `0041`); 8/8 Edge Functions `ACTIVE` com versões/`verify_jwt` registrados;
+  11 secrets **por nome**, sem `MP_*` nem `WYVI_*`; auth com TOTP e
+  `mfa_allow_low_aal=false`; contagens de dados iguais ao baseline.
+- Migrações **0039/0040** (criadas na M11) **foram aplicadas** na M12 com
+  md5 provados — pendência encerrada; 0041 (segurança `search_path`) também
+  aplicada.
+- Nenhum segredo foi criado ou alterado; nenhum pagamento foi ativado;
+  nenhuma integração WyviPay foi implementada.
+- **A pendência que restava para a WyviPay segue humana:** decisões D1–D6,
+  credenciais D8 e revisão jurídica D11 (§6.1).
 
 ---
 
@@ -235,10 +244,11 @@ checklist, rotação, estados e erros; (18) sem referência funcional viva ao MP
 ## 8. Declarações desta síntese
 
 - **Não** afirma que `wy_test_` funciona (divergência R3 em aberto).
-- **Não** afirma que as migrações `0034`/`0035` estão aplicadas no remoto
-  *hoje* — é o registro histórico M08–M10, com bloqueio remoto ativo (§6.2).
 - **Não** afirma prontidão de lançamento: seguem pendências operacionais
   (D1–D11), decisões da etapa 0 e revisão jurídica.
+- *Atualização M13:* a presença de `0034`/`0035` no histórico remoto passou
+  de "registro histórico" para **consulta ao vivo confirmada**
+  (§6.2/R1); nenhum outro item desta síntese foi reavaliado nem implementado.
 - **Não** foi executada nenhuma operação financeira, nenhuma migração, nenhuma
   alteração de credencial, nenhum deploy e nenhum merge nesta missão.
 - Todos os endpoints e comportamentos citados vêm de
