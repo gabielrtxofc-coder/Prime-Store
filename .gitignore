@@ -10,3 +10,6 @@ coverage/
 
 # local-only credentials (never commit)
 .local/
+
+# Supabase CLI temp/cache (gerado por `supabase migration new`)
+supabase/.temp/
