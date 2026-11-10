@@ -5,7 +5,7 @@ import { Icon } from '../components/Icon';
 import { OrderSummary } from '../components/OrderSummary';
 import { ProductArtwork } from '../components/ProductArtwork';
 import { QuantityControl } from '../components/QuantityControl';
-import { useCart } from '../context/CartContext';
+import { MAX_DISTINCT_PRODUCTS, useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 import { formatCurrency } from '../lib/format';
 import { maxOrderableQuantity } from '../lib/cart';
@@ -107,6 +107,14 @@ export function CartPage() {
         </div>
         <div className="cart-summary-column">
           <OrderSummary lines={lines} subtotalCents={subtotalCents} totalCents={totalCents} />
+          {lines.length >= MAX_DISTINCT_PRODUCTS && (
+            <p className="checkout-reassurance" role="status">
+              <Icon name="alert" size={16} />
+              {lines.length > MAX_DISTINCT_PRODUCTS
+                ? `Solicitações aceitam no máximo ${MAX_DISTINCT_PRODUCTS} produtos diferentes — remova ${lines.length - MAX_DISTINCT_PRODUCTS} para continuar.`
+                : `Seu pedido já tem ${MAX_DISTINCT_PRODUCTS} produtos diferentes, o máximo por solicitação.`}
+            </p>
+          )}
           {lines.length > 0 ? (
             <Link className="button button--primary button--large cart-checkout-button" to="/checkout">Continuar para finalizar <Icon name="arrow-right" size={18} /></Link>
           ) : (

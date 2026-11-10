@@ -274,7 +274,14 @@ export function AdminOrders() {
             {(list?.items ?? []).map((order) => (
               <tr key={order.id}>
                 <td><code>{order.reference}</code></td>
-                <td>{order.product_name}</td>
+                <td>
+                  {order.product_name}
+                  {typeof order.items_count === 'number' && order.items_count > 1 && (
+                    <span className="admin-badge" title={`Pedido com ${order.items_count} produtos distintos; o nome exibido é o primeiro produto.`}>
+                      {' '}{order.items_count} itens
+                    </span>
+                  )}
+                </td>
                 <td>{order.quantity}</td>
                 <td>{formatCurrency(order.total_cents)}</td>
                 <td>{new Date(order.created_at).toLocaleString('pt-BR')}</td>

@@ -81,6 +81,30 @@ describe('painel administrativo em modo demonstração', () => {
     setAdminDemoSession(false);
     expect(isAdminDemoSession()).toBe(false);
   });
+
+  it('continua acessível mesmo sem backend configurado (correção Missão 11)', async () => {
+    // Build demo puro: sem URL/chave/flag de backend. Antes desta correção o
+    // painel mostrava apenas "Painel indisponível" e o botão de demonstração
+    // era inalcançável — o motivo de existir o modo era justamente revisar as
+    // telas sem conta provisionada.
+    vi.stubEnv('VITE_BACKEND_ENABLED', 'false');
+    vi.stubEnv('VITE_SUPABASE_URL', '');
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', '');
+    setAdminDemoSession(false);
+    vi.stubGlobal('fetch', vi.fn());
+
+    const user = userEvent.setup();
+    renderAdmin();
+
+    // O formulário de entrada real não aparece (não há para onde enviar).
+    expect(screen.queryByLabelText('E-mail')).not.toBeInTheDocument();
+
+    await user.click(await screen.findByRole('button', { name: /Ver painel em modo demonstração/i }));
+
+    expect(await screen.findByText(/Modo de demonstração do painel/i)).toBeInTheDocument();
+    expect(screen.getByText(/nenhuma alteração é gravada no Supabase/i)).toBeInTheDocument();
+    expect((globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+  });
 });
 
 function stubCalls(mock: ReturnType<typeof vi.fn>) {

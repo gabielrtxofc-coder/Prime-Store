@@ -629,9 +629,11 @@ button:disabled { cursor: not-allowed; }
   .filter-chip { min-height: 34px; padding: 6px 10px; font-size: 10px; }
   .catalog-results-heading { min-height: 47px; }
   .breadcrumbs { gap: 6px; margin-bottom: 20px; font-size: 10px; }
-  .product-detail { grid-template-columns: 1fr; gap: 23px; }
-  .product-detail__art { position: static; }
-  .product-art--detail { min-height: 270px; aspect-ratio: 1.4 / 1; }
+  /* minmax(0,1fr) + min-width:0 impedem que a arte (aspect-ratio +
+     min-height) force min-content > largura da tela (rolagem horizontal a 320px). */
+  .product-detail { grid-template-columns: minmax(0, 1fr); gap: 23px; }
+  .product-detail__art { position: static; min-width: 0; }
+  .product-art--detail { min-width: 0; min-height: 270px; aspect-ratio: 1.4 / 1; }
   .product-detail__content { padding: 0; }
   .product-detail__content h1 { font-size: 35px; }
   .product-detail__lead { font-size: 13px; }

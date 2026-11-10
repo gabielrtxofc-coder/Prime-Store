@@ -28,6 +28,9 @@ const TABS: Array<{ id: Tab; label: string }> = [
 
 export function AdminPage() {
   const configured = getBackendConfig().enabled;
+  // Build com o modo demonstrativo disponível. Sem ele, um ambiente sem backend
+  // configurado continua mostrando apenas o aviso de indisponibilidade.
+  const demoAvailable = canUseAdminDemo();
   const [demoMode, setDemoMode] = useState(() => isAdminDemoSession());
   const [session, setSession] = useState<AdminSession | null>(null);
   const [booting, setBooting] = useState(true);
@@ -79,7 +82,10 @@ export function AdminPage() {
     </div>
   ) : null;
 
-  if (!configured && !demoMode) {
+  // Sem backend E sem modo demonstrativo disponível não há nada a exibir.
+  // Com o build demo ligado, o visitante segue para o login, que oferece a
+  // entrada em modo demonstrativo — era inalcançável antes desta correção.
+  if (!configured && !demoMode && !demoAvailable) {
     return (
       <section className="container page-section">
         <div className="page-heading">
@@ -108,8 +114,9 @@ export function AdminPage() {
       <AdminLogin
         onSignedIn={refresh}
         initialError={error}
-        demoAvailable={canUseAdminDemo()}
+        demoAvailable={demoAvailable}
         onStartDemo={enableDemo}
+        backendConfigured={configured}
       />
     );
   }

@@ -6,9 +6,12 @@ import type { Deps } from '../../supabase/functions/_shared/deps';
 import { loadSecretMaterial, toBase64 } from '../../supabase/functions/_shared/crypto';
 import {
   connect,
+  randomToken,
   resetDatabase,
   runSql,
   seedAdmin,
+  seedProduct,
+  sha256Hex,
   RELAXED_RATE_LIMIT_OVERRIDES,
 } from './helpers';
 import { createPgRpc } from './pgRpc';
@@ -156,6 +159,38 @@ describe('admin-api (HTTP) — validação de entrada e persistência real', () 
       { Authorization: 'Bearer jwt-1' },
     );
     expect(iso.status).toBe(200);
+  });
+
+  it('orders.list devolve items_count nos pedidos multiproduto (migração 0040)', async () => {
+    const first = await seedProduct({ stockUnits: 3, maxQuantity: 3 });
+    const second = await seedProduct({ stockUnits: 3, maxQuantity: 3 });
+
+    const rows = await runSql<{ result: { order: { order_id: string } } }>(
+      `select public.create_purchase_request($1, $2, $3, $4, $5) as result`,
+      [
+        JSON.stringify([
+          { product_id: first.productId, quantity: 1 },
+          { product_id: second.productId, quantity: 2 },
+        ]),
+        'Compradora Missão 11',
+        'm11@exemplo.com',
+        sha256Hex(randomToken(32)),
+        null,
+      ],
+    );
+    const orderId = rows[0].result.order.order_id;
+
+    const response = await call(
+      buildDeps(client, adminId),
+      { action: 'orders.list', payload: { limit: 50 } },
+      { Authorization: 'Bearer jwt-1' },
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { items: Array<{ id: string; items_count?: number }> };
+    const row = body.items.find((item) => item.id === orderId);
+    expect(row).toBeDefined();
+    // Antes da 0040 a coluna não era selecionada e o campo chegava indefinido.
+    expect(row?.items_count).toBe(2);
   });
 
   it('stock.list e audit.list toleram limit inválido (fallback seguro)', async () => {

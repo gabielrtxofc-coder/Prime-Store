@@ -331,3 +331,50 @@ backup/PITR e admins reais/TOTP continuam pendentes; pagamentos congelados.
 Estado do merge ainda pendente no momento deste registro pré-integração;
 encerramento com SHAs e resultado efetivo será anexado ao PR #2.
 **Não pronta para lançamento.**
+
+## Missão 11 — Preparação autônoma de lançamento (2026-11-09)
+
+Relatório: [missao-11-preparacao-autonoma.md](missao-11-preparacao-autonoma.md).
+Branch `arena/6296b54a-prime-store` sobre `main` `0edf709`. Execução real em
+9 grupos (A–I), todos **APROVADOS**; **prontidão de lançamento: 60%**
+(preparação autônoma 100%; pendências 100% operacionais/humanas — §10 do
+relatório).
+
+- **Grupos A–C:** auditoria estrutural (40 migrações, 8 funções, 0 TODOs),
+  reconciliação docs 08/09/10, inventário de pendências; adminApi auditado
+  (4 argumentos de estoque = 0038, JWT do usuário via `rpcForUser`, AAL2,
+  fail-closed); loja + ciclo de pedido + painel exercitados.
+- **Grupo D (segurança):** varredura dinâmica nova em toda função `admin_*`
+  (`tests/db/22`, 7 casos: fonte com `assert_admin`, anon sem EXECUTE, AAL1 →
+  `mfa_required`, estranho AAL2 → `not_admin`, âncora da 0040) + payload do
+  checkout travado (`src/services/requestService.test.ts`, 5 casos, nenhum
+  campo de preço sai do navegador). +12 testes, 0 removidos/afrouxados.
+- **Grupo E (visual):** Chromium headless real (puppeteer-core +
+  @sparticuz/chromium), 8 larguras × 16 rotas = **160 checks, 0 falhas**;
+  1 bug real corrigido (`/produto` a 320px — `styles.css` `minmax(0,1fr)` +
+  `min-width:0`); evidências em `docs/missao-11-evidencia/` (JSON + 16 PNGs).
+- **Grupo F (pagamentos/WyviPay):** novo `docs/wyvipay-integracao.md`
+  sintetizado do RELATORIO M08 (endpoints apenas os citados, **zero
+  implementação**); **R1** (cobrança multi-item) atualizado para
+  **mitigado no banco** por `0034`/`0035` (resta ligar o handler); nota de
+  bloqueio remoto da Missão 10 atualizada (conector supabase
+  *conectado mas desligado* — nenhuma consulta remota na M11).
+- **Grupo G (correções):** F1 demo local no painel; F2 teto de 10 itens no
+  carrinho; F3 toasts/avisos de erro; F4 **migração `0039`**
+  (`idempotency_conflict` estável + replay seguro na solicitação); F5
+  regeneração de identidade pós-409 no checkout; **migração `0040`**
+  (`admin_list_orders` passa a devolver `items_count`). **`0039`/`0040`
+  criadas localmente, NÃO aplicadas remotamente — pendência do operador.**
+- **Grupo H (suíte final):** `npm test` **136/136** (18 arq), `test:db`
+  **304/304** (25 arq, PostgreSQL local em `.local/pgdata`, porta 55432),
+  `tsc -b` 0, `vite build` 0, `bundle:functions` **8/8**,
+  `npm audit --omit=dev` **0**. Baseline M11 era 127/127 e 294/294.
+- **Grupo I:** relatório + este registro + commits organizados + PR para
+  `main` **sem merge** (link anexado abaixo após a abertura).
+
+Pendências críticas seguem inalteradas: publicação das 8 Edge Functions,
+aplicação de `0039`/`0040` no real, admins reais + TOTP, backup/PITR,
+tag M07, revisão jurídica, WyviPay D1–D11. **Não pronta para lançamento.**
+
+**PR da Missão 11 (aberto, sem merge):** https://github.com/gabielrtxofc-coder/Prime-Store/pull/4
+(origem `arena/6296b54a-prime-store` → `main`; 6 commits organizados por grupo).
