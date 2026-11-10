@@ -87,3 +87,59 @@ describe('CartContext: segurança das quantidades', () => {
     expect(screen.getByTestId('cart-total')).toHaveTextContent('0');
   });
 });
+
+describe('CartContext: teto de 10 produtos distintos por pedido', () => {
+  const manyProducts = Array.from({ length: 11 }, (_, index) => ({
+    ...product,
+    id: `11111111-1111-4111-8111-${String(200000000000 + index).padStart(12, '0')}`,
+    slug: `produto-limite-${index}`,
+    name: `Produto limite ${index}`,
+  }));
+
+  function ManyProductsProbe() {
+    const { entries, addItem } = useCart();
+    return (
+      <div>
+        {manyProducts.map((item) => (
+          <button key={item.id} type="button" onClick={() => addItem(item.id)}>
+            Adicionar {item.name}
+          </button>
+        ))}
+        <output data-testid="cart-entries">{JSON.stringify(entries)}</output>
+      </div>
+    );
+  }
+
+  it('aceita 10 produtos distintos e recusa o 11º sem alterar o carrinho', async () => {
+    catalogService.setSnapshot(manyProducts);
+    const user = userEvent.setup();
+    render(
+      <CartProvider>
+        <ManyProductsProbe />
+      </CartProvider>,
+    );
+
+    for (const item of manyProducts.slice(0, 10)) {
+      await user.click(screen.getByRole('button', { name: `Adicionar ${item.name}` }));
+    }
+    const entriesAfterTen = JSON.parse(screen.getByTestId('cart-entries').textContent ?? '[]') as unknown[];
+    expect(entriesAfterTen).toHaveLength(10);
+
+    await user.click(screen.getByRole('button', { name: `Adicionar ${manyProducts[10].name}` }));
+    const entriesAfterEleventh = JSON.parse(screen.getByTestId('cart-entries').textContent ?? '[]') as unknown[];
+    expect(entriesAfterEleventh).toHaveLength(10);
+    expect(entriesAfterEleventh).not.toContainEqual(
+      expect.objectContaining({ productId: manyProducts[10].id }),
+    );
+
+    // Um produto JÁ presente continua recebendo quantidade (o teto é de
+    // produtos distintos, não de unidades).
+    await user.click(screen.getByRole('button', { name: `Adicionar ${manyProducts[0].name}` }));
+    const entriesFinal = JSON.parse(screen.getByTestId('cart-entries').textContent ?? '[]') as Array<{
+      productId: string;
+      quantity: number;
+    }>;
+    expect(entriesFinal).toHaveLength(10);
+    expect(entriesFinal.find((entry) => entry.productId === manyProducts[0].id)?.quantity).toBe(2);
+  });
+});

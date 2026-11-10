@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { OrderSummary } from '../components/OrderSummary';
 import { EmptyState } from '../components/EmptyState';
-import { useCart } from '../context/CartContext';
+import { MAX_DISTINCT_PRODUCTS, useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 import { validateCheckout, type CheckoutField, type CheckoutValues } from '../lib/validation';
 import { formatCurrency } from '../lib/format';
@@ -57,7 +57,10 @@ export function CheckoutPage() {
   }, []);
 
   const errors = useMemo(() => validateCheckout(values, lines.length === 0), [values, lines.length]);
-  const isValid = Object.keys(errors).length === 0 && lines.length > 0;
+  // Carrinho legado pode ter mais produtos do que o servidor aceita (10): sem
+  // este bloqueio o envio terminaria em 422 genérico do backend.
+  const tooManyItems = lines.length > MAX_DISTINCT_PRODUCTS;
+  const isValid = Object.keys(errors).length === 0 && lines.length > 0 && !tooManyItems;
 
   const updateValue = (field: keyof CheckoutValues, value: string | boolean) => {
     setValues((previous) => ({ ...previous, [field]: value }));
@@ -97,15 +100,24 @@ export function CheckoutPage() {
       // Pedido recusado por estoque/produto: o catálogo pode ter mudado.
       void catalogService.refresh();
 
-      if (error instanceof BackendError && (error.code === 'insufficient_stock' || error.code === 'product_unavailable')) {
+      if (
+        error instanceof BackendError &&
+        (error.code === 'insufficient_stock' ||
+          error.code === 'product_unavailable' ||
+          error.code === 'idempotency_conflict')
+      ) {
         const message =
           error.code === 'insufficient_stock'
             ? describeBackendError(error)
-            : 'Um dos produtos não está mais disponível. Revise o carrinho.';
+            : error.code === 'product_unavailable'
+              ? 'Um dos produtos não está mais disponível. Revise o carrinho.'
+              : 'Esta tentativa já foi usada com outros dados. Enviaremos uma nova solicitação.';
         setSubmitError(message);
         showToast(message, 'error');
         // Nova tentativa depois de ajustar o carrinho precisa de nova chave:
-        // a anterior já foi consumida por um pedido possivelmente recusado.
+        // a anterior já foi consumida por um pedido possivelmente recusado ou
+        // por uma identidade divergente (idempotency_conflict). Sem renovar,
+        // o reenvio cairia sempre no mesmo conflito.
         setAttempt({ idempotencyKey: newIdempotencyKey(), clientToken: newClientToken() });
       } else {
         // Falha de rede/servidor: mantém a identidade para que o reenvio seja
@@ -182,6 +194,19 @@ export function CheckoutPage() {
           <div>
             <strong>{ignoredItems} item(ns) do carrinho ficaram indisponíveis</strong>
             <p>Eles não entram nesta solicitação. <Link to="/carrinho">Revise o carrinho</Link>.</p>
+          </div>
+        </div>
+      )}
+
+      {tooManyItems && (
+        <div className="catalog-status catalog-status--error cart-alert" role="alert">
+          <div>
+            <strong>Máximo de {MAX_DISTINCT_PRODUCTS} produtos diferentes por solicitação</strong>
+            <p>
+              Seu carrinho tem {lines.length} produtos disponíveis. Remova ao menos{' '}
+              {lines.length - MAX_DISTINCT_PRODUCTS} para enviar.{' '}
+              <Link to="/carrinho">Revise o carrinho</Link>.
+            </p>
           </div>
         </div>
       )}

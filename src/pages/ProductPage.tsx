@@ -73,6 +73,8 @@ export function ProductPage() {
     if (result.added) showToast(`${product.name} foi adicionado ao carrinho.`);
     else if (result.reason === 'limit_reached') {
       showToast(`O máximo disponível de ${product.name} já está no carrinho.`, 'error');
+    } else if (result.reason === 'cart_full') {
+      showToast('O pedido já tem o máximo de 10 produtos diferentes. Revise o carrinho antes de adicionar outro.', 'error');
     } else {
       showToast('Este produto ficou indisponível. Atualize o catálogo.', 'error');
     }

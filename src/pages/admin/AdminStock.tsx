@@ -314,6 +314,11 @@ export function AdminStock() {
           </tbody>
         </table>
       </div>
+      {stock && stock.total > stock.items.length && (
+        <p className="field-hint" role="status">
+          {stock.total} unidade(s) no total · exibindo {stock.items.length} — refine os filtros para ver as demais.
+        </p>
+      )}
 
       <div className="admin-columns">
         <form className="admin-panel admin-form" onSubmit={addUnit}>

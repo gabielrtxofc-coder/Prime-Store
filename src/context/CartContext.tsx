@@ -29,9 +29,16 @@ export interface AddItemResult {
   added: boolean;
   /** Quantidade efetivamente colocada no carrinho (pode ser limitada). */
   quantity: number;
-  /** Motivo quando `added` é false. */
-  reason?: 'unavailable' | 'limit_reached' | 'unknown_product';
+  reason?: 'unavailable' | 'limit_reached' | 'unknown_product' | 'cart_full';
 }
+
+/**
+ * Máximo de produtos DISTINTOS por pedido — espelho do `v_max_items = 10`
+ * de `create_purchase_request` (banco) e do `MAX_ITEMS` do handler
+ * `order-request`. Sem este teto o cliente só descobria o limite ao enviar o
+ * formulário, com um erro do servidor sem caminho de volta na tela.
+ */
+export const MAX_DISTINCT_PRODUCTS = 10;
 
 interface CartContextValue {
   entries: CartEntry[];
@@ -105,6 +112,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (!product) return { added: false, quantity: 0, reason: 'unknown_product' };
     if (!product.available) return { added: false, quantity: 0, reason: 'unavailable' };
 
+    // Teto de produtos distintos por pedido (10): produtos já no carrinho
+    // continuam editáveis; um NOVO produto é recusado quando o limite de
+    // solicitáveis já foi atingido.
+    const alreadyInCart = entries.some((entry) => entry.productId === productId);
+    if (!alreadyInCart) {
+      const requestable = new Set(
+        entries
+          .filter((entry) => {
+            const existing = catalogService.getById(entry.productId);
+            return Boolean(existing?.available);
+          })
+          .map((entry) => entry.productId),
+      );
+      if (requestable.size >= MAX_DISTINCT_PRODUCTS) {
+        return { added: false, quantity: 0, reason: 'cart_full' };
+      }
+    }
+
     const limit = maxOrderableQuantity(product);
     const toAdd = product.allowQuantity ? Math.min(normalizeProductQuantity(product, quantity), limit) : 1;
     let effectiveQuantity = 0;
@@ -123,7 +148,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     if (effectiveQuantity === 0) return { added: false, quantity: 0, reason: 'limit_reached' };
     return { added: true, quantity: effectiveQuantity };
-  }, []);
+  }, [entries]);
 
   const setQuantity = useCallback((productId: string, quantity: number) => {
     const product = catalogService.getById(productId);

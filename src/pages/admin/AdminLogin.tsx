@@ -9,9 +9,21 @@ interface AdminLoginProps {
   /** Há conta administrativa provisionada? Se não, oferecemos o modo demonstrativo. */
   demoAvailable?: boolean;
   onStartDemo?: () => void;
+  /**
+   * Backend configurado neste build. Quando false, o formulário de entrada não
+   * tem para onde ir (o Supabase não está definido) e só o modo demonstrativo
+   * é oferecido — antes desta correção o visitante ficava sem caminho nenhum.
+   */
+  backendConfigured?: boolean;
 }
 
-export function AdminLogin({ onSignedIn, initialError = null, demoAvailable = false, onStartDemo }: AdminLoginProps) {
+export function AdminLogin({
+  onSignedIn,
+  initialError = null,
+  demoAvailable = false,
+  onStartDemo,
+  backendConfigured = true,
+}: AdminLoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(initialError);
@@ -58,35 +70,46 @@ export function AdminLogin({ onSignedIn, initialError = null, demoAvailable = fa
         )}
         {notice && <p className="field-hint" role="status">{notice}</p>}
 
-        <form className="form-grid" onSubmit={submit}>
-          <div className="form-field form-field--full">
-            <label htmlFor="admin-email">E-mail</label>
-            <input
-              id="admin-email"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
-          </div>
-          <div className="form-field form-field--full">
-            <label htmlFor="admin-password">Senha</label>
-            <input
-              id="admin-password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </div>
-          <button className="button button--primary button--large button--full" type="submit" disabled={busy}>
-            {busy ? 'Entrando…' : 'Entrar'}
-          </button>
-        </form>
+        {!backendConfigured && (
+          <p className="field-hint" role="status">
+            Backend não configurado neste ambiente: a entrada real de contas está indisponível.
+            {demoAvailable ? ' Use o modo demonstrativo abaixo para revisar as telas.' : ''}
+          </p>
+        )}
 
-        <button className="link-button" type="button" onClick={recover}>Esqueci minha senha</button>
+        {backendConfigured && (
+          <form className="form-grid" onSubmit={submit}>
+            <div className="form-field form-field--full">
+              <label htmlFor="admin-email">E-mail</label>
+              <input
+                id="admin-email"
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </div>
+            <div className="form-field form-field--full">
+              <label htmlFor="admin-password">Senha</label>
+              <input
+                id="admin-password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </div>
+            <button className="button button--primary button--large button--full" type="submit" disabled={busy}>
+              {busy ? 'Entrando…' : 'Entrar'}
+            </button>
+          </form>
+        )}
+
+        {backendConfigured && (
+          <button className="link-button" type="button" onClick={recover}>Esqueci minha senha</button>
+        )}
 
         {demoAvailable && onStartDemo && (
           <div className="admin-login__demo">
