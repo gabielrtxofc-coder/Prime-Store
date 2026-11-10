@@ -101,12 +101,16 @@ async function main() {
   }
 
   // 5. webhook sem assinatura válida não processa nada.
+  // Comportamento real documentado: sem MP_WEBHOOK_SECRET o handler é
+  // fail-closed e responde 503 webhook_not_configured ANTES de qualquer
+  // gravação (nada é processado); com o segredo configurado, assinatura
+  // inválida rende 401. Ambos os desfechos são recusas seguras.
   {
     const { status, text } = await call('mp-webhook', {
       body: { type: 'payment', data: { id: '1' } },
       headers: { 'x-signature': 'ts=1,v1=deadbeef', 'x-request-id': 'smoke' },
     });
-    record('mp-webhook recusa assinatura inválida', [400, 401, 403], status, text);
+    record('mp-webhook recusa notificação não autenticada', [400, 401, 403, 503], status, text);
   }
 
   // 6. rotas administrativas exigem JWT no gateway.
@@ -120,6 +124,30 @@ async function main() {
       jwt: 'invalid-smoke-token',
     });
     record('admin-api recusa JWT inválido', 401, status, text);
+  }
+
+  // 7. demo-payment: capabilities é somente leitura; payload inválido é
+  // rejeitado antes de qualquer RPC (nenhum pagamento é criado).
+  {
+    const { status, text } = await call('demo-payment', { method: 'GET' });
+    const okShape = status === 200 && text.includes('demo_enabled');
+    results.push({ name: 'demo-payment capabilities somente leitura', ok: okShape, expected: '200 + demo_enabled', actual: status });
+    console.log(`${okShape ? 'PASS' : 'FAIL'}  demo-payment capabilities somente leitura  (esperado 200 + demo_enabled, recebido ${status})`);
+    const preview = text.replace(/\s+/g, ' ').slice(0, 140);
+    if (preview) console.log(`      ${preview}`);
+  }
+  {
+    const { status, text } = await call('demo-payment', {
+      body: { action: 'approve', order_id: 'nao-e-uuid', client_token: 'a'.repeat(40) },
+    });
+    record('demo-payment recusa payload inválido sem pagar', 422, status, text);
+  }
+
+  // 8. order-request: payload inválido é rejeitado na validação do handler
+  // antes de qualquer RPC — nenhum pedido/solicitação é criado.
+  {
+    const { status, text } = await call('order-request', { body: { items: 'invalido' } });
+    record('order-request recusa payload inválido sem criar pedido', 422, status, text);
   }
 
   const failed = results.filter((item) => !item.ok);

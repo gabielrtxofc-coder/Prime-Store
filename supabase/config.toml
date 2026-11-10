@@ -49,12 +49,21 @@ verify_jwt = false
 [functions.admin-api]
 verify_jwt = true
 
+[functions.demo-payment]
+verify_jwt = false
+
+[functions.order-request]
+verify_jwt = false
+
 # ---------------------------------------------------------------------------
 # Edge Functions
 # ---------------------------------------------------------------------------
-# Endpoints públicos (catalog, create-order, order-status, delivery) rodam com
-# verify_jwt = false: o gateway não exige Authorization e a proteção vem das
-# regras no banco (nenhum GRANT para anon) e da validação no handler.
+# Endpoints públicos (catalog, create-order, order-status, delivery,
+# demo-payment, order-request) rodam com verify_jwt = false: o gateway não
+# exige Authorization e a proteção vem das regras no banco (nenhum GRANT para
+# anon) e da validação no handler.
 # admin-api exige JWT: a autorização real é feita por assert_admin() no banco
 # (allowlist + AAL2). mp-webhook não recebe JWT do Mercado Pago: a
 # autenticidade é validada pela assinatura x-signature no próprio handler.
+# Estado conferido com o remoto na Missão 13: só admin-api tem verify_jwt=true
+# (as 8 funções publicadas na Missão 12).
