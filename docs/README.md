@@ -16,6 +16,7 @@ configuração fora dele, exceto os segredos (que nunca são versionados).
 | [`testes.md`](./testes.md) | Suítes automatizadas, resultados reais e matriz de cenários críticos |
 | [`limitacoes-e-pendencias.md`](./limitacoes-e-pendencias.md) | Bloqueios externos, decisões pendentes, próximos passos |
 | [`PROGRESSO.md`](./PROGRESSO.md) | Registro de progresso para retomar o trabalho em outra sessão |
+| [`missao-14-deploy-privado.md`](./missao-14-deploy-privado.md) | Missão 14: primeiro deploy privado na Vercel — reconhecimento, auditoria, `vercel.json`, testes e o bloqueio externo do Preview |
 | [`auditoria/missao-03/RELATORIO.md`](./auditoria/missao-03/RELATORIO.md) | Missão 03: hardening, integridade, privilégios, evidências e o que segue bloqueado |
 | [`auditoria/missao-03/REGISTRO.md`](./auditoria/missao-03/REGISTRO.md) | Estado de execução da missão 03 (retomada) |
 

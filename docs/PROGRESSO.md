@@ -1,6 +1,6 @@
 # Registro de progresso
 
-> Atualizado em 2026-11-10. Este arquivo existe para que outra sessão consiga
+> Atualizado em 2026-11-11. Este arquivo existe para que outra sessão consiga
 > retomar o trabalho sem depender do histórico de conversa.
 
 ## Missão 08 (reconciliação Supabase) — migrações aplicadas; funções/smoke BLOQUEADOS
@@ -451,3 +451,47 @@ Branch `arena/74b080f3-prime-store` sobre `main` `89033be`.
 - **Pendências do operador:** admins + TOTP, domínio/origens, decisão de
   pagamentos (WyviPay D1–D11 / MP), revisão jurídica, smoke final da sua
   máquina. **Não declarada pronta para lançamento.**
+
+## Missão 14 — Primeiro deploy privado (2026-11-11) — **BLOQUEADA**
+
+Relatório: [missao-14-deploy-privado.md](missao-14-deploy-privado.md).
+Branch `arena/4cd168c1-prime-store` sobre `main` `d1d4823` (intacta).
+
+- **Reconhecimento corrigido:** o clone da sessão era **shallow de 1 commit**;
+  após `git fetch --unshallow +refs/heads/*` apareceram **16 branches**
+  remotas. Só 4 têm commits fora da `main`: `b2b66379` (só `vercel.json`),
+  `a81a96ef` (feature já superada pela `main`), `aa4e6a29` e `3b67fee3`
+  (docs já reconstruídos na M13) e `4d7b2f32` (relatório WyviPay da M08
+  **ausente na main** — registrado como dívida, não é necessário ao deploy).
+- **Vercel:** projeto `prime-store` (`prj_pVhaf3jVffFX24OK5GjAZNZz4vvC`,
+  hobby), preset `vite`, `npm ci` + `npm run build` → `dist`, Node 26.x,
+  domínio `prime-store-gilt.vercel.app`, **0 deployments**, **0 variáveis**,
+  **sem git link** (0 GitHub Deployments/environments/check-runs), 1 produção
+  antiga criada e apagada em 2026-11-11 pelo painel.
+- **Segurança:** varredura de 16 padrões — **0 segredos** na árvore (256
+  arquivos), **0** no histórico completo (59 commits, 96.715 linhas) e **0** no
+  bundle; nenhum `.env` real versionado; nenhum e-mail/UUID real.
+  `ssoProtection` = `all_except_custom_domains` (Standard Protection) no time e
+  no projeto; **"All Deployments" não configurado** — o conector não expõe
+  `ssoProtection` e `api.vercel.com` é inalcançável daqui.
+- **Supabase (read-only):** projeto único `eorlmqolbknrplvdbbtl` = mesmo banco
+  do ambiente existente; 42 migrações, 8/8 funções ACTIVE, 11 secrets por nome
+  (sem `MP_*`/`WYVI_*`); contagens iguais ao baseline (products 2, orders 8,
+  stock_units 27, admin_users 0, auth.users 0). **Zero escrita.**
+- **Testes:** `npm ci` 0 vulns; `npm ls` limpo; `npm audit` 0; typecheck 0;
+  `npm test` **136/136**; `npm run test:db` **308/308** (PostgreSQL local);
+  `npm run build` 0; `bundle:functions` **8/8** — reexecutados na árvore final.
+- **Correção de deploy (commit `10cc7b8`):** `vercel.json` com fallback de SPA
+  (excluindo `/assets/`) + cabeçalhos; sem isso `/admin` e `/entrega/:token`
+  responderiam 404 ao acesso direto. Sem mudança funcional; rewrite validado
+  localmente (200 em 7 rotas, assets com cache imutável).
+- **Bloqueio do deploy:** `create_deployment` (Preview, `target` omitido,
+  `git_source` GitHub) → **429 "GitHub API rate limit exceeded"** da integração
+  Vercel↔GitHub, repetido após 5 min. Egress do sandbox para `*.vercel.com`
+  bloqueado. Descoberto que **o primeiro deployment de um projeto é sempre de
+  produção** — CLI sem `--prod` **seria** deploy de produção, então não foi
+  usada. **Nenhuma URL pública foi criada ou divulgada.**
+- **Classificação:** **BLOQUEADA** (bloqueios externos: cota GitHub da
+  integração + falta de ferramenta para "All Deployments"). Passos manuais
+  ordenados no §6 do relatório §6.1 (proteção), §6.2 (criar Preview), §6.3
+  (variáveis + CORS), §6.4 (teste sem/com autenticação).
