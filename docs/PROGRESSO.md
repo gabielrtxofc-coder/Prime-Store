@@ -451,3 +451,35 @@ Branch `arena/74b080f3-prime-store` sobre `main` `89033be`.
 - **Pendências do operador:** admins + TOTP, domínio/origens, decisão de
   pagamentos (WyviPay D1–D11 / MP), revisão jurídica, smoke final da sua
   máquina. **Não declarada pronta para lançamento.**
+
+## Missão 14 — Primeiro deploy privado (Vercel Preview) — **BLOQUEADA** (2026-11-11)
+
+Relatório: [missao-14-primeiro-deploy-preview.md](missao-14-primeiro-deploy-preview.md).
+Branch `arena/b2b66379-prime-store` sobre `main` `d1d4823`; commit `cd03201`.
+
+- **Repositório/versão:** `main` `d1d4823` confirmada no remoto (PRs #1–#5
+  integrados, 0 abertos, nenhuma branch remota com commit fora dela). Único
+  commit da missão: `cd03201` (`vercel.json` — build Vite, rewrite SPA, headers).
+- **Vercel:** projeto `prime-store` (`prj_pVhaf3jVffFX24OK5GjAZNZz4vvC`) criado
+  com `npm ci`/`npm run build`/`dist`. **Deploy automático por Git desligado.**
+  **0 deployments.** Aliases respondem `404 DEPLOYMENT_NOT_FOUND`.
+- **Proteção:** Vercel Authentication ativa por padrão do time, escopo
+  **Standard Protection**; *All Deployments* **não** pôde ser configurado — o
+  conector não expõe Deployment Protection e o sandbox não tem egress para
+  `api.vercel.com`. Sem deploy, igualmente nada está exposto.
+- **Banco:** mesmo projeto Supabase da operação (`prime-store-sandbox`); apenas
+  leitura, zero escritas/migrações/usuários. Testes de banco rodaram em
+  PostgreSQL **local** descartável.
+- **Testes:** `npm test` 136/136; `test:db` 308/308 (local); typecheck 0;
+  build 0; `npm ci` 0 vulnerabilidades. Smoke das funções não executado (egress).
+- **Bloqueio real:** deploy por Git responde `429 GitHub API rate limit
+  exceeded` na integração Vercel↔GitHub (repetido por ~2h, inclusive após a
+  virada do limite horário). `target: preview` não é aceito pelo conector; o
+  smoke de `target: staging` também caiu na mesma cota.
+- **Incidente registrado:** um deploy por arquivos sem `target` foi criado como
+  produção (placeholder explícito, sem código da loja), **excluído em seguida**;
+  conta voltou a 0 deployments.
+- **Pendências do operador:** ativar All Deployments; conectar Git/selecionar a
+  branch e publicar Preview (ou `vercel` local); validar anônimo+autenticado;
+  decidir variáveis do Preview (nada foi copiado de produção).
+  **Nada foi declarado pronto: missão BLOQUEADA, sem publicação.**
