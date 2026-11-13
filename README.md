@@ -51,7 +51,7 @@ src/                     frontend (componentes, páginas, contexto, serviços)
 src/services/backend/    cliente HTTP das Edge Functions e adaptação do catálogo
 src/pages/admin/         painel administrativo (carregado sob demanda)
 supabase/migrations/     16 migrações versionadas e reaplicáveis do zero
-supabase/functions/      6 Edge Functions (Deno) + módulos compartilhados
+supabase/functions/      9 Edge Functions (Deno) + módulos compartilhados
 supabase/local/          bootstrap LOCAL do que o Supabase já oferece
 tests/db, tests/unit     testes de banco/back-end e unitários
 docs/                    documentação técnica completa
@@ -63,6 +63,7 @@ scripts/                 empacotamento das Edge Functions
 Públicas: `/`, `/produtos`, `/produto/:slug`, `/carrinho`, `/checkout`,
 `/pagamento`, `/entrega/:token`, `/pedido-confirmado`, `/faq`, `/ajuda`,
 `/sobre`, `/termos`, `/privacidade`, `/reembolsos`. Administrativa: `/admin`.
+Configuração inicial temporária (proprietário, encerra sozinha): `/admin/setup`.
 
 ## Documentação
 

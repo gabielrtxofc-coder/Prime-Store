@@ -12,6 +12,7 @@ configuração fora dele, exceto os segredos (que nunca são versionados).
 | [`backend.md`](./backend.md) | Modelo de dados, migrações, funções SQL e endpoints das Edge Functions |
 | [`mercado-pago.md`](./mercado-pago.md) | Checkout Transparente PIX, webhook, idempotência e o que falta configurar |
 | [`painel-admin.md`](./painel-admin.md) | Login, MFA/TOTP, provimento dos dois administradores, operações |
+| [`configuracao-inicial-admin.md`](./configuracao-inicial-admin.md) | Porta temporária `/admin/setup` para criar as duas contas iniciais, com auto-encerramento |
 | [`seguranca.md`](./seguranca.md) | RLS, criptografia de credenciais, tokens, auditoria, limites |
 | [`testes.md`](./testes.md) | Suítes automatizadas, resultados reais e matriz de cenários críticos |
 | [`limitacoes-e-pendencias.md`](./limitacoes-e-pendencias.md) | Bloqueios externos, decisões pendentes, próximos passos |
@@ -27,7 +28,7 @@ Navegador (Vite + React, hospedagem própria)
    │  usa apenas VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
    ▼
 Edge Functions (Deno, Supabase)
-   │  catalog · create-order · order-status · delivery · mp-webhook · admin-api
+   │  catalog · create-order · order-status · delivery · mp-webhook · admin-api · demo-payment · order-request · admin-bootstrap
    │  validam entrada, cifram credenciais, falam com o Mercado Pago
    │  usam SERVICE ROLE apenas no servidor
    ▼

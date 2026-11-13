@@ -27,6 +27,13 @@ Camadas de verificação em uma chamada administrativa:
 
 ## Provisionamento (o que falta fazer)
 
+> **Procedimento temporário preferencial (Missão 14):** enquanto a configuração
+> inicial estiver aberta, o próprio proprietário cria as duas contas em
+> `/admin/setup` (código temporário de uso restrito, teto de duas contas
+> decidido no banco, auto-encerramento na segunda criação). Ver
+> [`configuracao-inicial-admin.md`](./configuracao-inicial-admin.md). O guia
+> manual abaixo permanece como alternativa e documentação do formato da allowlist.
+
 O repositório **não inventa** identidade de administrador. Nenhum e-mail, senha
 ou UUID está embutido no código, e nenhum usuário administrador foi criado.
 Criar os dois administradores (proprietário e Natanael) é um passo operacional:

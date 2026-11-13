@@ -4,7 +4,7 @@
  *
  * POR QUE ESTE ARQUIVO EXISTE
  * ---------------------------
- * Smoke HTTP read-only para as oito Edge Functions implantadas. O script não
+ * Smoke HTTP read-only para as nove Edge Functions implantadas. O script não
  * cria pedidos, não altera estoque, pagamentos, entregas nem dados de clientes.
  * Chamadas sem JWT/credenciais válidas verificam as proteções sem depender de
  * uma conta administrativa real.

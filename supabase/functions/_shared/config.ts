@@ -53,6 +53,13 @@ export interface AppConfig {
    * tráfego real; não permite desligar a proteção.
    */
   rateLimitOverrides: Record<string, number>;
+  /**
+   * Código TEMPORÁRIO da configuração inicial do painel administrativo.
+   * Existe apenas enquanto o proprietário cria as duas contas previstas; o
+   * banco encerra a porta automaticamente na segunda criação. Nunca vai ao
+   * frontend, ao repositório ou a logs — só a este segredo do servidor.
+   */
+  setupAdminCode: string | null;
 }
 
 /** `catalog=200,create-order=15` -> `{ catalog: 200, 'create-order': 15 }`. */
@@ -101,6 +108,7 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     rateLimitOverrides:
       overrides.rateLimitOverrides ??
       parseRateLimitOverrides(readEnv('RATE_LIMIT_OVERRIDES') ?? ''),
+    setupAdminCode: overrides.setupAdminCode ?? readEnv('SETUP_ADMIN_CODE') ?? null,
     demoAllowedProjectRefs:
       overrides.demoAllowedProjectRefs ??
       (readEnv('DEMO_ALLOWED_PROJECT_REFS') ?? 'eorlmqolbknrplvdbbtl')

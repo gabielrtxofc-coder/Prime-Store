@@ -111,6 +111,10 @@ export function AdminLogin({
           <button className="link-button" type="button" onClick={recover}>Esqueci minha senha</button>
         )}
 
+        {backendConfigured && (
+          <Link className="link-button" to="/admin/setup">Configuração inicial do proprietário</Link>
+        )}
+
         {demoAvailable && onStartDemo && (
           <div className="admin-login__demo">
             <span className="demo-tag">SEM CONTA AINDA?</span>

@@ -55,6 +55,9 @@ verify_jwt = false
 [functions.order-request]
 verify_jwt = false
 
+[functions.admin-bootstrap]
+verify_jwt = false
+
 # ---------------------------------------------------------------------------
 # Edge Functions
 # ---------------------------------------------------------------------------
@@ -66,4 +69,6 @@ verify_jwt = false
 # (allowlist + AAL2). mp-webhook não recebe JWT do Mercado Pago: a
 # autenticidade é validada pela assinatura x-signature no próprio handler.
 # Estado conferido com o remoto na Missão 13: só admin-api tem verify_jwt=true
-# (as 8 funções publicadas na Missão 12).
+# (as 8 funções publicadas na Missão 12). admin-bootstrap (Missão 14) nasce com
+# verify_jwt=false: a proteção dela é o código temporário + o teto de duas
+# contas no banco, nunca uma sessão de usuário (as contas ainda não existem).

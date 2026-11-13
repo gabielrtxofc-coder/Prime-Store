@@ -37,6 +37,14 @@ import { privacySections, refundSections, termsSections } from './data/legalCont
 const AdminPage = lazy(() =>
   import('./pages/admin/AdminPage').then((module) => ({ default: module.AdminPage })),
 );
+/**
+ * Configuração inicial TEMPORÁRIA das duas contas administrativas.
+ * Aberta enquanto o servidor permite (código + vagas); depois, mostra apenas
+ * o aviso de encerramento. Não concede sessão nem permissão por si só.
+ */
+const AdminSetupPage = lazy(() =>
+  import('./pages/admin/AdminSetupPage').then((module) => ({ default: module.AdminSetupPage })),
+);
 
 /** Apresentação de carregamento enquanto o chunk do painel é baixado. */
 function AdminLoadingFallback() {
@@ -91,6 +99,14 @@ export function App() {
             backend/banco continuam sendo a proteção real. Caminhos internos
             (`/admin/*`) renderizam o mesmo AdminPage, cuja navegação é por
             abas — não existem sub-rotas administrativas nesta fase. */}
+        <Route
+          path="admin/setup"
+          element={
+            <Suspense fallback={<AdminLoadingFallback />}>
+              <AdminSetupPage />
+            </Suspense>
+          }
+        />
         <Route
           path="admin"
           element={

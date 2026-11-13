@@ -21,6 +21,8 @@
  *   delivery       tentativa de leitura por token: limitar reduz força bruta
  *   demo-payment   simulação de aprovação e semeadura de estoque fictício
  *   admin-api      já exige JWT + allowlist + AAL2; o limite é só anti-flood
+ *   admin-bootstrap configuração inicial temporária (código restrito); o limite
+ *                   mais apertado de todos — 5 tentativas a cada 5 minutos
  *
  * O webhook do provedor NÃO usa este módulo: bloquear por IP poderia descartar
  * uma aprovação legítima reenviada pelo Mercado Pago. A proteção dele é a
@@ -50,6 +52,8 @@ export const ROUTE_LIMITS: Record<string, RouteLimit> = {
   delivery: { limit: 30, windowSeconds: 60 },
   'demo-payment': { limit: 30, windowSeconds: 60 },
   'admin-api': { limit: 120, windowSeconds: 60 },
+  // Porta de configuração inicial: tentativas de código são raras e caras.
+  'admin-bootstrap': { limit: 5, windowSeconds: 300 },
 };
 
 export interface RateLimitDecision {
