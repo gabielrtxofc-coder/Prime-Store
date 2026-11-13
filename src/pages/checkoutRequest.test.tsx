@@ -7,11 +7,12 @@ import { CartProvider } from '../context/CartContext';
 import { ToastProvider } from '../context/ToastContext';
 import { BackendError } from '../services/backend/http';
 import { catalogService } from '../services/catalogService';
-import { createPurchaseRequest } from '../services/requestService';
+import { submitCheckout } from '../services/checkoutService';
 import type { Product } from '../types';
 
 /**
- * Missão 11 — limites e identidade do checkout de solicitação.
+ * Limites e identidade do checkout final (cobrança PIX com fallback para
+ * solicitação sem pagamento — `submitCheckout`).
  *
  *  1. Carrinho legado com mais de 10 produtos distintos é bloqueado ANTES do
  *     envio, com aviso claro — antes o cliente só descobria o limite com um
@@ -20,12 +21,12 @@ import type { Product } from '../types';
  *     reenvio usava a mesma chave e caía sempre no mesmo conflito.
  */
 
-vi.mock('../services/requestService', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../services/requestService')>();
-  return { ...actual, createPurchaseRequest: vi.fn() };
+vi.mock('../services/checkoutService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/checkoutService')>();
+  return { ...actual, submitCheckout: vi.fn() };
 });
 
-const createRequestMock = vi.mocked(createPurchaseRequest);
+const submitCheckoutMock = vi.mocked(submitCheckout);
 
 function makeProduct(index: number): Product {
   return {
@@ -87,7 +88,7 @@ beforeEach(() => {
   vi.stubEnv('VITE_BACKEND_ENABLED', 'true');
   window.localStorage.clear();
   catalogService.reset();
-  createRequestMock.mockReset();
+  submitCheckoutMock.mockReset();
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
@@ -111,12 +112,12 @@ describe('checkout de solicitação — limites e identidade', () => {
       await screen.findByText(/Máximo de 10 produtos diferentes por solicitação/),
     ).toBeInTheDocument();
 
-    const submit = screen.getByRole('button', { name: /Enviar solicitação/ });
+    const submit = screen.getByRole('button', { name: /Finalizar pedido/ });
     expect(submit).toBeDisabled();
 
     await fillForm(user);
     expect(submit).toBeDisabled();
-    expect(createRequestMock).not.toHaveBeenCalled();
+    expect(submitCheckoutMock).not.toHaveBeenCalled();
   }, 20000);
 
   it('renova a identidade da tentativa depois de idempotency_conflict e conclui na segunda', async () => {
@@ -124,47 +125,50 @@ describe('checkout de solicitação — limites e identidade', () => {
     catalogService.setSnapshot([product]);
     seedCart([product]);
 
-    createRequestMock
+    submitCheckoutMock
       .mockRejectedValueOnce(
         new BackendError(409, 'idempotency_conflict', 'Esta tentativa já foi usada com outros dados. Inicie um novo checkout.'),
       )
       .mockResolvedValueOnce({
-        order: {
-          order_id: '22222222-2222-4222-8222-222222222222',
-          reference: 'PS-M11AA',
-          status: 'requested',
-          payment_status: 'not_required',
-          delivery_status: 'not_ready',
-          items_count: 1,
-          quantity: 1,
-          unit_price_cents: product.priceCents,
-          total_cents: product.priceCents,
-          buyer_name: 'Maria Souza',
-          created_at: new Date().toISOString(),
-          items: [],
+        kind: 'request',
+        result: {
+          order: {
+            order_id: '22222222-2222-4222-8222-222222222222',
+            reference: 'PS-M11AA',
+            status: 'requested',
+            payment_status: 'not_required',
+            delivery_status: 'not_ready',
+            items_count: 1,
+            quantity: 1,
+            unit_price_cents: product.priceCents,
+            total_cents: product.priceCents,
+            buyer_name: 'Maria Souza',
+            created_at: new Date().toISOString(),
+            items: [],
+          },
+          client_token: 'token-da-nova-tentativa-AAAAAAAAAAAAAAAAAAAA',
+          idempotent_replay: false,
         },
-        client_token: 'token-da-nova-tentativa-AAAAAAAAAAAAAAAAAAAA',
-        idempotent_replay: false,
       });
 
     const user = userEvent.setup();
     renderCheckout();
 
     await fillForm(user);
-    await user.click(screen.getByRole('button', { name: /Enviar solicitação/ }));
+    await user.click(screen.getByRole('button', { name: /Finalizar pedido/ }));
 
     // A mensagem aparece no alerta do formulário E no toast — os dois são
     // caminhos legítimos de exibição.
     const conflictMessages = await screen.findAllByText(/já foi usada com outros dados/);
     expect(conflictMessages.length).toBeGreaterThanOrEqual(1);
-    expect(createRequestMock).toHaveBeenCalledTimes(1);
+    expect(submitCheckoutMock).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole('button', { name: /Enviar solicitação/ }));
+    await user.click(screen.getByRole('button', { name: /Finalizar pedido/ }));
 
     expect(await screen.findByText('pedido-aberto')).toBeInTheDocument();
-    expect(createRequestMock).toHaveBeenCalledTimes(2);
+    expect(submitCheckoutMock).toHaveBeenCalledTimes(2);
 
-    const [firstAttempt, secondAttempt] = createRequestMock.mock.calls;
+    const [firstAttempt, secondAttempt] = submitCheckoutMock.mock.calls;
     expect(firstAttempt[0].idempotencyKey).not.toBe(secondAttempt[0].idempotencyKey);
     expect(firstAttempt[0].clientToken).not.toBe(secondAttempt[0].clientToken);
     await waitFor(() => expect(window.localStorage.getItem('prime-store-cart-v2')).toBe('[]'));

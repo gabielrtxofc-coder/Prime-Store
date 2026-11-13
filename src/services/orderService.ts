@@ -8,10 +8,13 @@ export interface CreatedOrder {
   status: string;
   payment_status: string;
   delivery_status: string;
+  /** Presente no fluxo multi-item (create_order_multi / solicitação). */
+  items_count?: number;
   quantity: number;
   unit_price_cents: number;
   total_cents: number;
   reservation_expires_at: string;
+  created_at?: string;
   idempotent_replay: boolean;
 }
 
@@ -29,10 +32,17 @@ export interface CreateOrderResult {
   payment: PixPayment | null;
   replayed?: boolean;
   /**
+   * Replay idempotente no modo solicitação (`payment_mode: 'request'`):
+   * o servidor devolveu um pedido já registrado para a MESMA tentativa.
+   */
+  idempotent_replay?: boolean;
+  /**
    * `demo` quando o pedido foi criado no modo demonstrativo do sandbox: não há
    * cobrança e a aprovação pode ser simulada na tela de pagamento.
+   * `request` quando NENHUM provedor está configurado e o servidor registrou
+   * uma solicitação sem pagamento (o mesmo contrato de `order-request`).
    */
-  payment_mode?: 'demo' | null;
+  payment_mode?: 'demo' | 'request' | null;
   demo_notice?: string;
 }
 
@@ -119,13 +129,29 @@ export interface DeliveryPayload {
   units: DeliveredUnit[];
 }
 
-export interface CreateOrderInput {
+export interface CreateOrderItemInput {
   productId: string;
   quantity: number;
+}
+
+export interface CreateOrderInput {
+  /** Formato legado (produto único) — convertido para item único no servidor. */
+  productId?: string;
+  quantity?: number;
+  /** Carrinho multi-item: 1 a 10 produtos distintos (fluxo principal). */
+  items?: CreateOrderItemInput[];
   payerEmail: string;
+  /** Nome do comprador (gravado no pedido; nunca enviado ao provedor). */
+  buyerName?: string;
   idempotencyKey?: string;
   /** Token privado da tentativa de checkout: mantém o retry idempotente. */
   clientToken?: string;
+  /**
+   * Sem provedor de pagamento configurado, o servidor registra uma
+   * solicitação sem pagamento (`payment_mode: 'request'`) em vez de 503 —
+   * o checkout nunca fica sem saída em ambiente sem chave.
+   */
+  fallbackToRequest?: boolean;
 }
 
 /**
@@ -140,20 +166,35 @@ export function isClosedAttemptError(error: unknown): boolean {
   return error instanceof BackendError && error.code === 'previous_attempt_closed';
 }
 
-/** Cria pedido + reserva e a cobrança PIX (Checkout Transparente). */
+/**
+ * Cria pedido multi-item + reserva e a cobrança PIX (WyviPay API v2).
+ *
+ * Aceita o formato multi (`items`) ou o legado (`productId`/`quantity`).
+ * `fallbackToRequest` faz o servidor cair para a solicitação sem pagamento
+ * quando não há chave configurada — a cobrança nunca é contornada.
+ */
 export function createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
-  return invokeFunction<CreateOrderResult>('create-order', {
-    body: {
-      product_id: input.productId,
-      quantity: input.quantity,
-      payer_email: input.payerEmail,
-      idempotency_key: input.idempotencyKey,
-      client_token: input.clientToken,
-    },
-  });
+  const body: Record<string, unknown> = {
+    payer_email: input.payerEmail,
+  };
+  if (input.items && input.items.length > 0) {
+    body.items = input.items.map((item) => ({
+      product_id: item.productId,
+      quantity: item.quantity,
+    }));
+  } else if (input.productId) {
+    body.product_id = input.productId;
+    body.quantity = input.quantity;
+  }
+  if (input.buyerName) body.buyer_name = input.buyerName;
+  if (input.idempotencyKey) body.idempotency_key = input.idempotencyKey;
+  if (input.clientToken) body.client_token = input.clientToken;
+  if (input.fallbackToRequest) body.fallback_to_request = true;
+
+  return invokeFunction<CreateOrderResult>('create-order', { body });
 }
 
-/** Consulta o pedido pelo token privado; reconcilia com o Mercado Pago. */
+/** Consulta o pedido pelo token privado; reconcilia a cobrança com a API. */
 export function getOrderStatus(orderId: string, clientToken: string): Promise<OrderStatusPayload> {
   return invokeFunction<OrderStatusPayload>('order-status', {
     body: { order_id: orderId, client_token: clientToken },

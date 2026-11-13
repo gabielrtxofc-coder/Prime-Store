@@ -12,6 +12,7 @@ import { LegalPage } from './pages/LegalPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OrderConfirmedPage } from './pages/OrderConfirmedPage';
 import { OrderStatusPage } from './pages/OrderStatusPage';
+import { PaymentPage } from './pages/PaymentPage';
 import { ProductPage } from './pages/ProductPage';
 import { TrackingPage } from './pages/TrackingPage';
 import { SiteLayout } from './components/SiteLayout';
@@ -26,8 +27,10 @@ import { privacySections, refundSections, termsSections } from './data/legalCont
  * backend (`admin-api` com JWT) e no banco (`assert_admin()`: allowlist +
  * AAL2/TOTP) — a rota só devolve a interface já desenvolvida.
  *
- * `/pagamento` permanece FORA do roteador de propósito: a cobrança depende da
- * integração de pagamento (não autorizada).
+ * `/pagamento` é a tela de checkout PIX (WyviPay): recebe o pedido pendente
+ * gravado pelo checkout (`savePendingOrder`), exibe QR Code + copia-e-cola e
+ * confirma o pagamento com polling. Sem pedido pendente ela apenas convida a
+ * iniciar um novo checkout — não expõe dados de ninguém.
  *
  * `/entrega/:token` é público de propósito: é a entrega digital do pedido. A
  * rota não libera nada por si — a credencial só é devolvida pela Edge Function
@@ -60,6 +63,7 @@ function RouteEffects() {
       '/produtos': 'Catálogo',
       '/carrinho': 'Carrinho',
       '/checkout': 'Finalizar pedido',
+      '/pagamento': 'Pagamento PIX',
       '/acompanhar': 'Acompanhar pedido',
       '/faq': 'Perguntas frequentes',
       '/ajuda': 'Atendimento',
@@ -114,6 +118,8 @@ export function App() {
           <Route path="carrinho" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="pedido/:identifier" element={<OrderStatusPage />} />
+          {/* Checkout PIX: QR Code + copia-e-cola do pedido pendente. */}
+          <Route path="pagamento" element={<PaymentPage />} />
           {/* Entrega privada: o token da URL é a única credencial de acesso. */}
           <Route path="entrega/:token" element={<DeliveryPage />} />
           <Route path="acompanhar" element={<TrackingPage />} />

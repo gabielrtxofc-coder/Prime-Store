@@ -10,6 +10,7 @@ import type { Deps } from '../deps.ts';
 import { errorResponse, json, methodGuard, preflight, readJson } from '../http.ts';
 import { enforceRateLimit } from '../rateLimit.ts';
 import { getPayment } from '../mercadopago.ts';
+import { getCharge, mapChargeSituacao } from '../wyvipay.ts';
 import { requireOrderReference, requirePrivateToken, requireUuid } from '../validation.ts';
 
 interface OrderStatusBody {
@@ -18,6 +19,32 @@ interface OrderStatusBody {
   reference?: unknown;
   client_token?: unknown;
 }
+
+/**
+ * Reconciliação com a WyviPay: no máximo UMA consulta ao provedor por pedido
+ * a cada 15 s (rate limit da API v2: 200 req/min por rota e por chave;
+ * critério de aceite da integração: polling ≤ 1 chamada/15 s por pedido).
+ * O cache é por isolate — protege o caso comum (uma aba, um polling).
+ */
+const WYVI_RECONCILE_MIN_INTERVAL_MS = 15_000;
+const lastWyviReconcileAt = new Map<string, number>();
+
+function wyviReconcileThrottled(orderId: string, nowMs: number): boolean {
+  const previous = lastWyviReconcileAt.get(orderId);
+  if (previous !== undefined && nowMs - previous < WYVI_RECONCILE_MIN_INTERVAL_MS) {
+    return true;
+  }
+  lastWyviReconcileAt.set(orderId, nowMs);
+  // Evite crescimento sem limite em isolate de longa duração.
+  if (lastWyviReconcileAt.size > 5_000) {
+    const cutoff = nowMs - WYVI_RECONCILE_MIN_INTERVAL_MS;
+    for (const [key, value] of lastWyviReconcileAt) {
+      if (value < cutoff) lastWyviReconcileAt.delete(key);
+    }
+  }
+  return false;
+}
+
 
 export interface OrderStatusPayload {
   order_id: string;
@@ -40,6 +67,8 @@ export interface OrderStatusPayload {
   };
   payment: {
     status: string;
+    /** Provedor da cobrança: `wyvipay`, `mercado_pago`, `demo` ou `internal`. */
+    provider?: string | null;
     provider_payment_id?: string | null;
     status_detail?: string | null;
     amount_cents?: number;
@@ -104,6 +133,7 @@ export async function handleOrderStatus(request: Request, deps: Deps): Promise<R
     }
 
     const providerPaymentId = status.payment?.provider_payment_id ?? null;
+    const paymentProvider = status.payment?.provider ?? null;
 
     // Solicitação sem pagamento (migração 0033): `requested` / `not_required`
     // não têm cobrança a reconciliar. Não consultamos o provedor nem tentamos
@@ -113,8 +143,64 @@ export async function handleOrderStatus(request: Request, deps: Deps): Promise<R
     const isPaymentFreeRequest =
       status.status === 'requested' || status.payment_status === 'not_required';
 
+    // ---------------------------------------------------------------------
+    // WyviPay (fluxo ativo): a consulta à API é a FONTE DE VERDADE quando o
+    // webhook ainda não chegou (ou o destino foi desligado). Throttle de 15 s
+    // por pedido para não estourar o rate limit da rota.
+    // ---------------------------------------------------------------------
+    const shouldReconcileWyvi =
+      !isPaymentFreeRequest &&
+      paymentProvider === 'wyvipay' &&
+      Boolean(deps.config.wyviApiKey) &&
+      Boolean(providerPaymentId) &&
+      status.status === 'pending_payment' &&
+      !wyviReconcileThrottled(orderId, deps.now().getTime());
+
+    if (shouldReconcileWyvi && providerPaymentId) {
+      try {
+        const charge = await getCharge(
+          {
+            apiKey: deps.config.wyviApiKey as string,
+            baseUrl: deps.config.wyviApiBase,
+            fetchImpl: deps.fetchImpl,
+          },
+          providerPaymentId,
+        );
+        const mapped = mapChargeSituacao(charge.situacao);
+
+        if (mapped.providerStatus !== status.payment?.status || mapped.providerStatus === 'approved') {
+          let token: { hash: string; enc: string } | null = null;
+          if (mapped.providerStatus === 'approved') token = await newDeliveryToken(deps);
+
+          await deps.rpc('apply_payment_status', {
+            p_order_id: orderId,
+            p_provider_payment_id: charge.txid,
+            p_provider_status: mapped.providerStatus,
+            p_status_detail: mapped.statusDetail,
+            p_amount_cents: charge.valorCentavos,
+            p_delivery_token_hash: token?.hash ?? null,
+            p_delivery_token_enc_b64: token?.enc ?? null,
+          });
+          status = await deps.rpc<OrderStatusPayload>('get_order_status', {
+            p_order_id: orderId,
+            p_client_token_hash: clientTokenHash,
+          });
+        }
+      } catch (error) {
+        // Indisponibilidade do provedor não deve quebrar a consulta do pedido.
+        deps.log('order_status.wyvi_reconcile_failed', {
+          order_id: orderId,
+          reason: error instanceof Error ? error.message.slice(0, 120) : 'unknown',
+        });
+      }
+    }
+
+    // Caminho legado (Mercado Pago): só para cobranças DE FATO do MP — uma
+    // cobrança WyviPay nunca deve ser consultada na API do Mercado Pago.
     const shouldReconcile =
       !isPaymentFreeRequest &&
+      paymentProvider !== 'wyvipay' &&
+      paymentProvider !== 'demo' &&
       Boolean(deps.config.mercadoPagoAccessToken) &&
       Boolean(providerPaymentId) &&
       (status.status === 'pending_payment' || status.payment?.status === 'in_process');

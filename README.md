@@ -70,7 +70,8 @@ Comece por [`docs/README.md`](./docs/README.md):
 
 - [`docs/setup-local.md`](./docs/setup-local.md) — ambiente, banco, deploy
 - [`docs/backend.md`](./docs/backend.md) — schema, funções SQL, endpoints
-- [`docs/mercado-pago.md`](./docs/mercado-pago.md) — PIX, webhook, sandbox
+- [`docs/mercado-pago.md`](./docs/mercado-pago.md) — PIX, webhook, sandbox (caminho legado congelado)
+- [`docs/wyvipay.md`](./docs/wyvipay.md) — PIX pela WyviPay API v2: fluxo, secrets, webhook, checklist
 - [`docs/painel-admin.md`](./docs/painel-admin.md) — login, MFA, provisionamento
 - [`docs/seguranca.md`](./docs/seguranca.md) — RLS, criptografia, tokens, auditoria
 - [`docs/testes.md`](./docs/testes.md) — suítes e resultados reais

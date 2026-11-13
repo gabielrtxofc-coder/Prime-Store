@@ -33,6 +33,14 @@ vazio. Não há alteração manual de schema.
 | `…_0024_status_sem_ciphertext.sql` | `get_order_status` sem `token_enc`; `get_delivery_token_enc(uuid, text)` |
 | `…_0025_indices_redundantes.sql` | Remove 3 índices com definição duplicada (mantém o índice da FK de importação) |
 
+> A tabela foi encurtada na missão 03: as migrações `0026`–`0041` (demo,
+> multiproduto, entrega, rate limit, hardening) estão documentadas nos próprios
+> cabeçalhos de cada arquivo. Destaque da integração WyviPay:
+>
+> | Arquivo | Conteúdo |
+> | --- | --- |
+> | `…_0042_wyvipay.sql` | CHECKs `provider` com `wyvipay`; `attach_payment`/`record_payment_event` com provedor explícito (grants de `service_role` repostos); `attach_order_buyer` (contato do comprador com prova de posse); `order_summary_multi` com bloco `product` |
+
 ## Modelo de dados (resumo)
 
 - **products** — `slug` único, preço e custo em centavos, `access_validity_days`,
@@ -88,9 +96,11 @@ revalidam a autorização internamente.
 | Função | Método | Corpo | Retorno |
 | --- | --- | --- | --- |
 | `catalog` | `GET` (`?q&category`) ou `POST` | `{ q?, category? }` | `{ products[], generated_at }` |
-| `create-order` | `POST` | `{ product_id, quantity, payer_email, idempotency_key? }` | `201 { order, client_token, payment{ qr_code, qr_code_base64, ticket_url, expires_at } }` |
-| `order-status` | `POST` | `{ order_id, client_token }` | `{ order_id, reference, status, payment_status, delivery_status, payment, delivery{ url } }` |
+| `create-order` | `POST` | `{ items[], payer_email, buyer_name?, idempotency_key?, client_token?, fallback_to_request? }` (ou legado `product_id, quantity`) | `201 { order, client_token, payment{ status, qr_code, qr_code_base64, ticket_url, expires_at } }`; sem provedor: `201 payment_mode:'request'` (fallback) ou `503 payment_not_configured`; provedor fora: `502` com reserva liberada |
+| `order-request` | `POST` | `{ items[], buyer_name, buyer_email, idempotency_key?, client_token? }` | `201 { order, client_token }` — solicitação sem pagamento (sem reserva) |
+| `order-status` | `POST` | `{ order_id, client_token }` | `{ order_id, reference, status, payment_status, delivery_status, payment, delivery{ url } }`; reconcilia a cobrança pendente com a API (WyviPay: throttle de 15 s) |
 | `delivery` | `GET ?token=` ou `POST { token }` | | `{ reference, product{ instructions, access_validity_label }, units[{ email, password, notes }] }` |
+| `wyvi-webhook` | `POST` | Entrega assinada (`X-Wyvi-Assinatura/Carimbo/Entrega/Evento`) | `200 { received, result }`, `401` assinatura inválida, `503` sem `WYVI_WEBHOOK_SECRET` (fail-closed), `500` para o provedor reenviar |
 | `mp-webhook` | `POST` | Notificação do Mercado Pago | `{ received: true }`, `401` em assinatura inválida, `500` para forçar reentrega |
 | `admin-api` | `POST` + `Authorization: Bearer <JWT>` | `{ action, payload }` | Resultado da ação |
 | `demo-payment` | `GET` | — | `{ demo_enabled, mode }` (capacidade do servidor) |
