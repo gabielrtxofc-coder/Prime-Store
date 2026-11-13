@@ -52,16 +52,21 @@ alfabética pelo SQL Editor. As migrações são idempotentes na parte de dados
 ## 3. Edge Functions
 
 ```bash
-supabase functions deploy catalog      --project-ref <REF>
-supabase functions deploy create-order --project-ref <REF>
-supabase functions deploy order-status --project-ref <REF>
-supabase functions deploy delivery     --project-ref <REF>
-supabase functions deploy mp-webhook   --no-verify-jwt --project-ref <REF>
-supabase functions deploy admin-api    --project-ref <REF>
+supabase functions deploy catalog       --project-ref <REF>
+supabase functions deploy create-order  --project-ref <REF>
+supabase functions deploy order-status  --project-ref <REF>
+supabase functions deploy order-request --project-ref <REF>
+supabase functions deploy delivery      --project-ref <REF>
+supabase functions deploy demo-payment  --project-ref <REF>
+supabase functions deploy mp-webhook    --no-verify-jwt --project-ref <REF>
+supabase functions deploy wyvi-webhook  --no-verify-jwt --project-ref <REF>
+supabase functions deploy admin-api     --project-ref <REF>
 ```
 
-O `mp-webhook` é a única função com `--no-verify-jwt`: o Mercado Pago não envia
-JWT do Supabase, e a autenticidade é validada pela assinatura `x-signature`.
+`mp-webhook` e `wyvi-webhook` são as únicas funções com `--no-verify-jwt`: os
+provedores não enviam JWT do Supabase — a autenticidade de cada notificação é
+a assinatura HMAC (`x-signature` no Mercado Pago; `X-Wyvi-Assinatura` na
+WyviPay), conferida sobre o corpo cru antes de qualquer escrita.
 
 Sem Supabase CLI, gere bundles autocontidos e cole no painel:
 
@@ -81,10 +86,16 @@ supabase secrets set --env-file .env.functions --project-ref <REF>
 PRIME_ENCRYPTION_KEY=<base64 de 32 bytes>
 STORE_URL=https://sua-loja.example
 ALLOWED_ORIGINS=https://sua-loja.example,http://localhost:5173,http://127.0.0.1:5173
-MP_ACCESS_TOKEN=TEST-...
+WYVI_API_KEY=wy_test_...
+WYVI_WEBHOOK_SECRET=whsec_...
+WYVI_ENVIRONMENT=test
+MP_ACCESS_TOKEN=TEST-...        # legado congelado (só sem WYVI_API_KEY)
 MP_WEBHOOK_SECRET=...
 MP_NOTIFICATION_URL=https://<REF>.supabase.co/functions/v1/mp-webhook
 ```
+
+O cadastro do destino de webhook na WyviPay (URL exata dos eventos + onde
+guardar o `whsec_...`) está em [`wyvipay.md`](./wyvipay.md) §3.
 
 ### CORS: `ALLOWED_ORIGINS` é obrigatório
 

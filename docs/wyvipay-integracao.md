@@ -16,6 +16,17 @@
 > 0039–0041 confirmadas no histórico, secrets sem `MP_*`/`WyviPay`, D7
 > recuperado da fonte (§6.1), §6.2 e §8 atualizados. Nenhum endpoint novo
 > foi adicionado nem nada implementado.
+>
+> **Atualização 2026-11-13 — integração IMPLEMENTADA nesta branch:** migração
+> `0042` (CHECKs `wyvipay`, `attach_order_buyer`), cliente `_shared/wyvipay.ts`
+> (API v2), `create-order` multi-item com cobrança, `wyvi-webhook` (assinatura
+> + dedup + reconsulta), reconciliação em `order-status`, rota `/pagamento` no
+> frontend e suítes novas (`tests/unit/wyvipay.test.ts`,
+> `tests/db/24_wyvipay_fluxo.test.ts`). O operacional (env, cadastro do
+> webhook, checklist, estados, rotação, v1×v2) está em
+> [`docs/wyvipay.md`](./wyvipay.md). As seções abaixo continuam válidas como
+> mapeamento/auditoria — o estado "nada implementado" descreve o momento da
+> síntese.
 
 ---
 

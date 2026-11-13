@@ -1,5 +1,11 @@
 # Mercado Pago (sandbox, Checkout Transparente)
 
+> **Caminho legado (congelado).** O fluxo ATIVO de cobrança PIX da loja é a
+> **WyviPay API v2** — ver [`wyvipay.md`](./wyvipay.md). O código do Mercado
+> Pago permanece íntegro e é usado **apenas** quando `WYVI_API_KEY` não está
+> definida (compatibilidade com ambientes antigos). Nenhuma regra descrita
+> aqui foi removida.
+
 ## Contestação (chargeback) — não é reembolso
 
 `charged_back` **não** é tratado como devolução concluída: o pedido vai para `disputed`,

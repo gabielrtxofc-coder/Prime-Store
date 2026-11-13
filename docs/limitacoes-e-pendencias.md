@@ -38,9 +38,15 @@
    que não seja demonstração — instruções em `scripts/enable-demo-mode.sql`.
    Sem as três travas (segredo, lista de refs, `app_settings`) a função
    `demo-payment` responde `404`.
-3. **Sem credenciais sandbox do Mercado Pago** (`MP_ACCESS_TOKEN`,
-   `MP_WEBHOOK_SECRET`). Sem elas o checkout responde
-   `503 payment_not_configured` — comportamento intencional e testado.
+3. **Sem credenciais de pagamento no sandbox.** O fluxo ATIVO é a **WyviPay
+   API v2**: falta configurar `WYVI_API_KEY` (chave de teste criada pelo
+   responsável, não fornecida a esta sessão — só pode entrar por
+   `supabase secrets set`) e `WYVI_WEBHOOK_SECRET` (exibido uma única vez na
+   criação do destino de webhook). Sem elas o checkout responde
+   `503 payment_not_configured` (ou registra a solicitação sem pagamento) —
+   comportamento intencional e testado. O Mercado Pago (`MP_*`) ficou como
+   caminho legado congelado, usado só quando não há chave WyviPay. Checklist
+   completo em [`wyvipay.md`](./wyvipay.md) §7.
 4. **Sem identidades dos administradores.** O repositório não inventa e-mails nem
    UUIDs. O procedimento está em `docs/painel-admin.md`; falta criar os dois
    usuários no Supabase Auth e inserir os UUIDs em `admin_users`.

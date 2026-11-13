@@ -4,13 +4,16 @@
  *
  * POR QUE ESTE ARQUIVO EXISTE
  * ---------------------------
- * Smoke HTTP read-only para as oito Edge Functions implantadas. O script não
+ * Smoke HTTP read-only para as nove Edge Functions implantadas. O script não
  * cria pedidos, não altera estoque, pagamentos, entregas nem dados de clientes.
  * Chamadas sem JWT/credenciais válidas verificam as proteções sem depender de
  * uma conta administrativa real.
  * Este script é o passo que falta, pronto para rodar de qualquer máquina com
- * rede. Ele NÃO testa pagamento: sem `MP_ACCESS_TOKEN` o checkout responde
- * `503 payment_not_configured`, que é justamente o comportamento esperado.
+ * rede. Ele NÃO testa pagamento: sem `WYVI_API_KEY` (ou `MP_ACCESS_TOKEN`)
+ * legado o checkout responde `503 payment_not_configured`, que é justamente o
+ * comportamento esperado. O webhook da WyviPay é checado sem segredo algum:
+ * o destino responde 503 `webhook_not_configured` (fail-closed) ou 401 para
+ * assinatura inválida — ambos são recusas seguras.
  *
  * COMO USAR
  * ---------
@@ -148,6 +151,28 @@ async function main() {
   {
     const { status, text } = await call('order-request', { body: { items: 'invalido' } });
     record('order-request recusa payload inválido sem criar pedido', 422, status, text);
+  }
+
+  // 9. wyvi-webhook (API v2): entrega sem prova de origem nunca processa.
+  // Comportamento real documentado: sem WYVI_WEBHOOK_SECRET o handler é
+  // fail-closed e responde 503 ANTES de qualquer gravação; com o segredo
+  // configurado, assinatura inválida rende 401. Os dois desfechos são
+  // recusas seguras — e nenhum deles revela segredo algum.
+  {
+    const { status, text } = await call('wyvi-webhook', {
+      body: { id: '00000000-0000-4000-8000-000000000000', evento: 'cobranca.paga', dados: { txid: 'test000' } },
+      headers: {
+        'x-wyvi-assinatura': 'v1=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+        'x-wyvi-carimbo': String(Math.floor(Date.now() / 1000)),
+        'x-wyvi-entrega': '00000000-0000-4000-8000-000000000001',
+        'x-wyvi-evento': 'cobranca.paga',
+      },
+    });
+    record('wyvi-webhook recusa notificação não autenticada', [401, 503], status, text);
+  }
+  {
+    const { status, text } = await call('wyvi-webhook', { body: { evento: 'cobranca.paga' } });
+    record('wyvi-webhook sem cabeçalhos X-Wyvi é recusado', [401, 503], status, text);
   }
 
   const failed = results.filter((item) => !item.ok);

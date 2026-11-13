@@ -16,8 +16,16 @@ import {
 } from '../services/orderService';
 import { formatCurrency } from '../lib/format';
 import { deliveryPath } from '../lib/links';
+import { qrImageSource } from '../lib/pixQr';
 
-const POLL_INTERVAL_MS = 5000;
+/**
+ * Intervalo de confirmação do pagamento.
+ *
+ * 15 s: o backend reconcilia a cobrança com a WyviPay a cada consulta e a API
+ * do provedor tem rate limit por rota (200 req/min) — o critério de aceite da
+ * integração é no máximo 1 consulta/15 s por pedido.
+ */
+const POLL_INTERVAL_MS = 15_000;
 
 const STATUS_LABEL: Record<string, string> = {
   pending_payment: 'Aguardando o pagamento PIX',
@@ -136,6 +144,9 @@ export function PaymentPage() {
 
   const countdown = useCountdown(status?.payment?.expires_at ?? status?.reservation_expires_at ?? null);
   const paid = status ? isPaid(status.status, status.payment_status) : false;
+  // Imagem do QR (data URI do provedor ou gerada do copia-e-cola) — calculada
+  // uma vez: gerar o QR é trabalho, não deve repetir a cada render.
+  const qrSource = qrImageSource(status?.payment);
   const awaitingPayment = status?.status === 'pending_payment';
   const demoAvailable = Boolean(
     demo?.demo_enabled && awaitingPayment && status?.product?.is_demo === true && !paid,
@@ -234,7 +245,7 @@ export function PaymentPage() {
 
             {paid ? (
               <div className="payment-success">
-                <p><strong>Pagamento aprovado.</strong> Suas credenciais já estão liberadas.</p>
+                <p><strong>Pagamento confirmado.</strong> Suas credenciais já estão liberadas.</p>
                 {status.delivery?.url ? (
                   <Link className="button button--primary button--large" to={deliveryPath(status.delivery.url)}>
                     Abrir entrega privada <Icon name="arrow-right" size={18} />
@@ -283,8 +294,8 @@ export function PaymentPage() {
             ) : (
               <div className="payment-pix">
                 <div className="payment-qr">
-                  {status.payment?.qr_code_base64 ? (
-                    <img src={`data:image/png;base64,${status.payment.qr_code_base64}`} alt="QR code do PIX" width={220} height={220} />
+                  {qrSource ? (
+                    <img src={qrSource} alt="QR code do PIX" width={220} height={220} />
                   ) : (
                     <p className="field-hint">QR code indisponível. Use o código copia-e-cola.</p>
                   )}
@@ -300,13 +311,16 @@ export function PaymentPage() {
                 )}
                 {status.payment?.ticket_url && (
                   <a className="payment-ticket-link" href={status.payment.ticket_url} target="_blank" rel="noreferrer">
-                    Abrir a fatura no Mercado Pago
+                    Abrir a fatura do pagamento
                   </a>
                 )}
                 <p className="payment-poll-note">
                   A página confere o pagamento automaticamente a cada {POLL_INTERVAL_MS / 1000} segundos. Você pode fechar e voltar depois — o link
                   de entrega também aparece aqui.
                 </p>
+                <button className="button button--secondary button--small" type="button" onClick={() => void load()} disabled={loading}>
+                  {loading ? 'Atualizando…' : 'Atualizar agora'}
+                </button>
               </div>
             )}
           </div>

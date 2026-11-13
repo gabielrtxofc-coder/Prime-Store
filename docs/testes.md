@@ -86,8 +86,8 @@ Resultado: **115 testes de banco** + **57 de frontend**. Detalhe em
 ## Como rodar
 
 ```bash
-npm test            # 67 testes de frontend (jsdom, sem banco)
-npm run test:db     # 70 testes de banco + unitários
+npm test            # 148 testes de frontend (jsdom, sem banco)
+npm run test:db     # 350 testes de banco + unitários
 npm run test:all    # tudo (frontend + banco)
 npm run typecheck && npm run build
 ```
@@ -97,9 +97,11 @@ npm run typecheck && npm run build
 Os testes de banco **não usam mocks**: eles recriam o schema a partir de
 `supabase/migrations` em um PostgreSQL real e chamam as funções SQL com as
 mesmas roles e claims de JWT usadas em produção (`anon`, `authenticated`,
-`service_role`, `auth.uid()`, `aal`). O provedor de pagamento é o único
-componente simulado (`tests/unit/fakeMp.ts`), e ele valida o corpo da requisição
-enviada pelo código de produção.
+`service_role`, `auth.uid()`, `aal`). Os provedores de pagamento são os únicos
+componentes simulados (`tests/unit/fakeMp.ts` para o Mercado Pago legado e
+`tests/unit/fakeWyvi.ts` para a WyviPay — servidor HTTP com validação estrita,
+idempotência e helper de assinatura `X-Wyvi-*`), e eles validam o corpo da
+requisição enviada pelo código de produção.
 
 ## Suítes
 
@@ -110,9 +112,14 @@ enviada pelo código de produção.
 | `tests/db/03_payments_webhooks.test.ts` | 12 | Cobrança PIX com QR/copia-e-cola, valor divergente recusado, aprovação idempotente (unidades vendidas + entrega), notificação fora de ordem, recusa devolve estoque, aprovação perto do vencimento, aprovação após expiração com/sem estoque (reembolso pendente), estorno revoga entrega, dedup de webhooks em paralelo, uma cobrança aberta por pedido |
 | `tests/db/04_admin_delivery.test.ts` | 14 | Autenticação → allowlist → AAL2 em cada nível, CRUD de produtos com histórico de preço, importação parcial com relatório e bloqueio de duplicatas, credenciais só sob demanda e auditadas, listas/indicadores/reembolsos, revogação e rotação de entrega, auditoria, entrega de pedido não pago negada, edição de unidade reservada/vendida negada |
 | `tests/db/05_end_to_end_flow.test.ts` | 6 | Fluxo completo pelos handlers reais (catalog → create-order → webhook → order-status → delivery), liberação de estoque com o provedor indisponível, `503 payment_not_configured`, validação de payload, webhook com assinatura inválida, escada de autorização administrativa |
+| `tests/unit/wyvipay.test.ts` | 25 | Cliente WyviPay v2: POST /cobrancas em centavos com `Idempotency-Key`, replay sem duplicar, conflito `409`, valores/`Idempotency-Key` inválidos recusados antes da rede, falha de comunicação, consulta (sem imagem QR), cancelamento idempotente, reembolso, mapa de situações, assinatura de webhook (válida/errada/adulterada/velha/fora da janela) |
+| `tests/db/24_wyvipay_fluxo.test.ts` | 17 | Fluxo ponta a ponta com a WyviPay simulada: privilégios das funções (service_role/anon), cobrança multi-item sem PII, replay sem cobrança dupla, 409 anti-takeover, 502 com reserva liberada, webhook → 401 sem eventos, segredo ausente → 503, aprovação + dedup + entrega, reconsulta manda (pendente/`amount_mismatch`), expiração/cancelamento liberam estoque, `dados.teste` em produção, reconciliação com throttle de 15 s, fallback/503 sem provedor, formato legado mono |
 | `tests/unit/crypto_csv_mp.test.ts` | 19 | AES-256-GCM (chave errada, adulteração, IV por mensagem), HMAC fingerprint, entropia dos tokens, SHA-256/tempo constante, CSV (cabeçalho, `;`, BOM, aspas, acentos), validação linha a linha, detecção de duplicatas, mascaramento, cliente do Mercado Pago (PIX 30 min, idempotência, sem PII, erros) |
 | `src/services/backend/backend.test.ts` | 10 | Configuração por env, contrato do catálogo (itens inválidos descartados), cliente HTTP (chave anon, sem `service_role`), mapeamento de erros |
 | `src/pages/paymentDelivery.test.tsx` | 5 | Página PIX (QR, copia-e-cola, validade), link de entrega ao aprovar, ausência de pedido na sessão, entrega com credenciais mascaradas, link revogado |
+| `src/services/checkoutService.test.ts` | 5 | Estratégia do checkout final: cobrança → `kind payment`; sem provedor → `kind request`; `503 payment_not_configured` → fallback `order-request` com a MESMA identidade; outros erros repassados sem mascarar |
+| `src/lib/pixQr.test.ts` | 5 | QR nos três formatos (data URI do provedor, base64 puro, copia-e-cola → SVG gerado), BR Code inválido nunca derruba a tela |
+| `src/pages/checkoutPayment.test.tsx` | 2 | Checkout PIX: navega para `/pagamento` gravando pedido pendente + comprovante, limpa o carrinho e mantém a identidade no retry de rede |
 | `src/pages/catalogBackend.test.tsx` | 3 | Catálogo real substitui o local; falha do backend mantém fallback com aviso; modo demonstração não faz rede |
 | `src/App.test.tsx`, `src/lib/cart.test.ts`, `src/context/CartContext.test.tsx` | 39 | Regressão do frontend existente (catálogo, carrinho, checkout demonstrativo, FAQ, acessibilidade) |
 
@@ -137,6 +144,11 @@ enviada pelo código de produção.
 | Falha no meio da transação | ✅ rollback deixa estoque intacto | `02` |
 | Adulteração de valores/quantidades pelo cliente | ✅ preço vem do banco; quantidade validada por CHECK/limite | `02`, `unit` |
 | Acesso a credenciais de outro pedido | ✅ token próprio por pedido; consulta cruzada negada | `03`, `04` |
+| Webhook WyviPay com assinatura inválida | ✅ 401 e ZERO linhas em `payment_events` | `24` |
+| Entrega repetida do mesmo evento WyviPay | ✅ dedup por `X-Wyvi-Entrega` → um único efeito | `24` |
+| Notificação WyviPay forjada ("paga" com API pendente) | ✅ reconsulta manda; `amount_mismatch` bloqueia entrega | `24` |
+| Evento de teste em produção | ✅ `dados.teste` ignorado, pedido intacto | `24` |
+| Rotação/queda da API WyviPay | ✅ 502 + reserva liberada; reconciliação com throttle de 15 s | `24`, `unit` |
 
 ## O que **não** foi executado de verdade
 
