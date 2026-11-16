@@ -81,26 +81,50 @@
 
 ## D — Pós-merge (publicação e operação)
 
-**Estado: pendente — executa-se somente após o merge com verificações verdes.**
+**Estado: concluída.**
 
-- [ ] Publicar funções alteradas (paridade com `.local/functions-build/`).
-- [ ] Aplicar somente migrações novas estritamente necessárias (ledger = main).
-- [ ] Cron ativo (jobid3 recorrente) e worker autenticado.
-- [ ] Deploy Vercel do commit final de `main`; domínio
-      `prime-store-gilt.vercel.app` respondendo.
-- [ ] Catálogo vazio e painel admin disponível para as 2 contas existentes.
-- [ ] Cadastro de produtos funcional.
+- [x] Funções: as 11 Edge Functions estão `ACTIVE` no projeto remoto (nenhuma
+      alterada neste PR — só script/docs/testes/migração).
+- [x] Migrações: ledger remoto com `0044_wyvi_worker_cron` e
+      `disable_demo_payments` aplicadas (46 no total) — nenhuma nova
+      necessária; ledger = main.
+- [x] Cron ativo (jobid3: 15 execuções `succeeded` nos últimos 15 min) e
+      worker autenticado (Vault `wyvi_worker_jwt` presente).
+- [x] Deploy Vercel do commit final: `5b5eb7b` → `dpl_3KbeeSQxptzsbPktgTWxiKi83ioP`
+      `READY`/`PROMOTED`; domínio `prime-store-gilt.vercel.app` respondendo 200.
+- [x] Catálogo vazio (`{"products":[]}`; os 2 produtos existentes estão
+      arquivados + inativos) e painel admin com 2 contas (`admin_users=2`).
+- [x] Cadastro de produtos funcional (`admin-api` ACTIVE; CRUD coberto pela
+      suíte local `test:db`).
+- [x] Correção de deep-links SPA: `vercel.json` com rewrite → `/index.html`
+      (exceto `/assets/`), habilitando `/admin`, `/produtos` e
+      `/entrega/:token` (antes: 404 da Vercel no link direto).
 
 ## E — Validação final
 
-**Estado: pendente — após a Etapa D.**
+**Estado: concluída.**
 
-- [ ] `npm test`, `test:db`, typecheck, build e bundles verdes no commit final.
-- [ ] CI verde no PR/merge.
-- [ ] Tabela HTTP: página 200; catálogo 200 vazio; CORS com origem da
-      produção; demo desativado; pedido sem chave fail-closed; worker
-      `payment_not_configured` sem perda; cron recorrente; admin OK; produtos
-      OK; WyviPay pronta para receber a chave.
+- [x] `npm test` 151/151, `test:db` 424/424, typecheck OK, build OK,
+      10 bundles OK no commit final.
+- [x] CI verde nos PRs #8 e #9 (typecheck + testes + bundle).
+- [x] Tabela HTTP (via `verif.http` no banco remoto):
+  - página `https://prime-store-gilt.vercel.app/` → **200** (HTML);
+  - catálogo → **200** com `{"products":[]}` (vazio);
+  - CORS: `Access-Control-Allow-Origin: https://prime-store-gilt.vercel.app`
+    e preflight `OPTIONS` → **204**;
+  - demo desativado: `approve`/`seed` → `{"demo_enabled":false,
+    "mode":"disabled"}` (+ `app_settings` e secret);
+  - pedido sem chave → **503 `payment_not_configured`** (fail-closed; pedido
+    criado e reserva liberada — stock `available` de volta, evento
+    `reservation_released` auditado); produtos de teste re-arquivados após a
+    prova;
+  - worker: fila `payment_events` com os eventos `failed` +
+    `last_error=payment_not_configured` — **nenhum evento perdido**;
+  - cron recorrente ✓; admin OK (2 contas) ✓; produtos OK (arquivados,
+    CRUD funcional) ✓;
+  - WyviPay pronta para receber a chave: 12 segredos presentes, nenhum
+    `WYVI_*` (esperado — a chave é do responsável), fluxo completo do
+    configurador coberto pelos testes.
 
 ## F — Ações comerciais do responsável (somente estas)
 
