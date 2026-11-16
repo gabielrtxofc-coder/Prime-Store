@@ -1,15 +1,18 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { EventEmitter } from 'node:events';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
   cliAvailable,
+  cliListShowsName,
   installRemoteSecrets,
   installViaCli,
   installViaManagementApi,
   interpretScopeProbe,
   listSecretNames,
   maskKey,
+  readHidden,
   readWhsecFromFile,
   resolveProjectRef,
   resolveWebhookUrl,
@@ -222,38 +225,155 @@ describe('setup — instalação remota via Management API oficial', () => {
   });
 });
 
-describe('setup — instalação remota via Supabase CLI', () => {
-  it('usa `supabase secrets set K=V … --project-ref` quando não há token no ambiente', async () => {
-    const spawn = vi.fn((cmd: string, args: string[]) => {
-      if (cmd === 'supabase' && args[0] === '--version') return { error: undefined, status: 0, stdout: '2.99.0', stderr: '' };
-      return { error: undefined, status: 0, stdout: 'secrets set ok', stderr: '' };
-    }) as unknown as typeof import('node:child_process').spawnSync;
+describe('setup — instalação remota via Supabase CLI (sem segredos em argv)', () => {
+  const HELP_OK = 'Usage:\n  supabase secrets set [flags]\n\nFlags:\n      --env-file string   Read secrets from a .env file.\n';
+  const LIST_OK = '|NAME|DIGEST|\n|-|-|\n|`WYVI_API_KEY`|`sha256:x`|\n|`WYVI_ENVIRONMENT`|`sha256:y`|\n|`WYVI_WEBHOOK_SECRET`|`sha256:z`|\n';
 
-    const secrets = secretsToInstall(KEY_TEST, WHSEC, 'teste');
+  function fakeSpawn(behavior: {
+    help?: { status: number; stdout: string };
+    set?: { status: number; stdout?: string; stderr?: string; onSet?: (args: string[]) => void };
+    list?: { status: number; stdout?: string; stderr?: string };
+  }) {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const spawn = ((cmd: string, args: string[]) => {
+      calls.push({ cmd, args });
+      if (args[0] === '--version') return { error: undefined, status: 0, stdout: '2.99.0', stderr: '' };
+      if (args[0] === 'secrets' && args[1] === 'set' && args[2] === '--help') {
+        const h = behavior.help ?? { status: 0, stdout: HELP_OK };
+        return { error: undefined, status: h.status, stdout: h.stdout, stderr: '' };
+      }
+      if (args[0] === 'secrets' && args[1] === 'set') {
+        behavior.set?.onSet?.(args);
+        const s = behavior.set ?? { status: 0 };
+        return { error: undefined, status: s.status, stdout: s.stdout ?? 'ok', stderr: s.stderr ?? '' };
+      }
+      if (args[0] === 'secrets' && args[1] === 'list') {
+        const l = behavior.list ?? { status: 0, stdout: LIST_OK };
+        return { error: undefined, status: l.status, stdout: l.stdout ?? '', stderr: l.stderr ?? '' };
+      }
+      return { error: undefined, status: 1, stdout: '', stderr: 'inesperado' };
+    }) as unknown as typeof import('node:child_process').spawnSync;
+    return { calls, spawn };
+  }
+
+  const secrets = () => secretsToInstall(KEY_TEST, WHSEC, 'teste');
+
+  it('usa arquivo temporário 0600 + `--env-file` (NENHUM valor em argv) e verifica por nomes', () => {
+    let envFile = '';
+    let envContent = '';
+    let envMode = 0;
+    const { calls, spawn } = fakeSpawn({
+      set: {
+        status: 0,
+        onSet: (args) => {
+          const idx = args.indexOf('--env-file');
+          envFile = idx >= 0 ? args[idx + 1] : '';
+          if (envFile) {
+            const st = statSync(envFile);
+            envMode = st.mode & 0o777;
+            envContent = readFileSync(envFile, 'utf8');
+          }
+        },
+      },
+    });
+
+    const result = installViaCli({ secrets: secrets(), projectRef: 'ref', spawn });
+    expect(result).toMatchObject({ ok: true });
+
+    // 1) NENHUM segredo em nenhum argumento de processo.
+    const allArgs = calls.flatMap((c) => [c.cmd, ...c.args]);
+    const joined = allArgs.join('\n');
+    expect(joined).not.toContain(KEY_TEST);
+    expect(joined).not.toContain(WHSEC);
+    expect(joined).not.toContain('WYVI_API_KEY=');
+    expect(joined).not.toContain('WYVI_WEBHOOK_SECRET=');
+    expect(joined).not.toContain('WYVI_ENVIRONMENT=test');
+
+    // 2) arquivo temporário existiu, era0600 e continha os3 segredos.
+    expect(envFile).toContain('wyvi-secrets-');
+    expect(envMode).toBe(0o600);
+    expect(envContent).toContain(`WYVI_API_KEY=${KEY_TEST}`);
+    expect(envContent).toContain(`WYVI_WEBHOOK_SECRET=${WHSEC}`);
+    expect(envContent).toContain('WYVI_ENVIRONMENT=test');
+
+    // 3) REMOVIDO após o uso (não sobra nada em disco).
+    expect(existsSync(envFile)).toBe(false);
+
+    // 4) verificação por NOMES via `secrets list` (nunca valores).
+    const listCall = calls.find((c) => c.args[0] === 'secrets' && c.args[1] === 'list');
+    expect(listCall?.args).toContain('--project-ref');
+  });
+
+  it('arquivo temporário é removido MESMO quando o `secrets set` falha', () => {
+    let envFile = '';
+    const { spawn } = fakeSpawn({
+      set: {
+        status: 1,
+        stderr: 'erro simulado',
+        onSet: (args) => {
+          const idx = args.indexOf('--env-file');
+          envFile = idx >= 0 ? args[idx + 1] : '';
+        },
+      },
+    });
+    const result = installViaCli({ secrets: secrets(), projectRef: 'ref', spawn });
+    expect(result).toMatchObject({ ok: false, reason: 'cli_falhou' });
+    expect(envFile).not.toBe('');
+    expect(existsSync(envFile)).toBe(false);
+  });
+
+  it('redige valores de segredo no detalhe de erro (nunca vazam p/ logs)', () => {
+    const { spawn } = fakeSpawn({
+      set: { status: 1, stderr: `falha ao processar WYVI_API_KEY=${KEY_TEST} e whsec=${WHSEC}` },
+    });
+    const result = installViaCli({ secrets: secrets(), projectRef: 'ref', spawn });
+    expect(result.ok).toBe(false);
+    expect(String((result as { detail?: string }).detail)).not.toContain(KEY_TEST);
+    expect(String((result as { detail?: string }).detail)).not.toContain(WHSEC);
+    expect(String((result as { detail?: string }).detail)).toContain('[REMOVIDO]');
+  });
+
+  it('CLI sem suporte a --env-file ⇒ bloqueio explícito (sem fallback argv)', () => {
+    const { calls, spawn } = fakeSpawn({ help: { status: 0, stdout: 'Usage: supabase secrets set <NAME=VALUE>\n' } });
+    const result = installViaCli({ secrets: secrets(), projectRef: 'ref', spawn });
+    expect(result).toMatchObject({ ok: false, reason: 'cli_sem_env_file' });
+    // nunca tentou um set com valores em argv
+    const setCalls = calls.filter((c) => c.args[0] === 'secrets' && c.args[1] === 'set' && c.args[2] !== '--help');
+    expect(setCalls).toHaveLength(0);
+  });
+
+  it('set ok mas `secrets list` sem um nome ⇒ verificação falha (nada de sucesso falso)', () => {
+    const { spawn } = fakeSpawn({
+      list: { status: 0, stdout: '|NAME|DIGEST|\n|-|-|\n|`WYVI_API_KEY`|`sha256:x`|\n|`WYVI_ENVIRONMENT`|`sha256:y`|\n' },
+    });
+    const result = installViaCli({ secrets: secrets(), projectRef: 'ref', spawn });
+    expect(result).toMatchObject({ ok: false, reason: 'nomes_ausentes' });
+    expect(String((result as { detail?: string }).detail)).toContain('WYVI_WEBHOOK_SECRET');
+  });
+
+  it('installRemoteSecrets sem token usa o caminho CLI completo (set + verificação)', async () => {
+    const { calls, spawn } = fakeSpawn({});
     const result = await installRemoteSecrets({
-      secrets,
+      secrets: secrets(),
       env: { SUPABASE_PROJECT_REF: 'ref' }, // sem SUPABASE_ACCESS_TOKEN
       spawn,
     });
-    expect(result).toMatchObject({ ok: true, mecanismo: 'cli' });
-    const setCall = (spawn as unknown as { mock: { calls: Array<[string, string[]]> } }).mock.calls.find(
-      ([, args]) => args[0] === 'secrets',
-    );
-    expect(setCall?.[0]).toBe('supabase');
-    expect(setCall?.[1][1]).toBe('set');
-    expect(setCall?.[1]).toContain(`WYVI_API_KEY=${KEY_TEST}`);
-    expect(setCall?.[1]).toContain(`WYVI_WEBHOOK_SECRET=${WHSEC}`);
-    expect(setCall?.[1]).toContain('WYVI_ENVIRONMENT=test');
-    expect(setCall?.[1].slice(-2)).toEqual(['--project-ref', 'ref']);
+    expect(result).toMatchObject({ ok: true, mecanismo: 'cli', verificacao: 'lista_nomes' });
+    // sequência: --version (disponibilidade), help (sintaxe), set --env-file, list
+    expect(calls.map((c) => c.args.slice(0, 2).join(' '))).toEqual([
+      '--version',
+      'secrets set',
+      'secrets set',
+      'secrets list',
+    ]);
+    const joined = calls.flatMap((c) => c.args).join('\n');
+    expect(joined).not.toContain(KEY_TEST);
+    expect(joined).not.toContain(WHSEC);
   });
 
   it('CLI presente mas falhando → erro propagado (nada de sucesso silencioso)', () => {
-    const spawn = (() => ({ error: undefined, status: 1, stdout: '', stderr: 'not logged in' })) as unknown as typeof import('node:child_process').spawnSync;
-    const result = installViaCli({
-      secrets: secretsToInstall(KEY_TEST, WHSEC, 'teste'),
-      projectRef: 'ref',
-      spawn,
-    });
+    const { spawn } = fakeSpawn({ help: { status: 0, stdout: HELP_OK }, set: { status: 1, stderr: 'not logged in' } });
+    const result = installViaCli({ secrets: secrets(), projectRef: 'ref', spawn });
     expect(result).toMatchObject({ ok: false, reason: 'cli_falhou' });
   });
 
@@ -310,5 +430,125 @@ describe('setup — whsec_ local (recuperação sem duplicar destino)', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// readHidden — entrada oculta em TTY (A4)
+// ---------------------------------------------------------------------------
+
+/** TTY falso: EventEmitter + isTTY/setRawMode/pause/setEncoding reais. */
+class FakeTty extends EventEmitter {
+  isTTY = true;
+  isRaw = false;
+  rawModes: boolean[] = [];
+  paused = false;
+  setRawMode(v: boolean): void {
+    this.isRaw = v;
+    this.rawModes.push(v);
+  }
+  setEncoding(): this {
+    return this;
+  }
+  resume(): this {
+    this.paused = false;
+    return this;
+  }
+  pause(): this {
+    this.paused = true;
+    return this;
+  }
+}
+
+describe('setup — readHidden (entrada oculta em TTY)', () => {
+  it('recusa entrada insegura sem TTY (nunca lê pipe com eco)', async () => {
+    const writes: string[] = [];
+    await expect(
+      readHidden('chave: ', { stdin: { isTTY: false } as never, write: (t) => writes.push(t) }),
+    ).rejects.toThrow(/entrada insegura/);
+    expect(writes).toHaveLength(0); // nem o prompt foi emitido
+  });
+
+  it('recusa stdin sem setRawMode (objeto não-TTY)', async () => {
+    await expect(readHidden('chave: ', { stdin: { isTTY: true } as never })).rejects.toThrow(/entrada insegura/);
+  });
+
+  it('lê a chave em modo raw: ativa raw, não ecoa nada e restaura ao Enter', async () => {
+    const tty = new FakeTty();
+    const writes: string[] = [];
+    const promise = readHidden('chave: ', { stdin: tty as never, write: (t) => writes.push(t) });
+    expect(tty.rawModes).toEqual([true]); // raw ligado na hora do prompt
+    expect(writes).toEqual(['chave: ']);
+    tty.emit('data', KEY_TEST);
+    tty.emit('data', '\r');
+    await expect(promise).resolves.toBe(KEY_TEST);
+    expect(tty.rawModes).toEqual([true, false]); // restaurado
+    expect(tty.paused).toBe(true);
+    // a chave digitada NUNCA aparece em nenhum write
+    expect(writes.join('')).not.toContain(KEY_TEST);
+    expect(writes.join('')).toBe('chave: \n');
+  });
+
+  it('backspace apaga; setas/controles são ignoradas; trim nas pontas', async () => {
+    const tty = new FakeTty();
+    const writes: string[] = [];
+    const promise = readHidden('p: ', { stdin: tty as never, write: (t) => writes.push(t) });
+    tty.emit('data', 'abc');
+    tty.emit('data', '\u007f\u007f'); // dois backspaces: "abc" → "a"
+    tty.emit('data', '\u001b[A'); // seta pra cima (CSI) — ignorada
+    tty.emit('data', 'X ');
+    tty.emit('data', '\n');
+    await expect(promise).resolves.toBe('aX'); // backspace apagou; trim remove espaço final
+    expect(tty.rawModes).toEqual([true, false]);
+  });
+
+  it('Ctrl+C cancela com exitCode 130 e restaura o terminal', async () => {
+    const tty = new FakeTty();
+    const writes: string[] = [];
+    const promise = readHidden('p: ', { stdin: tty as never, write: (t) => writes.push(t) });
+    tty.emit('data', KEY_TEST.slice(0, 10)); // digitou parte da chave
+    tty.emit('data', '\u0003');
+    await expect(promise).rejects.toMatchObject({ cancelled: true, exitCode: 130 });
+    expect(tty.rawModes).toEqual([true, false]);
+    expect(writes.join('')).not.toContain(KEY_TEST);
+  });
+
+  it('Ctrl+D em buffer vazio cancela com exitCode 1 e restaura', async () => {
+    const tty = new FakeTty();
+    const promise = readHidden('p: ', { stdin: tty as never, write: () => {} });
+    tty.emit('data', '\u0004');
+    await expect(promise).rejects.toMatchObject({ cancelled: true, exitCode: 1 });
+    expect(tty.rawModes).toEqual([true, false]);
+  });
+
+  it('erro do stream rejeita e RESTAURA o terminal (cenário de erro)', async () => {
+    const tty = new FakeTty();
+    const promise = readHidden('p: ', { stdin: tty as never, write: () => {} });
+    tty.emit('error', new Error('stream quebrou'));
+    await expect(promise).rejects.toThrow('stream quebrou');
+    expect(tty.rawModes).toEqual([true, false]);
+    expect(tty.paused).toBe(true);
+  });
+
+  it('EOF antes do Enter cancela e restaura', async () => {
+    const tty = new FakeTty();
+    const promise = readHidden('p: ', { stdin: tty as never, write: () => {} });
+    tty.emit('end');
+    await expect(promise).rejects.toMatchObject({ cancelled: true, exitCode: 1 });
+    expect(tty.rawModes).toEqual([true, false]);
+  });
+});
+
+describe('setup — cliListShowsName (verificação por nomes)', () => {
+  it('reconhece nomes na tabela da CLI com limites corretos', () => {
+    const table = '|NAME|DIGEST|\n|-|-|\n|`WYVI_API_KEY`|`abc`|\n|`WYVI_WEBHOOK_SECRET`|`def`|\n';
+    expect(cliListShowsName(table, 'WYVI_API_KEY')).toBe(true);
+    expect(cliListShowsName(table, 'WYVI_WEBHOOK_SECRET')).toBe(true);
+    expect(cliListShowsName(table, 'WYVI_ENVIRONMENT')).toBe(false);
+  });
+
+  it('não confunde nome contido em outro (limite não-ident)', () => {
+    expect(cliListShowsName('WYVI_API_KEY_EXTRA=1', 'WYVI_API_KEY')).toBe(false);
+    expect(cliListShowsName('WYVI_API_KEY', 'WYVI_API_KEY')).toBe(true);
   });
 });
