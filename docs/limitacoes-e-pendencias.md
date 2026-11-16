@@ -65,6 +65,50 @@
    UUIDs. O procedimento está em `docs/painel-admin.md`; falta criar os dois
    usuários no Supabase Auth e inserir os UUIDs em `admin_users`.
 
+## Infraestrutura gerenciada: limitação de `REVOKE` no Postgres (missao 3)
+
+A sessao usada pelo conector conecta como `postgres` (nao superuser, sem
+membership em `supabase_admin`). Nesse modelo:
+
+- `GRANT`/`REVOKE` em objetos **propriedade de `postgres`** funcionam (provado
+  com tabela e funcao de teste).
+- `REVOKE` em objetos/grants de **`supabase_admin`** (schemas de extensao,
+  fila `net.http_request_queue`, funcoes `net.http_post`/`net.http_get`,
+  `graphql_public`) retorna **sucesso sem alterar a ACL** (no-op silencioso);
+  `SET ROLE supabase_admin` e `GRANT supabase_admin TO postgres` sao recusados
+  (42501 "reserved").
+- Resultado do saneamento por revokes (migracao `0044`): `cron` e `vault` ficaram
+  **inalcanhaveis para `anon`** (sem `USAGE` no schema); o schema **`net` mantem
+  `USAGE` para `anon`** (concedido pelo event trigger
+  `extensions.grant_pg_net_access()`) e a fila mantem `PUBLIC/`arwdDxtm` —
+  **nao e possivel revogar da sessao disponivel**.
+- Mitigacoes que limitam o impacto: `anon`/`authenticated` sao **NOLOGIN**, a
+  fila e as funcoes `net.*` ficam **fora do PostgREST**, os headers do Vault
+  existem na fila apenas entre o agendamento e o envio do `pg_net`, e nenhum
+  segredo e gravado em texto publico/tabelas de cliente/logs.
+- Conclusao operacional: **nao prometer revoke total de `net`**; quem tiver
+  acesso de dono no projeto (service role `supabase_admin` via dashboard ou
+  token com escopo adequado) pode revisar `GRANT USAGE ON SCHEMA net` fora
+  desta sessao. Enquanto isso, `net` e tratado como limitacao conhecida.
+
+## URL publica de producao (correcao da fase 04)
+
+O projeto Vercel `prime-store` (`prj_pVhaf3jVffFX24OK5GjAZNZz4vvC`, team
+`gabielrtxofc-9229s-projects`) esta ligado a este repositorio com
+`productionBranch: main`. O endereco publico correto da loja em producao e:
+
+- **`https://prime-store-gilt.vercel.app`** (alias de production; os demais:
+  `prime-store-gabielrtxofc-9229s-projects.vercel.app` e
+  `prime-store-git-main-gabielrtxofc-9229s-projects.vercel.app`).
+
+`https://prime-store.vercel.app` **nao e deste projeto** (subdominio
+`*.vercel.app` e globalmente unico e pertence a outra conta — la serve um
+template em ingles, sem codigo deste repositorio). Verificacao pos-merge do
+PR 7: deploy `dpl_hW9QUY1PDt3SzHThb39KXcnbSznu` (commit `b978715`)
+**READY/PROMOTED**, build `npm run build` → `dist`, 4 env vars `VITE_*`
+corretas (nenhuma `VITE_*` administrativa), pagina principal renderizando em
+portugues com o catalogo consultando o backend.
+
 ## Pendências funcionais (decisões ou trabalho futuro)
 
 | Item | Situação |
