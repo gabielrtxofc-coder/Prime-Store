@@ -1,5 +1,40 @@
 # Testes
 
+## Missão 3 — preparação operacional (estado atual)
+
+- `tests/db/26_wyvi_worker_handler.test.ts` (**6**) — handler do worker
+  extraído para `_shared/handlers/wyviWorker.ts`: sem cabeçalho/anon/garbage
+  → 401 sem ler a fila; `service_role` + fila vazia → 200 `claimed:0`; sem
+  `WYVI_API_KEY` → 503 `payment_not_configured` com a fila intacta; evento
+  pendente → claim → consulta à API (fonte da verdade) → `pending` aplicado →
+  `processed`; repetição nunca reivindica evento processado; falha temporária
+  (503 do provedor) → `retry` com backoff (`attempts` do claim,
+  `available_at` futuro, `locked_until` liberado) e recuperação posterior
+  processa o MESMO evento (fila não se perde).
+- `tests/db/25_saneamento_catalogo.test.ts` (**4**) — arquivamento dos
+  produtos demo (`is_active=false` + `archived_at=now()`, sem DELETE,
+  `is_demo` preservado), histórico de pedidos intacto, `public_catalog`
+  exclui o arquivado, compra de arquivado/inativo recusada
+  (`product_unavailable` — o mapeamento em `http.ts` foi corrigido de 500 →
+  404 nesta missão), catálogo vazio → lista vazia e novo produto aparece.
+- `tests/unit/workerAuth.test.ts` (**6**) — `isServiceRole`: só claim
+  `role=service_role` aceito; anon/authenticated/garbage/sem cabeçalho →
+  falso.
+- `tests/unit/wyvipay-setup.test.ts` (**21**) — regras puras do
+  `wyvi:setup` (validação/mascaramento da chave, URL/projeto, dedupe,
+  probe `cobranca:criar`,3 secrets) + instaladores oficiais (Management API
+  `POST …/secrets` com lista `[{name,value}]` + verificação por GET de
+  nomes; CLI `secrets set`; 401/403/nomes-ausentes/sem-instalador → falha
+  explícita; `whsec_` local).
+- `tests/unit/wyvipay-setup-e2e.test.ts` (**8**) — E2E em SUBPROCESSO com
+  API WyviPay + Management API falsas: fluxo completo sem vazar segredos,
+  reexecução sem duplicar destino, `--recreate`, chave inválida, escopo
+  ausente, falha remota + recuperação, sem `whsec_` → instrução.
+
+Estado atual (Missão 3): `npm run typecheck` limpo · `npm test` **151/151**
+(21 arquivos) · `npm run test:db` **405/405** (33 arquivos, PostgreSQL 18
+real local) · `npm run build` OK · `npm run bundle:functions` **10 bundles**.
+
 ## Missão 06 (revisão independente)
 
 - `tests/db/10_auditoria_missao06.test.ts` (**9**) — catálogo expira reserva

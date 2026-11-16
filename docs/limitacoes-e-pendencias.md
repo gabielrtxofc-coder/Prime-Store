@@ -1,5 +1,17 @@
 # Limitações conhecidas e pendências
 
+> **Atualização da missão 3 (preparação operacional):** o agendamento
+> automático do `wyvi-worker` existe (pg_cron + pg_net + Vault, migração
+> `0044`), o `npm run wyvi:setup` valida a chave, cadastra o destino e
+> **instala/verifica os três secrets `WYVI_*` no Supabase remoto** via
+> mecanismos oficiais (Management API ou CLI), os **2 produtos demo foram
+> arquivados** (catálogo vazio, IDs/pedidos/entregas preservados) e o
+> **projeto `prime-store-sandbox` é o backend da produção** — decisão
+> documentada: `VITE_SUPABASE_URL` da Vercel aponta para ele; não há
+> segundo projeto. Restam só duas pendências humanas: a **chave WyviPay do
+> responsável** e o **cadastro dos produtos reais** (detalhes em
+> [`wyvipay.md`](./wyvipay.md) §7).
+>
 > Atualização da missão 05: as duas pendências de segurança da revisão anterior
 > foram fechadas (**view pública do catálogo** e **CORS com `*`**), o `npm run
 > test:db` passou a rodar localmente com PostgreSQL embutido e o modo
@@ -39,10 +51,11 @@
    Sem as três travas (segredo, lista de refs, `app_settings`) a função
    `demo-payment` responde `404`.
 3. **Sem credenciais de pagamento no sandbox.** O fluxo ATIVO é a **WyviPay
-   API v2**: falta configurar `WYVI_API_KEY` (chave de teste criada pelo
-   responsável, não fornecida a esta sessão — só pode entrar por
-   `supabase secrets set`) e `WYVI_WEBHOOK_SECRET` (exibido uma única vez na
-   criação do destino de webhook). Sem elas o checkout responde
+   API v2**: a instalação dos secrets é **automática e remota**
+   (`npm run wyvi:setup` grava `WYVI_API_KEY`, `WYVI_WEBHOOK_SECRET` e
+   `WYVI_ENVIRONMENT` no projeto e verifica a leitura) — falta apenas a
+   **chave em si**, que só o responsável possui (entrada oculta no script;
+   nunca por argv/chat/repo). Sem a chave o checkout responde
    `503 payment_not_configured` (ou registra a solicitação sem pagamento) —
    comportamento intencional e testado. O Mercado Pago (`MP_*`) é caminho
    legado **explícito**: exige `MERCADO_PAGO_LEGACY_ENABLED=true` — sem a
@@ -72,6 +85,10 @@
 | Rate limiting / CAPTCHA no checkout | Recomendado se houver abuso; hoje há validação de payload e estoque |
 | Notificação de reembolso pendente para o administrador | Hoje aparece no painel (indicadores + lista), sem e-mail |
 | `pg_cron` para expirar reservas | Não necessário: toda criação de pedido e toda consulta de status expiram reservas vencidas |
+| Agendamento automático do `wyvi-worker` | **Feito** (missão 3): job `prime-store-wyvi-worker` no pg_cron (`* * * * *`, migração `0044`) com JWT do Vault; auth em duas camadas (`verify_jwt` + `service_role` no handler) |
+| Produtos demo no catálogo | **Feito** (missão 3): os 2 demo arquivados (`is_active=false`, `archived_at`, `is_demo` preservado); catálogo vazio; IDs, pedidos e entregas intactos |
+| Backend definitivo da produção | **Feito** (missão 3): `prime-store-sandbox` É o backend da produção (`VITE_SUPABASE_URL` da Vercel); nenhum projeto novo criado/renomeado |
+| Secrets `WYVI_*` instaláveis sem manual | **Feito** (missão 3): `npm run wyvi:setup` instala via Management API (`POST /v1/projects/{ref}/secrets`) ou Supabase CLI e verifica os nomes no remoto |
 
 ## Limitações de produto (V1, intencionais)
 
@@ -92,5 +109,7 @@
   rate limiting fica como próximo endurecimento.
 - **Custo de instância do Supabase**: o projeto sandbox é gratuito e pode
   pausar por inatividade; reativar antes de testar o checkout.
-- **Divergência entre sandbox e produção**: nenhuma migração é aplicada em
-  produção; não há projeto de produção configurado.
+- **Divergência entre sandbox e produção**: **resolvido por decisão** — o
+  projeto `prime-store-sandbox` (`eorlmqolbknrplvdbbtl`) é o backend da
+  produção (mesmo `VITE_SUPABASE_URL` no Vercel); não existe segundo
+  projeto e nada é aplicado em outro lugar.

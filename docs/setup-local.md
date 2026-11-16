@@ -95,8 +95,10 @@ MP_WEBHOOK_SECRET=...
 MP_NOTIFICATION_URL=https://<REF>.supabase.co/functions/v1/mp-webhook
 ```
 
-O cadastro do destino de webhook na WyviPay (URL exata dos eventos + onde
-guardar o `whsec_...`) está em [`wyvipay.md`](./wyvipay.md) §3.
+O cadastro do destino de webhook na WyviPay — e a **instalação remota dos
+três segredos `WYVI_*`** (Management API ou CLI, com verificação por nomes)
+— é feito de uma vez por `npm run wyvi:setup` (chave via stdin oculta ou
+`WYVI_API_KEY`; detalhes em [`wyvipay.md`](./wyvipay.md) §3).
 
 ### CORS: `ALLOWED_ORIGINS` é obrigatório
 

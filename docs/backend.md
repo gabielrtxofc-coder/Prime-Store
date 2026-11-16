@@ -102,7 +102,7 @@ revalidam a autorização internamente.
 | `order-status` | `POST` | `{ order_id, client_token }` | `{ order_id, reference, status, payment_status, delivery_status, payment, delivery{ url } }`; processa a FILA de eventos do pedido, RECUPERA cobrança incerta (replay idempotente) e reconcilia com a API (throttle GLOBAL 15 s por pedido via `provider_api_gates`) |
 | `delivery` | `GET ?token=` ou `POST { token }` | | `{ reference, product{ instructions, access_validity_label }, units[{ email, password, notes }] }` |
 | `wyvi-webhook` | `POST` | Entrega assinada (`X-Wyvi-Assinatura/Carimbo/Entrega/Evento`) | `200 { received, queued, delivery_id }` — registra na FILA e responde <1 s (sem consultar a API); `401` assinatura inválida; `503` sem `WYVI_WEBHOOK_SECRET` (fail-closed) ou sem chave (evento fica na fila) |
-| `wyvi-worker` | `POST` | vazio | Processa a fila de eventos (reconsulta + aplicação) fora da requisição; exige JWT `service_role` (401 caso contrário); `503 payment_not_configured` sem chave |
+| `wyvi-worker` | `POST` | vazio | Processa a fila de eventos (reconsulta + aplicação) fora da requisição; **duas camadas de auth** (`verify_jwt=true` + claim `service_role` no handler — 401 caso contrário); `503 payment_not_configured` sem chave. **Agendado pelo pg_cron**: job `prime-store-wyvi-worker` a cada minuto com Bearer JWT lido do Vault (migração `0044`) — independente do navegador |
 | `mp-webhook` | `POST` | Notificação do Mercado Pago | `{ received: true }`, `401` em assinatura inválida, `500` para forçar reentrega |
 | `admin-api` | `POST` + `Authorization: Bearer <JWT>` | `{ action, payload }` | Resultado da ação |
 | `demo-payment` | `GET` | — | `{ demo_enabled, mode }` (capacidade do servidor) |
