@@ -69,29 +69,51 @@ preenchido, no código, no frontend, em commit ou em log.
 
 ## 3. Cadastro do webhook na WyviPay (AUTOMÁTICO)
 
-Script oficial (idempotente, sem segredos em tela/log/argv):
+Script oficial — **configuração completa de ponta a ponta** (idempotente,
+sem segredos em tela/log/argv):
 
 ```bash
-WYVI_API_KEY=wy_test_... npm run wyvi:setup            # cria o destino
-WYVI_API_KEY=wy_test_... npm run wyvi:setup -- --recreate  # troca o destino
+npm run wyvi:setup                  # pede a chave oculta e faz TUDO
+npm run wyvi:setup -- --recreate    # troca o destino (novo whsec_)
 ```
 
 O script (`scripts/wyvipay-setup.mjs`):
 
-1. lê a chave **só** por variável de ambiente (ou stdin oculto) — nunca por
-   argv, arquivo versionado ou log; chave aparece mascarada;
-2. prova os escopos com requisições seguras: `GET /webhooks`
-   (`webhook:ler`), `GET /cobrancas/<txid-inexistente>` → 404
-   (`cobranca:ler`); a criação em si prova `webhook:criar` (403
-   `sem_escopo` é reportado com instrução);
-3. lista os destinos e **não duplica** por URL;
-4. cria com `cobranca.paga|expirada|cancelada|estornada` (até 5 destinos
-   por chave);
-5. grava o `whsec_...` (aparece **uma única vez** na resposta) em
-   `.env.functions` com permissão 600 — nunca exibido;
-6. se a resposta com o segredo se perder, **não há como recuperá-lo**
-   (a API não o devolve): `--recreate` exclui o destino da mesma URL e
-   cria outro, capturando o novo `whsec_`.
+1. lê a chave **só** por variável de ambiente `WYVI_API_KEY` (ou stdin
+   oculto) — nunca por argv, arquivo versionado ou log; chave aparece
+   mascarada (`wy_test_••••`); valida o formato `wy_test_|wy_live_` + 42
+   e identifica o ambiente;
+2. prova autenticidade e TODOS os escopos com requisições seguras:
+   `GET /webhooks` (`webhook:ler`; 401 = chave recusada),
+   `GET /cobrancas/<txid-inexistente>` → 404 (`cobranca:ler`) e
+   `POST /cobrancas` com corpo **sempre inválido** (`cobranca:criar`:
+   403 `sem_escopo` falha; 400/422 prova o escopo sem criar nada; um
+   201 inesperado é cancelado na hora);
+3. identifica a URL definitiva (`WYVI_WEBHOOK_URL` ou
+   `SUPABASE_URL/functions/v1/wyvi-webhook`) e **não duplica** destino
+   por URL;
+4. cria com `cobranca.paga|expirada|cancelada|estornada` (até 5
+   destinos por chave) e captura o `whsec_...` (aparece **uma única
+   vez** na resposta) em `.env.functions` com permissão 600 — nunca
+   exibido;
+5. **INSTALA NO SUPABASE REMOTO** os três segredos — `WYVI_API_KEY`,
+   `WYVI_WEBHOOK_SECRET` e `WYVI_ENVIRONMENT` (test|production, derivado
+   da chave) — pelos mecanismos oficiais documentados:
+   - `SUPABASE_ACCESS_TOKEN` presente → Management API
+     `POST https://api.supabase.com/v1/projects/{ref}/secrets` (lista
+     `[{name,value}]`, escopo `secrets:write`);
+   - senão, se a Supabase CLI estiver autenticada →
+     `supabase secrets set … --project-ref <ref>`;
+   - nenhum dos dois → saída 1 com o passo exato (nada de sucesso
+     parcial disfarçado);
+6. **VERIFICA** a instalação relendo a lista de nomes no remoto (GET) —
+   os três precisam estar presentes antes de declarar sucesso;
+7. recuperação segura: destino já existe + `whsec_` no arquivo →
+   reexecutar só refaz a instalação remota (idempotente); destino
+   existe mas o `whsec_` se perdeu → saída 1 instruindo `--recreate`;
+   webhook criado e instalação remota falhou → saída 1 e a
+   reexecução conclui (o `whsec_` já está salvo). **Nenhuma cobrança
+   é criada em nenhuma etapa.**
 
 Manual (fallback, mesma receita do painel):
 
@@ -161,29 +183,30 @@ Em resumo:
 
 ## 7. Pendências manuais (sem segredos no texto)
 
-- [ ] **Chave de teste** (criada pelo responsável): colocar em
-      `WYVI_API_KEY` via `supabase secrets set` — nunca aqui no chat/repo.
-- [ ] **Cadastrar o destino de webhook:** `WYVI_API_KEY=… npm run wyvi:setup`
-      (seção 3) — o `whsec_` vai para `.env.functions` (600); depois
-      `supabase secrets set --env-file .env.functions`.
-- [ ] **Deploy:** `npm run bundle:functions` + `supabase functions deploy`
-      (`wyvi-webhook` e `wyvi-worker` são as novas) e deploy do frontend
-      (Vercel/estático).
-- [ ] **Secrets de produção:** `PRIME_ENCRYPTION_KEY`, `STORE_URL`,
-      `ALLOWED_ORIGINS` + os WYVI_* (ver `.env.functions.example`).
-- [ ] **Limite de teste:** o ambiente de teste aceita no máximo 50 cobranças;
-      troque para a chave `wy_live_` quando sair do sandbox (mesma URL).
-- [ ] **Rodar verificações:** `npm test`, `npm run test:db`, `npm run typecheck`,
-      `npm run build`, `npm run smoke:functions` (após o deploy).
+Tudo o que é técnico já está implementado, testado e publicado. Resta só
+o que exige o responsável:
+
+- [ ] **Chave WyviPay do responsável:** `npm run wyvi:setup` e colar a
+      chave quando solicitado (entrada oculta). O script valida, cadastra
+      o destino, grava o `whsec_` (600) e **instala os três secrets no
+      Supabase remoto** — nenhum passo manual de secrets.
+- [ ] **Produtos reais:** cadastrar no painel administrativo (os 2 demo
+      estão arquivados; o catálogo está vazio e pronto).
+- [ ] **Limite de teste:** a chave `wy_test_` aceita no máximo 50
+      cobranças; para produção use `wy_live_` (mesma URL de webhook) com
+      `npm run wyvi:setup` de novo (troca de ambiente + reinstalação).
+- [ ] **Pós-chave:** `npm run smoke:functions` e um pagamento de teste
+      real confirmando a confirmação automática (fila + cron).
 
 ## 8. Verificações automatizadas
 
 | Comando | Cobre |
 |---|---|
 | `npm test` | Frontend: checkout → rota `/pagamento`, fallback de solicitação, recuperação 202, QR do copia-e-cola, "Gerando seu PIX" |
-| `npm run test:db` | Cliente HTTP WyviPay (idempotência, classificação de falhas, assinatura — `tests/unit/wyvipay.test.ts`) + fluxo completo no banco (`tests/db/24_wyvipay_fluxo.test.ts`: fila, recuperação, corrida, gate de MP legado) + regressão de todas as suítes |
+| `npm run test:db` | Cliente HTTP WyviPay (idempotência, classificação de falhas, assinatura — `tests/unit/wyvipay.test.ts`) + fluxo completo no banco (`tests/db/24_wyvipay_fluxo.test.ts`: fila, recuperação, corrida, gate de MP legado) + handler do worker (`tests/db/26_wyvi_worker_handler.test.ts`: auth 401/200, 503 sem chave, claim, backoff, recuperação) + saneamento do catálogo (`tests/db/25_saneamento_catalogo.test.ts`) + regressão de todas as suítes |
 | `npm run smoke:functions` | Pós-deploy: recusas seguras das 10 funções, inclusive `wyvi-webhook` (401/503) e `wyvi-worker` (401 sem service_role) |
-| `npm run wyvi:setup` | Cadastro idempotente do destino de webhook + prova de escopos (seção 3) |
+| `npm run wyvi:setup` | Configuração completa: prova de escopos (inclui `cobranca:criar`), destino idempotente, `whsec_` em arquivo 600, **instalação remota + verificação dos 3 secrets** (seção 3). Coberto por unit (`tests/unit/wyvipay-setup.test.ts`) e E2E em subprocesso (`tests/unit/wyvipay-setup-e2e.test.ts`) |
+| `vitest tests/unit/workerAuth.test.ts` | Camada de auth do handler do worker: só `role=service_role` (anon/garbage/sem cabeçalho → 401) |
 
 ## 9. Tabela v1 × v2 (o que mudou na API)
 
@@ -223,6 +246,23 @@ WyviPay ──POST──▶ wyvi-webhook ──registra──▶ payment_events 
   15s·2ⁿ (máx ~8h, 10ª tentativa → `failed` visível na fila). O poll de
   `order-status` processa a fila do pedido consultado — recuperação mesmo
   sem worker vivo.
+- **Agendamento persistente (migração `0044`):** o job
+  `prime-store-wyvi-worker` no pg_cron dispara `* * * * *` chamando
+  `https://<REF>.supabase.co/functions/v1/wyvi-worker` com
+  `Authorization: Bearer <jwt lido do Vault em runtime>` (segredo
+  `wyvi_worker_jwt`, criado pela migração com o service_role atual).
+  Autenticação em DUAS camadas — nada desligado: `verify_jwt = true` na
+  plataforma (plano oficial de agendamento exige o Bearer) + validação do
+  claim `role=service_role` dentro do handler. O modo `auth:'secret'`
+  (chave `sb_secret_…` no header `apikey`) foi avaliado conforme a
+  documentação e **descartado**: o valor das chaves `sb_secret_` é
+  mascarado em toda a API de gestão (impossível provisionar sem ação
+  manual) e a chave não é um JWT. A migração também revoga de
+  `public, anon, authenticated` tudo em `net`, `cron` e `vault` (pg_net
+  grava cabeçalhos em fila legível — ninguém com login pode ler), e o
+  job só existe se pg_cron+pg_net+vault estiverem disponíveis (CI/local
+  não quebram). Prova: `cron.job_run_details` com o job do worker +
+  evento de teste reivindicado (backoff) no teste controlado remoto.
 - **Cobrança incerta (create-order):** falha sem evidência de recusa →
   `mark_payment_attempt` (linha `wyvipay` aberta **sem txid** + evento
   `payment_creation_uncertain`) e `202 payment_mode:"recovery"`. O replay

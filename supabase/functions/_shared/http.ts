@@ -108,7 +108,13 @@ export function errorResponse(error: unknown): Response {
       { status: 500 },
     );
   }
-  if (message.includes('product_unavailable') || message.includes('product_not_found')) {
+  if (
+    message.includes('product_unavailable') ||
+    message.includes('product_not_found') ||
+    message.includes('product_archived')
+  ) {
+    // Arquivado (produto demo saneado) e inativo têm o MESMO tratamento de
+    // catálogo: 404 estável — nunca 500 e nunca comprável.
     return json({ error: 'product_unavailable', message: 'Produto indisponível.' }, { status: 404 });
   }
   if (message.includes('order_not_found') || message.includes('delivery_not_found')) {

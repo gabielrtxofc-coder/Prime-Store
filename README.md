@@ -1,8 +1,9 @@
 # Prime Store
 
 Loja digital responsiva (React + TypeScript + Vite) com backend em Supabase:
-catálogo público, checkout PIX via Mercado Pago (Checkout Transparente),
-reserva de estoque, entrega privada de credenciais e painel administrativo.
+catálogo público, checkout PIX via **WyviPay API v2** (Mercado Pago legado,
+explícito por flag), reserva de estoque, entrega privada de credenciais e
+painel administrativo.
 
 O frontend é estático e hospedado fora do Supabase; o Supabase fornece
 PostgreSQL, Auth e Edge Functions. Nenhum segredo privilegiado entra no bundle.
@@ -33,9 +34,9 @@ npm run build && npm run preview     # produção
 ## Verificações
 
 ```bash
-npm test             # 57 testes de frontend (jsdom)
-npm run test:db      # 70 testes de banco/back-end + unitários
-npm run test:all     # tudo (127)
+npm test             # 151 testes de frontend (jsdom)
+npm run test:db      # 405 testes de banco/back-end + unitários
+npm run test:all     # tudo (556)
 npm run typecheck
 npm run build
 ```

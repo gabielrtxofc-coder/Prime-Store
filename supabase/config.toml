@@ -49,6 +49,14 @@ verify_jwt = false
 [functions.wyvi-webhook]
 verify_jwt = false
 
+# wyvi-worker: processamento privilegiado da fila de eventos. verify_jwt
+# permanece LIGADO (plataforma valida o JWT) e o handler exige o claim
+# role=service_role — o job pg_cron (migração 0044) envia o JWT service_role
+# lido do Vault. O modo auth:'secret' (sb_secret em apikey) foi avaliado e
+# descartado: o valor das chaves sb_secret é mascarado na API de gestão.
+[functions.wyvi-worker]
+verify_jwt = true
+
 [functions.admin-api]
 verify_jwt = true
 
@@ -69,4 +77,5 @@ verify_jwt = false
 # (allowlist + AAL2). mp-webhook não recebe JWT do Mercado Pago: a
 # autenticidade é validada pela assinatura x-signature no próprio handler.
 # Estado conferido com o remoto na Missão 13: só admin-api tem verify_jwt=true
-# (as 8 funções publicadas na Missão 12).
+# (as 8 funções publicadas na Missão 12); wyvi-worker (criada na Missão 14)
+# também roda com verify_jwt=true — ver bloco acima.
