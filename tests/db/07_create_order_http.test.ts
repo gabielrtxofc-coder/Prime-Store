@@ -31,6 +31,7 @@ describe('create-order (HTTP) — idempotência sem sequestro de pedido', () => 
         serviceRoleKey: 'service-role-key',
         anonKey: 'anon-key',
         mercadoPagoAccessToken: 'TEST-access-token',
+        mercadoPagoLegacyEnabled: true,
         mercadoPagoWebhookSecret: 'webhook-secret',
         mercadoPagoApiBase: 'https://api.mercadopago.test',
         encryptionKey: 'fake-encryption-key-for-tests-only-32b',

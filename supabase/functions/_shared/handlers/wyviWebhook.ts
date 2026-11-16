@@ -1,13 +1,8 @@
-import { encryptText, loadSecretMaterial, randomToken, sha256Hex, toBase64 } from '../crypto.ts';
+import { sha256Hex } from '../crypto.ts';
 import { isWyviProduction } from '../config.ts';
 import type { Deps } from '../deps.ts';
 import { errorResponse, json, methodGuard, preflight } from '../http.ts';
-import {
-  getCharge,
-  mapChargeSituacao,
-  verifyWebhookSignature,
-  WyviPayError,
-} from '../wyvipay.ts';
+import { verifyWebhookSignature } from '../wyvipay.ts';
 import { isUuid } from '../validation.ts';
 
 /**
@@ -19,16 +14,19 @@ import { isUuid } from '../validation.ts';
  *      Assinatura ausente/errada/velha → 401 e ZERO linhas em `payment_events`.
  *   2. Deduplicação por `X-Wyvi-Entrega` (id da entrega): a mesma entrega
  *      processada duas vezes não repete efeitos (índice único por provedor).
- *   3. A notificação NUNCA é fonte de verdade: o estado só muda depois de
- *      RECONSULTAR `GET /cobrancas/{txid}` na API e casar o valor com o pedido.
+ *   3. A notificação NUNCA é fonte de verdade: este handler apenas REGISTRA
+ *      a entrega em `payment_events` (fila persistente) e responde 2xx em
+ *      poucos milissegundos. Quem RECONSULTA `GET /cobrancas/{txid}` e aplica
+ *      é o processador fora da requisição (`wyvi-worker` / `order-status`).
  *   4. Evento de teste (`dados.teste = true`) em ambiente de produção é
  *      recusado — simulação jamais confirma pedido real.
- *   5. Só `apply_payment_status` (banco) altera pedido/estoque/entrega; este
- *      handler apenas traduz a situação consultada para o vocabulário dele.
+ *   5. Só `apply_payment_status` (banco) altera pedido/estoque/entrega, e
+ *      apenas depois da reconsulta — o corpo do evento nunca vira fato.
  *
- * Resposta rápida (2xx) antes do trabalho pesado? Aqui o processamento é
- * curto (uma consulta + uma RPC) e a idempotência protege retentativas — a
- * fila de retentativas do provedor reentra sem duplicar efeito.
+ * Por que responder antes de processar: a WyviPay espera 2xx em até 10 s e
+ * reentrega em 1ª/30s/2min/10min/1h (5 tentativas). A dedup por
+ * `X-Wyvi-Entrega` (índice único) faz qualquer reentrega virar 200 sem
+ * efeito repetido; o trabalho pesado roda na fila com backoff próprio.
  */
 
 interface WebhookEnvelope {
@@ -51,17 +49,6 @@ const CHARGE_EVENTS = new Set([
   'cobranca.cancelada',
   'cobranca.estornada',
 ]);
-
-async function newDeliveryToken(deps: Deps): Promise<{ hash: string; enc: string } | null> {
-  const masterKey = await deps.resolveEncryptionKey();
-  if (!masterKey) return null;
-  const material = await loadSecretMaterial(masterKey);
-  const token = randomToken(32);
-  const encrypted = await encryptText(material.encryptionKey, token);
-  let binary = '';
-  for (const byte of encrypted) binary += String.fromCharCode(byte);
-  return { hash: await sha256Hex(token), enc: btoa(binary) };
-}
 
 export async function handleWyviWebhook(request: Request, deps: Deps): Promise<Response> {
   if (request.method === 'OPTIONS') return preflight();
@@ -128,6 +115,16 @@ export async function handleWyviWebhook(request: Request, deps: Deps): Promise<R
     const txid = typeof dados.txid === 'string' ? dados.txid : null;
     const payloadHash = await sha256Hex(rawBody || deliveryId);
 
+    // Subconjunto APROVADO do corpo (nunca pagador/PII): o processador da
+    // fila usa `txid`/`referencia` para casar sem regravar o payload cru.
+    const referenceRaw = typeof dados.referencia === 'string' ? dados.referencia.trim() : '';
+    const providerData: Record<string, unknown> = {};
+    if (txid) providerData.txid = txid;
+    if (referenceRaw) providerData.referencia = referenceRaw.slice(0, 120);
+    if (typeof dados.teste === 'boolean') providerData.teste = dados.teste;
+    if (typeof dados.ambiente === 'string') providerData.ambiente = dados.ambiente.slice(0, 32);
+    if (typeof dados.valor_centavos === 'number') providerData.valor_centavos = dados.valor_centavos;
+
     const recorded = await deps.rpc<RecordedEvent>('record_payment_event', {
       p_notification_id: deliveryId,
       p_event_type: evento,
@@ -136,16 +133,19 @@ export async function handleWyviWebhook(request: Request, deps: Deps): Promise<R
       p_signature_valid: true,
       p_payload_hash: payloadHash,
       p_provider: 'wyvipay',
+      p_provider_data: providerData,
+      p_reference: isUuid(referenceRaw) ? referenceRaw : null,
     });
 
-    if (recorded.duplicate && (recorded.status === 'processed' || recorded.status === 'ignored')) {
-      return json({ received: true, duplicate: true });
+    if (recorded.duplicate) {
+      // Mesma entrega (retentativa do provedor): terminal → 200 sem novo
+      // efeito; ainda na fila → já registrada, não duplica o enfileiramento.
+      return json({ received: true, duplicate: true, status: recorded.status });
     }
 
     // Eventos fora da família de cobrança (ex.: `webhook.teste`,
     // `chave.rotacionada`) ou sem txid: respondemos 200 para não gerar
-    // retentativa, sem efeito nenhum no pedido. O UUID do pedido NÃO vem do
-    // corpo — vem da reconsulta (`charge.referencia`), que é a fonte de verdade.
+    // retentativa, sem efeito nenhum no pedido.
     if (!CHARGE_EVENTS.has(evento) || !txid) {
       await deps.rpc('finish_payment_event', {
         p_event_id: recorded.event_id,
@@ -170,108 +170,16 @@ export async function handleWyviWebhook(request: Request, deps: Deps): Promise<R
     }
 
     if (!deps.config.wyviApiKey) {
-      await deps.rpc('finish_payment_event', {
-        p_event_id: recorded.event_id,
-        p_status: 'failed',
-        p_error: 'payment_not_configured',
-      });
+      // Sem chave não há como reconsultar — mas o evento NÃO é marcado
+      // `failed` (não há evidência contra ele): fica na fila (`received`) e
+      // 503 faz o provedor reentregar; quando a chave existir, processa.
+      deps.log('wyvi_webhook.pending_not_configured', { delivery_id: deliveryId });
       return json({ error: 'payment_not_configured' }, { status: 503 });
     }
 
-    // ------------------------------------------------------------------
-    // FONTE DE VERDADE: reconsulta a cobrança. O corpo do evento é apenas
-    // o aviso de que vale a pena consultar — valores e situação vêm da API.
-    // ------------------------------------------------------------------
-    try {
-      const charge = await getCharge(
-        { apiKey: deps.config.wyviApiKey, baseUrl: deps.config.wyviApiBase, fetchImpl: deps.fetchImpl },
-        txid,
-      );
-
-      const orderId = charge.referencia;
-      if (!orderId || !isUuid(orderId)) {
-        await deps.rpc('finish_payment_event', {
-          p_event_id: recorded.event_id,
-          p_status: 'ignored',
-          p_error: 'referencia_ausente',
-        });
-        return json({ received: true, ignored: true });
-      }
-
-      const mapped = mapChargeSituacao(charge.situacao);
-
-      let token: { hash: string; enc: string } | null = null;
-      if (mapped.providerStatus === 'approved') {
-        token = await newDeliveryToken(deps);
-      }
-
-      const applied = await deps.rpc<{
-        result: string;
-        order_status?: string;
-        requires_admin_review?: boolean;
-      }>('apply_payment_status', {
-        p_order_id: orderId,
-        p_provider_payment_id: charge.txid,
-        p_provider_status: mapped.providerStatus,
-        p_status_detail: mapped.statusDetail,
-        // Valor em centavos, direto da reconsulta: divergência → o banco
-        // bloqueia a entrega (`amount_mismatch`) em vez de liberar.
-        p_amount_cents: charge.valorCentavos,
-        p_delivery_token_hash: token?.hash ?? null,
-        p_delivery_token_enc_b64: token?.enc ?? null,
-      });
-
-      await deps.rpc('finish_payment_event', {
-        p_event_id: recorded.event_id,
-        p_status: 'processed',
-        p_error: null,
-      });
-
-      deps.log('wyvi_webhook.processed', {
-        delivery_id: deliveryId,
-        order_id: orderId,
-        situacao: charge.situacao,
-        result: applied?.result,
-      });
-
-      if (applied?.result === 'ignored_late_approval') {
-        deps.log('wyvi_webhook.late_approval_ignored', {
-          delivery_id: deliveryId,
-          order_id: orderId,
-        });
-      }
-      if (applied?.result === 'amount_mismatch') {
-        deps.log('wyvi_webhook.amount_mismatch', {
-          delivery_id: deliveryId,
-          order_id: orderId,
-          expected_cents: charge.valorCentavos,
-        });
-      }
-      if (applied?.result === 'charged_back' || applied?.requires_admin_review) {
-        deps.log('wyvi_webhook.dispute_flagged', {
-          delivery_id: deliveryId,
-          order_id: orderId,
-          order_status: applied?.order_status,
-        });
-      }
-
-      return json({
-        received: true,
-        result: applied?.result ?? 'processed',
-        requires_admin_review: applied?.requires_admin_review === true,
-      });
-    } catch (error) {
-      await deps.rpc('finish_payment_event', {
-        p_event_id: recorded.event_id,
-        p_status: 'failed',
-        p_error: error instanceof Error ? error.message.slice(0, 300) : 'unexpected_error',
-      });
-      // 5xx faz o provedor reenviar (retentativas até ~1 h); a dedup por
-      // entrega garante que o reenvio não repita efeitos já aplicados.
-      const providerStatus = error instanceof WyviPayError ? error.httpStatus : 0;
-      deps.log('wyvi_webhook.failed', { delivery_id: deliveryId, http_status: providerStatus });
-      return json({ error: 'processing_failed' }, { status: 500 });
-    }
+    // Registrado e na fila: o processamento (reconsulta + aplicação) roda
+    // FORA desta requisição — `wyvi-worker` ou o poll de `order-status`.
+    return json({ received: true, queued: true, delivery_id: deliveryId });
   } catch (error) {
     return errorResponse(error);
   }

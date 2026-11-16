@@ -86,8 +86,8 @@ Resultado: **115 testes de banco** + **57 de frontend**. Detalhe em
 ## Como rodar
 
 ```bash
-npm test            # 148 testes de frontend (jsdom, sem banco)
-npm run test:db     # 350 testes de banco + unitários
+npm test            # 151 testes de frontend (jsdom, sem banco)
+npm run test:db     # 360 testes de banco + unitários
 npm run test:all    # tudo (frontend + banco)
 npm run typecheck && npm run build
 ```

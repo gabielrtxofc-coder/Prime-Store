@@ -13,6 +13,7 @@
     "bundle:functions": "node scripts/bundle-functions.mjs",
     "test:all": "DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:55432/postgres} vitest run --config vitest.db.config.ts && vitest run",
     "smoke:functions": "node scripts/smoke-edge-functions.mjs",
+    "wyvi:setup": "node scripts/wyvipay-setup.mjs",
     "db:local": "node scripts/local-db.mjs start",
     "db:local:stop": "node scripts/local-db.mjs stop",
     "db:local:status": "node scripts/local-db.mjs status"

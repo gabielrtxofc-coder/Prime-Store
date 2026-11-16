@@ -22,6 +22,16 @@ export interface AppConfig {
   mercadoPagoWebhookSecret: string | null;
   mercadoPagoApiBase: string;
   /**
+   * Caminho legado do Mercado Pago só com EXPLICITAÇÃO: `MERCADO_PAGO_LEGACY_ENABLED=true`.
+   *
+   * A Prime Store escolheu a WyviPay como provedora ativa. Com esta chave
+   * ausente (padrão), um `MP_ACCESS_TOKEN` antigo NUNCA volta a criar
+   * cobranças silenciosamente — a loja fica em "configuração pendente"
+   * (503/solicitação) até a `WYVI_API_KEY` existir. Consulta/notificação de
+   * cobranças MP já existentes continua funcionando (não cria nada).
+   */
+  mercadoPagoLegacyEnabled: boolean;
+  /**
    * Chave de API da WyviPay (`wy_test_...` ou `wy_live_...`).
    *
    * SOMENTE por variável de ambiente (`WYVI_API_KEY`): nunca em código, log,
@@ -131,6 +141,9 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
       overrides.mercadoPagoWebhookSecret ?? readEnv('MP_WEBHOOK_SECRET') ?? null,
     mercadoPagoApiBase:
       overrides.mercadoPagoApiBase ?? readEnv('MP_API_BASE_URL') ?? 'https://api.mercadopago.com',
+    mercadoPagoLegacyEnabled:
+      overrides.mercadoPagoLegacyEnabled ??
+      (readEnv('MERCADO_PAGO_LEGACY_ENABLED') ?? '').trim().toLowerCase() === 'true',
     wyviApiKey: overrides.wyviApiKey ?? readEnv('WYVI_API_KEY') ?? null,
     wyviWebhookSecret: overrides.wyviWebhookSecret ?? readEnv('WYVI_WEBHOOK_SECRET') ?? null,
     wyviApiBase: overrides.wyviApiBase ?? readEnv('WYVI_API_BASE') ?? 'https://api.wyvipay.com.br',
@@ -203,6 +216,16 @@ export function requireMercadoPago(config: AppConfig): string {
  */
 export function isWyviPayConfigured(config: AppConfig): boolean {
   return Boolean(config.wyviApiKey);
+}
+
+/**
+ * O caminho legado do Mercado Pago só é acionado com EXPLICITAÇÃO.
+ * Sem `MERCADO_PAGO_LEGACY_ENABLED=true`, `MP_ACCESS_TOKEN` presente não cria
+ * cobrança nenhuma — a loja sinaliza configuração pendente (regra da missão:
+ * nenhum fallback automático para Mercado Pago).
+ */
+export function isMercadoPagoLegacyEnabled(config: AppConfig): boolean {
+  return config.mercadoPagoLegacyEnabled && Boolean(config.mercadoPagoAccessToken);
 }
 
 /** Config mínima para falar com a API v2 da WyviPay. */

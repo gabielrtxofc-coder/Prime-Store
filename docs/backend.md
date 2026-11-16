@@ -40,6 +40,7 @@ vazio. Não há alteração manual de schema.
 > | Arquivo | Conteúdo |
 > | --- | --- |
 > | `…_0042_wyvipay.sql` | CHECKs `provider` com `wyvipay`; `attach_payment`/`record_payment_event` com provedor explícito (grants de `service_role` repostos); `attach_order_buyer` (contato do comprador com prova de posse); `order_summary_multi` com bloco `product` |
+> | `…_0043_wyvipay_fila_recuperacao.sql` | Fila de eventos (`payment_events` + `claim_wyvi_events`/`reschedule_payment_event`, SKIP LOCKED, backoff); `mark_payment_attempt` (tentativa incerta sem txid); `apply_payment_status` com `p_provider` (8ª parâmetro, recriado com grants); gate global `provider_api_gates` + `try_acquire_provider_slot`/`record_provider_rate_limit` |
 
 ## Modelo de dados (resumo)
 
@@ -96,11 +97,12 @@ revalidam a autorização internamente.
 | Função | Método | Corpo | Retorno |
 | --- | --- | --- | --- |
 | `catalog` | `GET` (`?q&category`) ou `POST` | `{ q?, category? }` | `{ products[], generated_at }` |
-| `create-order` | `POST` | `{ items[], payer_email, buyer_name?, idempotency_key?, client_token?, fallback_to_request? }` (ou legado `product_id, quantity`) | `201 { order, client_token, payment{ status, qr_code, qr_code_base64, ticket_url, expires_at } }`; sem provedor: `201 payment_mode:'request'` (fallback) ou `503 payment_not_configured`; provedor fora: `502` com reserva liberada |
+| `create-order` | `POST` | `{ items[], payer_email, buyer_name?, idempotency_key?, client_token?, fallback_to_request? }` (ou legado `product_id, quantity`) | `201 { order, client_token, payment{…} }`; falha **incerta** na WyviPay: `202 payment_mode:'recovery'` (tentativa preservada, sem liberação de reserva); recusa definitiva: `502` com reserva liberada; sem provedor: `201 payment_mode:'request'` ou `503 payment_not_configured` (MP antigo sem `MERCADO_PAGO_LEGACY_ENABLED` também cai aqui) |
 | `order-request` | `POST` | `{ items[], buyer_name, buyer_email, idempotency_key?, client_token? }` | `201 { order, client_token }` — solicitação sem pagamento (sem reserva) |
-| `order-status` | `POST` | `{ order_id, client_token }` | `{ order_id, reference, status, payment_status, delivery_status, payment, delivery{ url } }`; reconcilia a cobrança pendente com a API (WyviPay: throttle de 15 s) |
+| `order-status` | `POST` | `{ order_id, client_token }` | `{ order_id, reference, status, payment_status, delivery_status, payment, delivery{ url } }`; processa a FILA de eventos do pedido, RECUPERA cobrança incerta (replay idempotente) e reconcilia com a API (throttle GLOBAL 15 s por pedido via `provider_api_gates`) |
 | `delivery` | `GET ?token=` ou `POST { token }` | | `{ reference, product{ instructions, access_validity_label }, units[{ email, password, notes }] }` |
-| `wyvi-webhook` | `POST` | Entrega assinada (`X-Wyvi-Assinatura/Carimbo/Entrega/Evento`) | `200 { received, result }`, `401` assinatura inválida, `503` sem `WYVI_WEBHOOK_SECRET` (fail-closed), `500` para o provedor reenviar |
+| `wyvi-webhook` | `POST` | Entrega assinada (`X-Wyvi-Assinatura/Carimbo/Entrega/Evento`) | `200 { received, queued, delivery_id }` — registra na FILA e responde <1 s (sem consultar a API); `401` assinatura inválida; `503` sem `WYVI_WEBHOOK_SECRET` (fail-closed) ou sem chave (evento fica na fila) |
+| `wyvi-worker` | `POST` | vazio | Processa a fila de eventos (reconsulta + aplicação) fora da requisição; exige JWT `service_role` (401 caso contrário); `503 payment_not_configured` sem chave |
 | `mp-webhook` | `POST` | Notificação do Mercado Pago | `{ received: true }`, `401` em assinatura inválida, `500` para forçar reentrega |
 | `admin-api` | `POST` + `Authorization: Bearer <JWT>` | `{ action, payload }` | Resultado da ação |
 | `demo-payment` | `GET` | — | `{ demo_enabled, mode }` (capacidade do servidor) |

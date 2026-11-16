@@ -41,9 +41,16 @@ export interface CreateOrderResult {
    * cobrança e a aprovação pode ser simulada na tela de pagamento.
    * `request` quando NENHUM provedor está configurado e o servidor registrou
    * uma solicitação sem pagamento (o mesmo contrato de `order-request`).
+   * `recovery` (HTTP 202) quando a criação da cobrança teve resultado
+   * INCERTO: o servidor preservou a tentativa (mesma Idempotency-Key,
+   * reserva intacta) e vai recuperar a cobrança no próximo status — o
+   * cliente segue para `/pagamento`, onde o PIX aparece em instantes.
    */
-  payment_mode?: 'demo' | 'request' | null;
+  payment_mode?: 'demo' | 'request' | 'recovery' | null;
   demo_notice?: string;
+  /** Presente quando `payment_mode: 'recovery'`: tentativa preservada. */
+  attempt_preserved?: boolean;
+  recovery?: { status: string; reason?: string };
 }
 
 export interface OrderStatusPayload {

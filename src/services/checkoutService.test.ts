@@ -97,6 +97,28 @@ describe('submitCheckout — estratégia cobrança com fallback', () => {
     expect(createRequestMock).not.toHaveBeenCalled();
   });
 
+  it('devolve kind payment para 202 recovery (resultado incerto preservado)', async () => {
+    // Fase "cobranças incertas": o servidor respondeu 202 com a tentativa
+    // preservada — o cliente vai para /pagamento, onde o PIX é recuperado.
+    createOrderMock.mockResolvedValue({
+      ...paymentResult,
+      payment: null,
+      payment_mode: 'recovery',
+      attempt_preserved: true,
+      recovery: { status: 'in_progress', reason: 'create_uncertain' },
+    });
+
+    const outcome = await submitCheckout(input);
+
+    expect(outcome.kind).toBe('payment');
+    if (outcome.kind === 'payment') {
+      expect(outcome.result.payment_mode).toBe('recovery');
+      expect(outcome.result.attempt_preserved).toBe(true);
+      expect(outcome.result.payment).toBeNull();
+    }
+    expect(createRequestMock).not.toHaveBeenCalled();
+  });
+
   it('devolve kind request quando o servidor registra a solicitação sem pagamento', async () => {
     createOrderMock.mockResolvedValue({
       ...paymentResult,

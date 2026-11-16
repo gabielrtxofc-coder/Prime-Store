@@ -67,6 +67,7 @@ function buildDeps(
       serviceRoleKey: 'service-role-key',
       anonKey: 'anon-key',
       mercadoPagoAccessToken: 'TEST-access-token',
+      mercadoPagoLegacyEnabled: true,
       mercadoPagoWebhookSecret: WEBHOOK_SECRET,
       mercadoPagoApiBase: 'https://api.mercadopago.test',
       encryptionKey: MASTER_KEY,

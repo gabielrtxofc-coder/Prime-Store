@@ -1,0 +1,58 @@
+# CI da Prime Store — roda em todo push/PR.
+# Escopo: typecheck (frontend + Edge Functions), suíte frontend, suíte de
+# banco (PostgreSQL real, migrações aplicadas do zero) e bundle das funções.
+# Nenhum segredo é usado: os testes roram com credenciais fictícias.
+name: CI
+
+on:
+  push:
+    branches: [main, 'arena/**']
+  pull_request:
+    branches: [main, 'arena/**']
+
+jobs:
+  test:
+    name: typecheck + testes + bundle
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 55432:55432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:55432/postgres
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Typecheck (frontend)
+        run: npx tsc -b
+
+      - name: Suíte frontend (jsdom)
+        run: npm test
+
+      - name: Suíte de banco + unitários (PostgreSQL real)
+        run: npm run test:db
+
+      - name: Bundle das Edge Functions
+        run: npm run bundle:functions

@@ -4,7 +4,7 @@
  *
  * POR QUE ESTE ARQUIVO EXISTE
  * ---------------------------
- * Smoke HTTP read-only para as nove Edge Functions implantadas. O script não
+ * Smoke HTTP read-only para as dez Edge Functions implantadas. O script não
  * cria pedidos, não altera estoque, pagamentos, entregas nem dados de clientes.
  * Chamadas sem JWT/credenciais válidas verificam as proteções sem depender de
  * uma conta administrativa real.
@@ -173,6 +173,14 @@ async function main() {
   {
     const { status, text } = await call('wyvi-webhook', { body: { evento: 'cobranca.paga' } });
     record('wyvi-webhook sem cabeçalhos X-Wyvi é recusado', [401, 503], status, text);
+  }
+
+  // 10. wyvi-worker (processador da fila de eventos): exige JWT de
+  // service_role. Sem Authorization o gateway responde 401 antes do handler;
+  // com JWT de anon o handler também recusa (papel conferido no token).
+  {
+    const { status, text } = await call('wyvi-worker', { body: {} });
+    record('wyvi-worker recusa chamada sem service_role', 401, status, text);
   }
 
   const failed = results.filter((item) => !item.ok);

@@ -1,4 +1,4 @@
-import { isDemoSandboxAllowed, isWyviPayConfigured } from '../config.ts';
+import { isDemoSandboxAllowed, isMercadoPagoLegacyEnabled, isWyviPayConfigured } from '../config.ts';
 import { randomToken, sha256Hex } from '../crypto.ts';
 import type { Deps } from '../deps.ts';
 import { ApiError, errorResponse, json, methodGuard, preflight, readJson } from '../http.ts';
@@ -12,7 +12,13 @@ import {
   requireQuantity,
   requireUuid,
 } from '../validation.ts';
-import { createCharge, mapChargeSituacao, WyviPayError } from '../wyvipay.ts';
+import {
+  cancelCharge,
+  classifyWyviFailure,
+  createCharge,
+  mapChargeSituacao,
+  type ChargeSnapshot,
+} from '../wyvipay.ts';
 
 /**
  * POST /create-order — cria o pedido multi-item (reserva de estoque) e a
@@ -172,10 +178,20 @@ function parseOptionalName(value: unknown): string | null {
 }
 
 /** Validade da cobrança em segundos, alinhada à reserva do pedido. */
-function chargeExpirationSeconds(reservationExpiresAt: string, now: Date): number {
-  const deadline = Date.parse(reservationExpiresAt);
-  if (!Number.isFinite(deadline)) return 1800;
-  const seconds = Math.round((deadline - now.getTime()) / 1000);
+/**
+ * Validade da cobrança em segundos — DETERMINÍSTICA por pedido.
+ *
+ * Derivada de `created_at`/`reservation_expires_at` (ambos fixos no pedido),
+ * nunca de "agora": a primeira tentativa e QUALQUER recuperação enviam o
+ * MESMO `expira_em_segundos` com a MESMA `Idempotency-Key`. Sem isso, uma
+ * repetição minutos depois montaria um corpo divergente e a API responderia
+ * `409 idempotencia_conflitante` — travando a recuperação.
+ */
+function chargeExpirationSeconds(order: CreatedOrder, now: Date): number {
+  const created = Date.parse(order.created_at ?? '');
+  const deadline = Date.parse(order.reservation_expires_at);
+  const base = Number.isFinite(created) ? created : now.getTime();
+  const seconds = Number.isFinite(deadline) ? Math.round((deadline - base) / 1000) : 1800;
   // Faixa aceita pela API: 60 s … 30 dias.
   return Math.min(Math.max(seconds, 60), 2_592_000);
 }
@@ -183,7 +199,12 @@ function chargeExpirationSeconds(reservationExpiresAt: string, now: Date): numbe
 /**
  * POST /create-order
  * Cria pedido + reserva (transação no banco) e em seguida a cobrança PIX.
- * Se a cobrança não puder ser criada, a reserva é liberada imediatamente.
+ *
+ * Falhas de criaação são classificadas (`classifyWyviFailure`):
+ *   - SEM cobrança (evidência de recusa) → reserva liberada + erro estável;
+ *   - resultado INCERTO → reserva E tentativa preservadas, `202` de
+ *     recuperação; a cobrança é recuperada pela mesma Idempotency-Key no
+ *     replay ou em `order-status`, sem duplicar nada.
  */
 export async function handleCreateOrder(request: Request, deps: Deps): Promise<Response> {
   if (request.method === 'OPTIONS') return preflight();
@@ -210,7 +231,10 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
     const clientTokenHash = await sha256Hex(clientToken);
 
     const useWyvi = isWyviPayConfigured(deps.config);
-    const useMp = !useWyvi && Boolean(deps.config.mercadoPagoAccessToken);
+    // Mercado Pago SÓ com ativação explícita (`MERCADO_PAGO_LEGACY_ENABLED`):
+    // um MP_ACCESS_TOKEN antigo nunca recria cobrança silenciosamente quando
+    // a chave WyviPay está ausente (a loja fica em configuração pendente).
+    const useMp = !useWyvi && isMercadoPagoLegacyEnabled(deps.config);
     const hasProvider = useWyvi || useMp;
 
     // ---------------------------------------------------------------
@@ -378,12 +402,56 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
     }
 
     // ---------------------------------------------------------------
-    // Cobrança PIX — WyviPay (ativo) ou Mercado Pago (legado congelado).
+    // Cobrança PIX — WyviPay (ativo) ou Mercado Pago (legado EXPLÍCITO).
+    //
+    // Regra de ouro (fase "cobranças incertas"): falha com resultado
+    // INCERTO não libera a reserva, não cria outro pedido nem outra chave.
+    // A tentativa original fica preservada (Idempotency-Key `order-<uuid>`
+    // + validade determinística) e o cliente recebe `202` de recuperação;
+    // a cobrança é recuperada pela MESMA chave no replay do checkout ou em
+    // `order-status`, e o vínculo é completado sem duplicidade.
     // ---------------------------------------------------------------
-    let attached: AttachedPayment;
-    try {
-      if (useWyvi) {
-        const charge = await createCharge(
+    let attached: AttachedPayment | null = null;
+
+    /** Resposta de RECUPERAÇÃO: tentativa preservada, sem QR ainda. */
+    const uncertainResponse = (reason: string): Response =>
+      json(
+        {
+          order,
+          client_token: clientToken,
+          payment: null,
+          payment_mode: 'recovery',
+          recovery: { status: 'in_progress', reason },
+          attempt_preserved: true,
+        },
+        { status: 202 },
+      );
+
+    /** Marca a tentativa de resultado incerto (linha aberta sem txid + evento). */
+    const markAttemptUncertain = async (reason: string): Promise<void> => {
+      try {
+        await deps.rpc('mark_payment_attempt', {
+          p_order_id: order.order_id,
+          p_provider: 'wyvipay',
+          p_idempotency_key: `order-${order.order_id}`,
+          p_amount_cents: order.total_cents,
+        });
+      } catch (markError) {
+        // Banco instável junto: o retry do cliente (mesma identidade)
+        // completa a marcação. Nunca lançar aqui — o dado crítico é a
+        // preservação da reserva, que já está de pé.
+        deps.log('create_order.mark_attempt_failed', {
+          order_id: order.order_id,
+          reason,
+          detail: markError instanceof Error ? markError.message.slice(0, 120) : 'unknown',
+        });
+      }
+    };
+
+    if (useWyvi) {
+      let charge: ChargeSnapshot;
+      try {
+        charge = await createCharge(
           {
             apiKey: deps.config.wyviApiKey as string,
             baseUrl: deps.config.wyviApiBase,
@@ -393,13 +461,61 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
             amountCents: order.total_cents,
             description: `Prime Store ${order.reference}`,
             reference: order.order_id,
-            expirationSeconds: chargeExpirationSeconds(order.reservation_expires_at, deps.now()),
+            expirationSeconds: chargeExpirationSeconds(order, deps.now()),
             // Idempotência POR PEDIDO: repetir a requisição (retry, duplo
-            // clique, replay) devolve a MESMA cobrança — nunca uma segunda.
+            // clique, replay, recuperação) devolve a MESMA cobrança.
             idempotencyKey: `order-${order.order_id}`,
           },
         );
+      } catch (error) {
+        const verdict = classifyWyviFailure(error);
 
+        if (!verdict.uncertain) {
+          // Evidência de recusa ANTES do processamento: não existe cobrança
+          // sob esta chave — liberar a reserva é seguro.
+          await deps.rpc('release_order_reservation', {
+            p_order_id: order.order_id,
+            p_reason: 'payment_creation_failed',
+          });
+          deps.log('create_order.payment_failed_definitive', {
+            order_id: order.order_id,
+            http_status: verdict.httpStatus,
+            provider_code: verdict.providerCode,
+            config_error: verdict.configError,
+            retry_after_seconds: verdict.retryAfterSeconds ?? undefined,
+          });
+          if (verdict.configError) {
+            // Chave ausente/inválida/sem escopo: situação de CONFIGURAÇÃO
+            // pendente — nunca cai silenciosamente para outro provedor.
+            throw new ApiError(
+              503,
+              'payment_not_configured',
+              'Pagamento indisponível: a chave de pagamento não está configurada para este ambiente.',
+            );
+          }
+          throw new ApiError(
+            502,
+            'payment_provider_unavailable',
+            verdict.httpStatus === 429
+              ? 'O provedor de pagamento pediu uma pausa. O estoque foi liberado; tente novamente em instantes.'
+              : 'Não foi possível gerar o PIX agora. O estoque foi liberado; tente novamente.',
+          );
+        }
+
+        // RESULTADO INCERTO: a WyviPay PODE ter criado a cobrança.
+        // Preserva reserva/pedido/chave/dados e marca a tentativa para a
+        // recuperação (replay idempotente) concluir sem duplicidade.
+        await markAttemptUncertain('create_uncertain');
+        deps.log('create_order.payment_uncertain', {
+          order_id: order.order_id,
+          http_status: verdict.httpStatus,
+          provider_code: verdict.providerCode,
+          retry_after_seconds: verdict.retryAfterSeconds ?? undefined,
+        });
+        return uncertainResponse('create_uncertain');
+      }
+
+      try {
         const mapped = mapChargeSituacao(charge.situacao);
         attached = await deps.rpc<AttachedPayment>('attach_payment', {
           p_order_id: order.order_id,
@@ -414,7 +530,100 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
           p_expires_at: charge.expiraEm,
           p_provider: 'wyvipay',
         });
-      } else {
+      } catch (error) {
+        // A cobrança EXISTE (resposta da API em mãos): a reserva jamais é
+        // liberada aqui. Este é o cenário "criada mas não vinculada".
+        deps.log('create_order.bind_failed', {
+          order_id: order.order_id,
+          detail: error instanceof Error ? error.message.slice(0, 120) : 'unknown',
+        });
+
+        interface CurrentStatus {
+          status: string;
+          payment_status: string;
+          delivery_status: string;
+          payment: {
+            status: string;
+            qr_code: string | null;
+            qr_code_base64: string | null;
+            ticket_url: string | null;
+            expires_at: string | null;
+          } | null;
+        }
+        let current: CurrentStatus | null = null;
+        try {
+          current = await deps.rpc<CurrentStatus>('get_order_status', {
+            p_order_id: order.order_id,
+            p_client_token_hash: clientTokenHash,
+          });
+        } catch {
+          current = null;
+        }
+
+        if (current && (current.status === 'paid' || current.payment_status === 'approved')) {
+          // CORRIDA: o cliente pagou e o webhook confirmou ANTES do vínculo.
+          // A confirmação é legítima — devolve o estado real em vez de erro.
+          await markAttemptUncertain('bind_race_paid');
+          return json(
+            {
+              order: {
+                ...order,
+                status: current.status,
+                payment_status: current.payment_status,
+                delivery_status: current.delivery_status,
+              },
+              client_token: clientToken,
+              payment: current.payment
+                ? {
+                    status: current.payment.status,
+                    qr_code: current.payment.qr_code,
+                    qr_code_base64: current.payment.qr_code_base64,
+                    ticket_url: current.payment.ticket_url,
+                    expires_at: current.payment.expires_at,
+                  }
+                : null,
+              replayed: false,
+            },
+            { status: 201 },
+          );
+        }
+
+        if (current && current.status !== 'pending_payment') {
+          // Pedido já encerrado com cobrança viva: cancela no provedor
+          // (best effort) para ninguém pagar um pedido morto.
+          try {
+            await cancelCharge(
+              {
+                apiKey: deps.config.wyviApiKey as string,
+                baseUrl: deps.config.wyviApiBase,
+                fetchImpl: deps.fetchImpl,
+              },
+              charge.txid,
+            );
+            deps.log('create_order.bind_charge_cancelled', { order_id: order.order_id });
+          } catch (cancelError) {
+            deps.log('create_order.bind_cancel_failed', {
+              order_id: order.order_id,
+              detail: cancelError instanceof Error ? cancelError.message.slice(0, 120) : 'unknown',
+            });
+          }
+          throw new ApiError(
+            409,
+            'previous_attempt_closed',
+            'A tentativa anterior deste checkout foi encerrada. Inicie um novo checkout.',
+          );
+        }
+
+        // Pendente (ou banco instável): preserva e devolve recuperação —
+        // o replay/`order-status` completa o vínculo com a MESMA cobrança.
+        await markAttemptUncertain('bind_failed');
+        return uncertainResponse('bind_failed');
+      }
+    } else {
+      // Mercado Pago legado — inalcançável sem MERCADO_PAGO_LEGACY_ENABLED.
+      // Comportamento histórico preservado: criação falhou ⇒ sem cobrança
+      // conhecida ⇒ reserva liberada.
+      try {
         const snapshot = await createPixPayment(
           {
             accessToken: deps.config.mercadoPagoAccessToken as string,
@@ -444,25 +653,27 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
           p_expires_at: snapshot.expiresAt,
           p_provider: 'mercado_pago',
         });
+      } catch (error) {
+        await deps.rpc('release_order_reservation', {
+          p_order_id: order.order_id,
+          p_reason: 'payment_creation_failed',
+        });
+        deps.log('create_order.payment_failed', {
+          order_id: order.order_id,
+          provider: 'mercado_pago',
+          http_status: error instanceof MercadoPagoError ? error.httpStatus : 0,
+        });
+        throw new ApiError(
+          502,
+          'payment_provider_unavailable',
+          'Não foi possível gerar o PIX agora. O estoque foi liberado; tente novamente.',
+        );
       }
-    } catch (error) {
-      // Nunca deixar estoque preso por falha do provedor.
-      await deps.rpc('release_order_reservation', {
-        p_order_id: order.order_id,
-        p_reason: 'payment_creation_failed',
-      });
-      deps.log('create_order.payment_failed', {
-        order_id: order.order_id,
-        provider: useWyvi ? 'wyvipay' : 'mercado_pago',
-        http_status:
-          error instanceof WyviPayError || error instanceof MercadoPagoError ? error.httpStatus : 0,
-        provider_code: error instanceof WyviPayError ? error.providerCode : undefined,
-      });
-      throw new ApiError(
-        502,
-        'payment_provider_unavailable',
-        'Não foi possível gerar o PIX agora. O estoque foi liberado; tente novamente.',
-      );
+    }
+
+    if (!attached) {
+      // Inalcançável: cada caminho acima atribui `attached` ou retorna.
+      throw new ApiError(500, 'internal_error', 'Não foi possível concluir a operação.');
     }
 
     deps.log('create_order.created', {

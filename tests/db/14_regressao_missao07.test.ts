@@ -47,6 +47,7 @@ function buildDeps(overrides: Partial<Deps['config']> = {}, fetchImpl: typeof fe
       serviceRoleKey: 'service-role-key',
       anonKey: 'anon-key',
       mercadoPagoAccessToken: 'TEST-access-token',
+      mercadoPagoLegacyEnabled: true,
       mercadoPagoWebhookSecret: 'webhook-secret',
       mercadoPagoApiBase: 'https://api.mercadopago.test',
       encryptionKey: MASTER_KEY,
@@ -488,7 +489,9 @@ describe('permissões não foram enfraquecidas', () => {
   it('service_role mantém acesso ao conjunto completo de objetos (nada de novo ficou exposto a anon)', async () => {
     // 20 -> 21 objetos legíveis pela service_role na missão 08: `order_items`
     // entrou com RLS ligada e privilégios só para o backend (mesma regra de
-    // `stock_units`). O número de tabelas com RLS sobe de 19 para 20 junto.
+    // `stock_units`). 21 -> 22 na automação WyviPay: `provider_api_gates`
+    // (gate de API entre instâncias) — interna, RLS ligada, sem políticas,
+    // visível só para o backend. Nada novo para anon/authenticated.
     expect(
       Number(
         await sqlValue<number>(
@@ -496,7 +499,7 @@ describe('permissões não foram enfraquecidas', () => {
             where n.nspname = 'public' and c.relkind in ('r','v') and has_table_privilege('service_role', c.oid, 'SELECT')`,
         ),
       ),
-    ).toBe(21);
+    ).toBe(22);
     expect(
       Number(
         await sqlValue<number>(
@@ -504,7 +507,7 @@ describe('permissões não foram enfraquecidas', () => {
             where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity`,
         ),
       ),
-    ).toBe(20);
+    ).toBe(21);
   });
 });
 

@@ -1,8 +1,9 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
-  createCharge,
   cancelCharge,
+  classifyWyviFailure,
+  createCharge,
   createRefund,
   getCharge,
   mapChargeSituacao,
@@ -302,5 +303,83 @@ describe('verifyWebhookSignature — HMAC sobre {carimbo}.{corpo}', () => {
       now,
     });
     expect(ok).toBe(true);
+  });
+});
+
+describe('classifyWyviFailure — resultado incerto x recusa definitiva', () => {
+  function wyviError(status: number, code: string, retryAfter: number | null = null): WyviPayError {
+    return new WyviPayError(status, code, `erro ${status}`, retryAfter);
+  }
+
+  it('validação/objeto inexistente/limite: recusa definitiva (seguro liberar reserva)', () => {
+    const definitive = [
+      wyviError(400, 'campo_invalido'),
+      wyviError(404, 'nao_encontrada'),
+      wyviError(422, 'campo_invalido'),
+      wyviError(409, 'limite_de_testes'),
+      wyviError(409, 'limite_de_webhooks'),
+    ];
+    for (const error of definitive) {
+      const verdict = classifyWyviFailure(error);
+      expect(verdict.uncertain, `${error.httpStatus}/${error.providerCode}`).toBe(false);
+      expect(verdict.configError).toBe(false);
+    }
+  });
+
+  it('429 não cria cobrança e carrega Retry-After', () => {
+    const verdict = classifyWyviFailure(wyviError(429, 'limite_atingido', 30));
+    expect(verdict.uncertain).toBe(false);
+    expect(verdict.retryAfterSeconds).toBe(30);
+  });
+
+  it('401/403 são falha de CONFIGURAÇÃO da chave (não de negócio)', () => {
+    for (const error of [wyviError(401, 'chave_invalida'), wyviError(403, 'sem_escopo')]) {
+      const verdict = classifyWyviFailure(error);
+      expect(verdict.configError).toBe(true);
+      expect(verdict.uncertain).toBe(false);
+    }
+  });
+
+  it('5xx / indisponibilidade / rede são INCERTAS — reserva NUNCA liberada', () => {
+    const uncertain = [
+      wyviError(500, 'erro_interno'),
+      wyviError(502, 'emissor_indeterminado'),
+      wyviError(503, 'indisponivel'),
+      wyviError(503, 'em_manutencao', 45),
+    ];
+    for (const error of uncertain) {
+      const verdict = classifyWyviFailure(error);
+      expect(verdict.uncertain, `${error.httpStatus}/${error.providerCode}`).toBe(true);
+    }
+    // Rede/timeout chegam como 503 indisponivel (request() do cliente).
+    const networkLike = classifyWyviFailure(new WyviPayError(503, 'indisponivel', 'timeout'));
+    expect(networkLike.uncertain).toBe(true);
+    expect(networkLike.retryAfterSeconds).toBeNull();
+  });
+
+  it('409 idempotencia_conflitante é INCERTA (existe cobrança sob a chave)', () => {
+    const verdict = classifyWyviFailure(wyviError(409, 'idempotencia_conflitante'));
+    expect(verdict.uncertain).toBe(true);
+    expect(verdict.configError).toBe(false);
+  });
+
+  it('erro inesperado (não-WyviPayError) é INCERTO — postura conservadora', () => {
+    const verdict = classifyWyviFailure(new TypeError('bug interno'));
+    expect(verdict.uncertain).toBe(true);
+    expect(verdict.providerCode).toBe('erro_inesperado');
+  });
+
+  it('Retry-After do cabeçalho é parseado em erros 429/503', async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response(JSON.stringify({ erro: { codigo: 'limite_atingido', mensagem: 'pausa' } }), {
+        status: 429,
+        headers: { 'Retry-After': '17', 'Content-Type': 'application/json' },
+      });
+    const error = await createCharge(config(fetchImpl), validInput()).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(WyviPayError);
+    expect((error as WyviPayError).retryAfterSeconds).toBe(17);
+    const verdict = classifyWyviFailure(error);
+    expect(verdict.uncertain).toBe(false);
+    expect(verdict.retryAfterSeconds).toBe(17);
   });
 });

@@ -69,13 +69,96 @@ export class WyviPayError extends Error {
   /** Código estável do provedor (`erro.codigo`), ex.: `campo_invalido`. */
   readonly providerCode: string;
   readonly providerMessage: string;
+  /** `Retry-After` (segundos) quando a API devolveu 429/503 com o cabeçalho. */
+  readonly retryAfterSeconds: number | null;
 
-  constructor(httpStatus: number, providerCode: string, providerMessage: string) {
+  constructor(
+    httpStatus: number,
+    providerCode: string,
+    providerMessage: string,
+    retryAfterSeconds: number | null = null,
+  ) {
     super(`wyvipay_error:${httpStatus}:${providerCode}`);
     this.httpStatus = httpStatus;
     this.providerCode = providerCode;
     this.providerMessage = providerMessage;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
+}
+
+/**
+ * Classificação de falha na CRIAÇÃO da cobrança — o coração da proteção
+ * contra "cobrança incerta".
+ *
+ * A regra de ouro: **se a cobrança PODE ter sido criada (`uncertain: true`),
+ * a reserva NÃO é liberada e a tentativa original é preservada** (mesma
+ * `Idempotency-Key`, mesmos dados) até a recuperação confirmar o resultado
+ * pela API. Nunca se declara "não houve cobrança" sem evidência.
+ *
+ * Códigos oficiais da v2 usados aqui:
+ *   - 400/404/422 … validação/objeto inexistente → NÃO criada (evidência:
+ *     a API recusou ANTES de processar);
+ *   - 401 (`sem_credencial`/`chave_invalida`…) e 403 (`sem_escopo`) →
+ *     NÃO criada + falha de CONFIGURAÇÃO da chave;
+ *   - 429 (`limite_atingido`) → NÃO criada (rejeição de janela, com
+ *     `Retry-After`);
+ *   - 409 `idempotencia_conflitante` → existe cobrança sob a MESMA chave com
+ *     outros dados → INCERTA (preservar; nunca criar outra);
+ *   - 409 `limite_de_testes` → NÃO criada (limite de 50 do ambiente de teste);
+ *   - 500/502/503 (`erro_interno`, `emissor_indeterminado`, `indisponivel`,
+ *     `em_manutencao`) → INCERTA (o pedido pode ter sido processado);
+ *   - rede/timeout/JSON irrecebível (vira 503 `indisponivel` no cliente) →
+ *     INCERTA;
+ *   - erro inesperado que NÃO é `WyviPayError` → INCERTA (postura
+ *     conservadora: sem evidência de recusa).
+ */
+export interface WyviFailureClassification {
+  uncertain: boolean;
+  configError: boolean;
+  retryAfterSeconds: number | null;
+  providerCode: string;
+  httpStatus: number;
+}
+
+export function classifyWyviFailure(error: unknown): WyviFailureClassification {
+  if (!(error instanceof WyviPayError)) {
+    return {
+      uncertain: true,
+      configError: false,
+      retryAfterSeconds: null,
+      providerCode: 'erro_inesperado',
+      httpStatus: 0,
+    };
+  }
+
+  const { httpStatus, providerCode, retryAfterSeconds } = error;
+
+  if (
+    httpStatus === 401 ||
+    httpStatus === 403 ||
+    providerCode === 'sem_credencial' ||
+    providerCode === 'sem_escopo'
+  ) {
+    return { uncertain: false, configError: true, retryAfterSeconds, providerCode, httpStatus };
+  }
+
+  if (httpStatus === 429) {
+    // Rejeição de janela: a API não processou. Não é incerta, mas é
+    // repetível — o Retry-After é repassado para sinalização/log.
+    return { uncertain: false, configError: false, retryAfterSeconds, providerCode, httpStatus };
+  }
+
+  if (httpStatus === 409 && providerCode === 'idempotencia_conflitante') {
+    // Prova de que EXISTE cobrança sob esta chave com dados divergentes.
+    return { uncertain: true, configError: false, retryAfterSeconds, providerCode, httpStatus };
+  }
+
+  if (httpStatus >= 500) {
+    return { uncertain: true, configError: false, retryAfterSeconds, providerCode, httpStatus };
+  }
+
+  // 400/404/409 de limite/422: recusa explícita, sem cobrança criada.
+  return { uncertain: false, configError: false, retryAfterSeconds, providerCode, httpStatus };
 }
 
 /** Janela máxima de idade do `X-Wyvi-Carimbo` (±300 s), conforme a documentação. */
@@ -115,7 +198,15 @@ interface RequestOptions {
   idempotencyKey?: string;
 }
 
-function parseErrorBody(status: number, text: string): WyviPayError {
+function parseRetryAfter(headers: Headers | undefined): number | null {
+  const raw = headers?.get('retry-after');
+  if (!raw) return null;
+  const seconds = Number(raw.trim());
+  if (!Number.isFinite(seconds) || seconds < 0) return null;
+  return Math.min(Math.trunc(seconds), 3600);
+}
+
+function parseErrorBody(status: number, text: string, headers?: Headers): WyviPayError {
   let code = 'erro_desconhecido';
   let message = `HTTP ${status}`;
   try {
@@ -127,7 +218,7 @@ function parseErrorBody(status: number, text: string): WyviPayError {
   } catch {
     // Corpo não-JSON: mantém o status como mensagem (nunca vaza corpo cru).
   }
-  return new WyviPayError(status, code, message.slice(0, 300));
+  return new WyviPayError(status, code, message.slice(0, 300), parseRetryAfter(headers));
 }
 
 async function request(
@@ -165,15 +256,27 @@ async function request(
     // 201 (criada) e 200 (repetição idempotente com `Idempotent-Replayed`)
     // são sucesso; qualquer outro status vira `WyviPayError` estável.
     if (!response.ok) {
-      throw parseErrorBody(response.status, text);
+      throw parseErrorBody(response.status, text, response.headers);
+    }
+    if (payload !== null && typeof payload !== 'object') {
+      // 2xx com corpo que não é JSON-objeto: não dá para extrair o `txid` —
+      // resultado INCERTO (a cobrança pode ter sido criada lá). Tratado como
+      // indisponibilidade para o classificador preservar a tentativa.
+      throw new WyviPayError(503, 'indisponivel', 'corpo_da_resposta_invalido', null);
     }
 
     return { status: response.status, headers: response.headers, body: payload };
   } catch (error) {
     if (error instanceof WyviPayError) throw error;
-    // Rede/timeout: o chamador deve consultar a cobrança antes de tentar de
-    // novo com a MESMA Idempotency-Key (a API pode ter criado a cobrança).
-    throw new WyviPayError(503, 'indisponivel', error instanceof Error ? error.message : 'network_error');
+    // Rede/timeout/JSON irrecebível: resultado INCERTO — a API pode ter
+    // processado o pedido. O chamador NÃO libera a reserva; recupera com a
+    // MESMA Idempotency-Key (a API devolve a cobrança original em replay).
+    throw new WyviPayError(
+      503,
+      'indisponivel',
+      error instanceof Error ? error.message : 'network_error',
+      null,
+    );
   } finally {
     clearTimeout(timeout);
   }
@@ -231,8 +334,15 @@ export async function createCharge(
   assertCents(input.amountCents);
   assertIdempotencyKey(input.idempotencyKey);
 
+  // Validade DETERMINÍSTICA por pedido: o chamador envia sempre o MESMO
+  // valor (derivado de created_at/reservation_expires_at), e este clamp é
+  // idempotente — qualquer repetição com a mesma Idempotency-Key monta o
+  // MESMO corpo, sem risco de 409 idempotencia_conflitante.
+  const requested = Number.isFinite(input.expirationSeconds)
+    ? Math.trunc(input.expirationSeconds)
+    : 1800;
   const expiration = Math.min(
-    Math.max(Math.trunc(input.expirationSeconds), MIN_CHARGE_EXPIRATION_SECONDS),
+    Math.max(requested, MIN_CHARGE_EXPIRATION_SECONDS),
     MAX_CHARGE_EXPIRATION_SECONDS,
   );
 

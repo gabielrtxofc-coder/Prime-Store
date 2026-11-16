@@ -157,6 +157,33 @@ describe('checkout com cobrança PIX', () => {
     expect(call.clientToken.length).toBeGreaterThanOrEqual(32);
   }, 20000);
 
+  it('leva para /pagamento também quando a cobrança vem em recuperação (202)', async () => {
+    seedCart();
+    submitCheckoutMock.mockResolvedValue({
+      ...paymentOutcome,
+      result: {
+        ...paymentOutcome.result,
+        payment: null,
+        payment_mode: 'recovery' as const,
+        attempt_preserved: true,
+        recovery: { status: 'in_progress', reason: 'create_uncertain' },
+      },
+    });
+
+    const user = userEvent.setup();
+    renderCheckout();
+
+    await fillForm(user);
+    await user.click(screen.getByRole('button', { name: /Finalizar pedido/ }));
+
+    // Mesmo caminho da cobrança normal: pendente salvo + rota de pagamento.
+    expect(await screen.findByText('pagamento-aberto')).toBeInTheDocument();
+    const pending = readPendingOrder();
+    expect(pending?.orderId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    expect(pending?.reference).toBe('PS-PAY01');
+    expect(window.localStorage.getItem('prime-store-cart-v2')).toBe('[]');
+  }, 20000);
+
   it('mantém a identidade da tentativa quando a falha é de rede (retry seguro)', async () => {
     seedCart();
     submitCheckoutMock

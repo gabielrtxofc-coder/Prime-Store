@@ -291,6 +291,18 @@ export function PaymentPage() {
                 <Icon name="alert" size={19} />
                 <p>O pagamento ainda não está configurado neste ambiente e este produto não participa da demonstração.</p>
               </div>
+            ) : awaitingPayment && !status.payment.qr_code ? (
+              // Tentativa de criação com resultado INCERTO: a cobrança está
+              // sendo recuperada no servidor (mesma identidade, sem cobrança
+              // nova). O QR aparece sozinho no próximo ciclo de status.
+              <div className="payment-warning" role="status">
+                <Icon name="clock" size={19} />
+                <p>
+                  <strong>Gerando seu PIX…</strong> Sua tentativa está preservada e nenhum valor foi
+                  cobrado. O código copia-e-cola aparece aqui em instantes; se não aparecer em 15
+                  segundos, atualize a página — a reserva continua valendo.
+                </p>
+              </div>
             ) : (
               <div className="payment-pix">
                 <div className="payment-qr">

@@ -60,6 +60,7 @@ supabase functions deploy delivery      --project-ref <REF>
 supabase functions deploy demo-payment  --project-ref <REF>
 supabase functions deploy mp-webhook    --no-verify-jwt --project-ref <REF>
 supabase functions deploy wyvi-webhook  --no-verify-jwt --project-ref <REF>
+supabase functions deploy wyvi-worker   --project-ref <REF>
 supabase functions deploy admin-api     --project-ref <REF>
 ```
 
@@ -89,7 +90,7 @@ ALLOWED_ORIGINS=https://sua-loja.example,http://localhost:5173,http://127.0.0.1:
 WYVI_API_KEY=wy_test_...
 WYVI_WEBHOOK_SECRET=whsec_...
 WYVI_ENVIRONMENT=test
-MP_ACCESS_TOKEN=TEST-...        # legado congelado (só sem WYVI_API_KEY)
+MP_ACCESS_TOKEN=TEST-...        # legado EXPLÍCITO: exige MERCADO_PAGO_LEGACY_ENABLED=true
 MP_WEBHOOK_SECRET=...
 MP_NOTIFICATION_URL=https://<REF>.supabase.co/functions/v1/mp-webhook
 ```

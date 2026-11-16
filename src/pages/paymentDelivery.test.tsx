@@ -83,6 +83,26 @@ describe('tela de pagamento PIX', () => {
     expect(screen.getByText(/Aguardando o pagamento PIX/i)).toBeInTheDocument();
   });
 
+  it('mostra "Gerando seu PIX" enquanto a tentativa incerta é recuperada', async () => {
+    // Tentativa de criação com resultado INCERTO: linha de pagamento sem QR
+    // ainda — a tela não mostra erro nem código vazio, avisa que está em
+    // recuperação e que a reserva continua valendo.
+    const recovering = {
+      ...pendingStatus,
+      payment: { ...pendingStatus.payment, qr_code: null, qr_code_base64: null, ticket_url: null },
+    };
+    stubBackend(recovering);
+    render(
+      <MemoryRouter initialEntries={['/pagamento']}>
+        <Routes><Route path="/pagamento" element={<PaymentPage />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(/Gerando seu PIX/i)).toBeInTheDocument();
+    expect(screen.getByText(/tentativa está preservada/i)).toBeInTheDocument();
+    expect(screen.queryByAltText(/QR code do PIX/i)).not.toBeInTheDocument();
+  });
+
   it('libera o link de entrega quando o pagamento é aprovado', async () => {
     stubBackend(paidStatus);
     render(

@@ -7,6 +7,7 @@ import { handleCreateOrder } from '../../supabase/functions/_shared/handlers/cre
 import { handleDelivery } from '../../supabase/functions/_shared/handlers/delivery';
 import { handleOrderStatus } from '../../supabase/functions/_shared/handlers/orderStatus';
 import { handleWyviWebhook } from '../../supabase/functions/_shared/handlers/wyviWebhook';
+import { processWyviQueueForOrder } from '../../supabase/functions/_shared/wyviEvents';
 import { createFakeWyvi, signWyviEvent, signedWyviRequest } from '../unit/fakeWyvi';
 import {
   connect,
@@ -25,17 +26,22 @@ import { createPgRpc } from './pgRpc';
  *   1. criação de cobrança PIX multi-item (valor em centavos, Idempotency-Key
  *      por pedido, QR + copia-e-cola) sem enviar PII ao provedor;
  *   2. requisição repetida NÃO duplica cobrança nem pedido;
- *   3. falha do provedor libera a reserva (estoque nunca fica preso);
- *   4. webhook: assinatura inválida → 401 e ZERO efeitos; entrega repetida →
- *      um único efeito; aprovação → pedido pago + entrega criada;
- *   5. a notificação NUNCA é fonte de verdade: o estado vem da reconsulta da
+ *   3. falha com resultado INCERTO na criação → 202 com tentativa preservada
+ *      (reserva + Idempotency-Key) e recuperação automática; falha com
+ *      evidência de recusa → reserva liberada;
+ *   4. webhook: assinatura inválida → 401 e ZERO efeitos; resposta RÁPIDA
+ *      (registra na fila e responde 2xx SEM consultar a API); entrega
+ *      repetida → um único efeito; aprovação → pedido pago + entrega criada;
+ *   5. a notificação NUNCA é fonte de verdade: o processador RECONSULTA a
  *      cobrança (valor divergente → `amount_mismatch`, entrega bloqueada);
  *   6. expiração/cancelamento devolvem o estoque;
  *   7. evento de teste em produção é recusado (simulação não aprova pedido
  *      real);
- *   8. reconciliação pela consulta de status (webhook atrasado) com throttle;
+ *   8. reconciliação pela consulta de status (webhook atrasado) com throttle
+ *      GLOBAL no banco; corrida pagamento-antes-do-vínculo preserva o
+ *      provedor correto; fila processada duas vezes não duplica efeito;
  *   9. sem provedor configurado: fallback para solicitação ou 503, nunca
- *      pedido pendurado.
+ *      pedido pendurado; MP antigo sem flag NUNCA vira fallback.
  *
  * Nenhuma credencial real é usada: a chave (`wy_test_...`), o segredo
  * (`whsec_...`) e a base da API são fictícios e existem só neste arquivo.
@@ -168,6 +174,19 @@ describe('24 — WyviPay: cobrança, webhook protegido e entrega', () => {
   function countDeliveries(orderId: string): Promise<number> {
     return sqlValue<number>(`select count(*) from public.deliveries where order_id = $1`, [orderId]).then(
       (value) => Number(value),
+    );
+  }
+
+  /**
+   * Processa a fila `payment_events` do pedido — o que o `wyvi-worker`
+   * faria FORA da requisição do webhook (reconsulta + aplicação). O webhook
+   * em si só registra e responde 2xx; este helper simula o processador.
+   */
+  async function flushWyviQueue(orderId: string): Promise<void> {
+    await processWyviQueueForOrder(
+      deps,
+      { apiKey: API_KEY, baseUrl: API_BASE, fetchImpl: fake.fetchImpl },
+      orderId,
     );
   }
 
@@ -340,31 +359,68 @@ describe('24 — WyviPay: cobrança, webhook protegido e entrega', () => {
   // 2. Falha de comunicação com o provedor
   // ---------------------------------------------------------------------
 
-  it('falha de comunicação na criação → 502 e reserva LIBERADA (estoque nunca preso)', async () => {
+  it('falha de comunicação na criação → 202 com tentativa PRESERVADA e recuperação automática', async () => {
     const product = await seedProduct({ priceCents: 4990, stockUnits: 2, maxQuantity: 5 });
+    const clientToken = randomToken(32);
     fake.setFailCreate(true);
+    let orderId = '';
     try {
       const result = await createOrder({
         items: [{ product_id: product.productId, quantity: 2 }],
         payer_email: 'comprador@teste.com',
         buyer_name: 'Maria Souza',
         idempotency_key: randomToken(16),
-        client_token: randomToken(32),
+        client_token: clientToken,
       });
-      expect(result.status).toBe(502);
-      expect(result.body.error).toBe('payment_provider_unavailable');
+      // RESULTADO INCERTO (503 indisponível): a WyviPay PODE ter criado a
+      // cobrança — NÃO declara erro nem libera a reserva.
+      expect(result.status).toBe(202);
+      expect(result.body.payment_mode).toBe('recovery');
+      expect(result.body.attempt_preserved).toBe(true);
+      expect(result.body.payment).toBeNull();
       // Nenhuma credencial ou detalhe interno na resposta.
       expect(JSON.stringify(result.body)).not.toContain(API_KEY);
+      orderId = (result.body.order as { order_id: string }).order_id;
     } finally {
       fake.setFailCreate(false);
     }
 
-    const orderId = (await sqlValue<string>(`select id from public.orders order by created_at desc limit 1`)) as unknown as string;
-    expect(await orderState(orderId)).toMatchObject({ status: 'failed' });
-    expect(await stockState(product.productId)).toEqual([{ status: 'available', count: 2 }]);
-    // Nenhuma cobrança órfã gravada.
-    const payments = await sqlValue<number>(`select count(*) from public.payments where order_id = $1`, [orderId]);
-    expect(Number(payments)).toBe(0);
+    // Reserva PRESERVADA: pedido pendente e estoque ainda reservado.
+    expect(await orderState(orderId)).toMatchObject({
+      status: 'pending_payment',
+      payment_status: 'pending',
+    });
+    expect(await stockState(product.productId)).toEqual([{ status: 'reserved', count: 2 }]);
+
+    // Tentativa marcada no banco: linha aberta SEM txid + evento de auditoria.
+    const paymentRow = await runSql<{ provider: string; provider_payment_id: string | null; status: string }>(
+      `select provider, provider_payment_id, status from public.payments where order_id = $1`,
+      [orderId],
+    );
+    expect(paymentRow).toHaveLength(1);
+    expect(paymentRow[0]).toMatchObject({ provider: 'wyvipay', provider_payment_id: null, status: 'pending' });
+    expect(await countEvents(orderId, 'payment_creation_uncertain')).toBe(1);
+
+    // RECUPERAÇÃO: o poll do order-status recupera a cobrança pela MESMA
+    // Idempotency-Key (replay — nunca uma segunda cobrança) e completa o vínculo.
+    const callsBefore = fake.createCalls.length;
+    const status = await callOrderStatus(orderId, clientToken);
+    expect(status.status).toBe(200);
+    expect(fake.createCalls.length).toBe(callsBefore + 1);
+    const replayCall = fake.createCalls.at(-1)!;
+    expect(replayCall.headers['idempotency-key']).toBe(`order-${orderId}`);
+    // Vínculo completo: txid preenchido e QR visível para o comprador.
+    const bound = await runSql<{ provider_payment_id: string | null }>(
+      `select provider_payment_id from public.payments where order_id = $1`,
+      [orderId],
+    );
+    expect(bound[0].provider_payment_id).toMatch(/^test/);
+    expect(status.body).toMatchObject({ status: 'pending_payment', payment_status: 'pending' });
+    expect(((status.body.payment as { qr_code: string | null }).qr_code) ?? '').toContain('FAKEWYVI');
+    // Nenhum pedido novo foi criado no processo.
+    expect(
+      Number(await sqlValue<number>(`select count(*) from public.orders where id = $1`, [orderId])),
+    ).toBe(1);
   }, 30000);
 
   // ---------------------------------------------------------------------
@@ -427,12 +483,19 @@ describe('24 — WyviPay: cobrança, webhook protegido e entrega', () => {
     );
     expect(deliveryEarly.status).toBe(404);
 
+    const readsBeforeWebhook = fake.getReadCalls().length;
     const ok = await sendWebhook({
       evento: 'cobranca.paga',
-      dados: { txid, valor_centavos: 17990, pago_em: '2026-11-13T12:00:00Z' },
+      dados: { txid, referencia: order.order_id, valor_centavos: 17990, pago_em: '2026-11-13T12:00:00Z' },
     });
+    // Resposta RÁPIDA: registra na fila e responde 2xx SEM consultar a API
+    // (o trabalho pesado acontece fora da requisição).
     expect(ok.status).toBe(200);
-    expect(ok.body.result).toBe('approved');
+    expect(ok.body.queued).toBe(true);
+    expect(fake.getReadCalls().length).toBe(readsBeforeWebhook);
+
+    // Processador fora da requisição (worker/poll): reconsulta e aplica.
+    await flushWyviQueue(order.order_id);
 
     expect(await orderState(order.order_id)).toMatchObject({
       status: 'paid',
@@ -456,10 +519,18 @@ describe('24 — WyviPay: cobrança, webhook protegido e entrega', () => {
 
     // ---- Retentativas: mesma entrega repetida, mesmo efeito único ----
     const deliveryId = randomUUID();
-    const firstDelivery = await sendWebhook({ evento: 'cobranca.paga', dados: { txid }, deliveryId });
+    const firstDelivery = await sendWebhook({
+      evento: 'cobranca.paga',
+      dados: { txid, referencia: order.order_id },
+      deliveryId,
+    });
     expect(firstDelivery.status).toBe(200);
 
-    const repeat = await sendWebhook({ evento: 'cobranca.paga', dados: { txid }, deliveryId });
+    const repeat = await sendWebhook({
+      evento: 'cobranca.paga',
+      dados: { txid, referencia: order.order_id },
+      deliveryId,
+    });
     expect(repeat.status).toBe(200);
     expect(repeat.body.duplicate).toBe(true);
 
@@ -476,15 +547,28 @@ describe('24 — WyviPay: cobrança, webhook protegido e entrega', () => {
     const { order, txid } = await newWyviOrder();
     // Cobrança continua pendente na fonte de verdade.
 
-    const result = await sendWebhook({ evento: 'cobranca.paga', dados: { txid, valor_centavos: 17990 } });
+    const result = await sendWebhook({
+      evento: 'cobranca.paga',
+      dados: { txid, referencia: order.order_id, valor_centavos: 17990 },
+    });
 
     expect(result.status).toBe(200);
-    expect(result.body.result).toBe('pending'); // o que a API devolveu
+    expect(result.body.queued).toBe(true);
+    await flushWyviQueue(order.order_id);
+
+    // O que a RECONSULTA devolveu manda: nada mudou.
     expect(await orderState(order.order_id)).toMatchObject({
       status: 'pending_payment',
       payment_status: 'pending',
     });
     expect(await countDeliveries(order.order_id)).toBe(0);
+    // O evento foi processado e encerrado (a fila não fica presa).
+    const eventStatus = await sqlValue<string>(
+      `select status from public.payment_events
+        where provider = 'wyvipay' and data_id = $1 order by received_at desc limit 1`,
+      [txid],
+    );
+    expect(eventStatus).toBe('processed');
   }, 30000);
 
   it('valor divergente entre cobrança e pedido → amount_mismatch e entrega BLOQUEADA', async () => {
@@ -495,10 +579,15 @@ describe('24 — WyviPay: cobrança, webhook protegido e entrega', () => {
     charge!.valor_centavos = 1;
 
     try {
-      const result = await sendWebhook({ evento: 'cobranca.paga', dados: { txid, valor_centavos: 1 } });
+      const result = await sendWebhook({
+        evento: 'cobranca.paga',
+        dados: { txid, referencia: order.order_id, valor_centavos: 1 },
+      });
 
       expect(result.status).toBe(200);
-      expect(result.body.result).toBe('amount_mismatch');
+      expect(result.body.queued).toBe(true);
+      await flushWyviQueue(order.order_id);
+
       expect(await orderState(order.order_id)).toMatchObject({ payment_status: 'amount_mismatch' });
       expect((await orderState(order.order_id)).status).not.toBe('paid');
       expect(await countDeliveries(order.order_id)).toBe(0);
@@ -521,10 +610,15 @@ describe('24 — WyviPay: cobrança, webhook protegido e entrega', () => {
     const { order, txid, first, second } = await newWyviOrder();
     fake.setSituacao(txid, 'falhou');
 
-    const result = await sendWebhook({ evento: 'cobranca.expirada', dados: { txid } });
+    const result = await sendWebhook({
+      evento: 'cobranca.expirada',
+      dados: { txid, referencia: order.order_id },
+    });
 
     expect(result.status).toBe(200);
-    expect(result.body.result).toBe('cancelled');
+    expect(result.body.queued).toBe(true);
+    await flushWyviQueue(order.order_id);
+
     expect(await orderState(order.order_id)).toMatchObject({
       status: 'expired',
       payment_status: 'cancelled',
@@ -537,10 +631,15 @@ describe('24 — WyviPay: cobrança, webhook protegido e entrega', () => {
     const { order, txid, first } = await newWyviOrder();
     fake.setSituacao(txid, 'cancelada');
 
-    const result = await sendWebhook({ evento: 'cobranca.cancelada', dados: { txid } });
+    const result = await sendWebhook({
+      evento: 'cobranca.cancelada',
+      dados: { txid, referencia: order.order_id },
+    });
 
     expect(result.status).toBe(200);
-    expect(result.body.result).toBe('cancelled');
+    expect(result.body.queued).toBe(true);
+    await flushWyviQueue(order.order_id);
+
     expect(await orderState(order.order_id)).toMatchObject({
       status: 'expired',
       payment_status: 'cancelled',
@@ -568,7 +667,10 @@ describe('24 — WyviPay: cobrança, webhook protegido e entrega', () => {
     });
 
     const result = await sendWebhook(
-      { evento: 'cobranca.paga', dados: { txid, teste: true, ambiente: 'homologacao' } },
+      {
+        evento: 'cobranca.paga',
+        dados: { txid, referencia: order.order_id, teste: true, ambiente: 'homologacao' },
+      },
       productionDeps,
     );
 
@@ -607,6 +709,70 @@ describe('24 — WyviPay: cobrança, webhook protegido e entrega', () => {
 
     expect(await orderState(order.order_id)).toMatchObject({ status: 'paid' });
     expect(await countDeliveries(order.order_id)).toBe(1);
+  }, 30000);
+
+  // ---------------------------------------------------------------------
+  // 8b. CORRIDA pagamento-antes-do-vínculo + fila idempotente
+  // ---------------------------------------------------------------------
+
+  it('webhook ANTES do vínculo: paga a linha aberta com o provedor CERTO (wyvipay)', async () => {
+    const { order, txid, clientToken } = await newWyviOrder();
+    fake.setSituacao(txid, 'concluida');
+
+    // Simula a corrida: a cobrança EXISTE no provedor, mas o vínculo ainda
+    // não gravou o txid na linha (estado de tentativa incerta).
+    await runSql(`update public.payments set provider_payment_id = null where order_id = $1`, [
+      order.order_id,
+    ]);
+
+    const ok = await sendWebhook({
+      evento: 'cobranca.paga',
+      dados: { txid, referencia: order.order_id },
+    });
+    expect(ok.status).toBe(200);
+    expect(ok.body.queued).toBe(true);
+    await flushWyviQueue(order.order_id);
+
+    expect(await orderState(order.order_id)).toMatchObject({
+      status: 'paid',
+      payment_status: 'approved',
+      delivery_status: 'ready',
+    });
+
+    // A linha aberta foi completada com o txid E o provedor correto —
+    // nunca `mercado_pago` numa cobrança da WyviPay (regra de não mistura).
+    const row = await runSql<{ provider: string; provider_payment_id: string | null }>(
+      `select provider, provider_payment_id from public.payments where order_id = $1`,
+      [order.order_id],
+    );
+    expect(row).toHaveLength(1);
+    expect(row[0]).toMatchObject({ provider: 'wyvipay', provider_payment_id: txid });
+    expect(await countDeliveries(order.order_id)).toBe(1);
+
+    // Poll em seguida: com txid vinculado, NÃO dispara nova recuperação.
+    const status = await callOrderStatus(order.order_id, clientToken);
+    expect(status.status).toBe(200);
+    expect(status.body).toMatchObject({ status: 'paid', payment_status: 'approved' });
+  }, 30000);
+
+  it('processar a mesma fila duas vezes não duplica efeito (worker + poll)', async () => {
+    const { order, txid } = await newWyviOrder();
+    fake.setSituacao(txid, 'concluida');
+    await sendWebhook({ evento: 'cobranca.paga', dados: { txid, referencia: order.order_id } });
+
+    await flushWyviQueue(order.order_id);
+    await flushWyviQueue(order.order_id); // segunda passada (worker + poll)
+
+    expect(await orderState(order.order_id)).toMatchObject({ status: 'paid' });
+    expect(await countEvents(order.order_id, 'payment_approved')).toBe(1);
+    expect(await countDeliveries(order.order_id)).toBe(1);
+    // A fila do pedido terminou encerrada (nenhum evento preso em `received`).
+    const open = await sqlValue<number>(
+      `select count(*) from public.payment_events
+        where provider = 'wyvipay' and reference = $1 and status = 'received'`,
+      [order.order_id],
+    );
+    expect(Number(open)).toBe(0);
   }, 30000);
 
   // ---------------------------------------------------------------------
@@ -702,5 +868,77 @@ describe('24 — WyviPay: cobrança, webhook protegido e entrega', () => {
       [orderId],
     );
     expect(payments[0].provider).toBe('wyvipay');
+  }, 30000);
+
+  // ---------------------------------------------------------------------
+  // 9b. Sem WYVI: um MP_ACCESS_TOKEN antigo NUNCA vira fallback silencioso
+  // ---------------------------------------------------------------------
+
+  it('MP_ACCESS_TOKEN sem WYVI e sem flag legada → 503 e ZERO chamadas ao Mercado Pago', async () => {
+    const product = await seedProduct({ priceCents: 4990, stockUnits: 1, maxQuantity: 5 });
+    const fetchCalls: string[] = [];
+    const rpc = createPgRpc(client);
+    const rejectingFetch = ((input: RequestInfo | URL) => {
+      fetchCalls.push(String(input));
+      return Promise.reject(new Error('nao_deve_ser_chamado'));
+    }) as typeof fetch;
+
+    const mpOnly = (legacy: boolean) =>
+      createDeps({
+        config: {
+          supabaseUrl: 'https://fake-project.supabase.test',
+          serviceRoleKey: 'service-role-key',
+          anonKey: 'anon-key',
+          mercadoPagoAccessToken: 'APP_USR-antigo-de-teste',
+          mercadoPagoApiBase: 'https://api.mercadopago.test',
+          mercadoPagoLegacyEnabled: legacy,
+          encryptionKey: MASTER_KEY,
+          storeUrl: 'https://loja.teste',
+          rateLimitOverrides: RELAXED_RATE_LIMIT_OVERRIDES,
+        },
+        rpc,
+        rpcForUser: () => rpc,
+        serviceRpc: rpc,
+        fetchImpl: rejectingFetch,
+        resolveEncryptionKey: async () => MASTER_KEY,
+        log: () => undefined,
+      });
+
+    // Padrão (flag ausente/false): configuração PENDENTE — sem cobrança MP.
+    const payload = {
+      items: [{ product_id: product.productId, quantity: 1 }],
+      payer_email: 'comprador@teste.com',
+      idempotency_key: randomToken(16),
+      client_token: randomToken(32),
+    };
+    const blocked = await createOrder(payload, mpOnly(false));
+    expect(blocked.status).toBe(503);
+    expect(blocked.body.error).toBe('payment_not_configured');
+    expect(fetchCalls).toHaveLength(0); // nenhuma chamada ao MP
+    // O pedido foi criado e a reserva liberada (resposta de erro não traz o
+    // pedido — o cliente inicia nova tentativa).
+    const blockedOrderId = (await sqlValue<string>(
+      `select id from public.orders where product_id = $1 order by created_at desc limit 1`,
+      [product.productId],
+    )) as unknown as string;
+    expect(await orderState(blockedOrderId)).toMatchObject({ status: 'failed' });
+    expect(await stockState(product.productId)).toEqual([{ status: 'available', count: 1 }]);
+
+    // Flag EXPLÍCITA ligada: o caminho legado passa a ser usado (é uma
+    // decisão declarada, não um fallback automático).
+    const allowed = await createOrder(
+      {
+        items: [{ product_id: product.productId, quantity: 1 }],
+        payer_email: 'comprador@teste.com',
+        idempotency_key: randomToken(16),
+        client_token: randomToken(32),
+      },
+      mpOnly(true),
+    );
+    expect(fetchCalls.length).toBeGreaterThan(0);
+    // Sem MP fake configurado aqui, a tentativa legada termina em 502 com
+    // reserva liberada — o ponto é que a CHAMADA só acontece com a flag.
+    expect(allowed.status).toBe(502);
+    expect(allowed.body.error).toBe('payment_provider_unavailable');
   }, 30000);
 });

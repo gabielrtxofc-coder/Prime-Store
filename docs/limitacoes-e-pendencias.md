@@ -44,9 +44,10 @@
    `supabase secrets set`) e `WYVI_WEBHOOK_SECRET` (exibido uma única vez na
    criação do destino de webhook). Sem elas o checkout responde
    `503 payment_not_configured` (ou registra a solicitação sem pagamento) —
-   comportamento intencional e testado. O Mercado Pago (`MP_*`) ficou como
-   caminho legado congelado, usado só quando não há chave WyviPay. Checklist
-   completo em [`wyvipay.md`](./wyvipay.md) §7.
+   comportamento intencional e testado. O Mercado Pago (`MP_*`) é caminho
+   legado **explícito**: exige `MERCADO_PAGO_LEGACY_ENABLED=true` — sem a
+   flag, um token MP antigo nunca cria cobrança (nenhum fallback
+   silencioso). Checklist completo em [`wyvipay.md`](./wyvipay.md) §7.
 4. **Sem identidades dos administradores.** O repositório não inventa e-mails nem
    UUIDs. O procedimento está em `docs/painel-admin.md`; falta criar os dois
    usuários no Supabase Auth e inserir os UUIDs em `admin_users`.
