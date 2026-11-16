@@ -90,15 +90,18 @@
       necessária; ledger = main.
 - [x] Cron ativo (jobid3: 15 execuções `succeeded` nos últimos 15 min) e
       worker autenticado (Vault `wyvi_worker_jwt` presente).
-- [x] Deploy Vercel do commit final: `5b5eb7b` → `dpl_3KbeeSQxptzsbPktgTWxiKi83ioP`
-      `READY`/`PROMOTED`; domínio `prime-store-gilt.vercel.app` respondendo 200.
+- [x] Deploy Vercel validado em produção: `96ed5d6` →
+      `dpl_BQJrmHY9u3DwqSR3DAPwAqVeskLu` `READY`/`PROMOTED`; domínio
+      `prime-store-gilt.vercel.app` respondendo 200.
 - [x] Catálogo vazio (`{"products":[]}`; os 2 produtos existentes estão
       arquivados + inativos) e painel admin com 2 contas (`admin_users=2`).
 - [x] Cadastro de produtos funcional (`admin-api` ACTIVE; CRUD coberto pela
       suíte local `test:db`).
 - [x] Correção de deep-links SPA: `vercel.json` com rewrite → `/index.html`
       (exceto `/assets/`), habilitando `/admin`, `/produtos` e
-      `/entrega/:token` (antes: 404 da Vercel no link direto).
+      `/entrega/:token` (antes: 404 da Vercel no link direto). Revalidado
+      pós-deploy: `/admin` → painel ("Duas contas administrativas"),
+      `/produtos` → catálogo, `/` → home íntegra.
 
 ## E — Validação final
 
@@ -106,7 +109,7 @@
 
 - [x] `npm test` 151/151, `test:db` 424/424, typecheck OK, build OK,
       10 bundles OK no commit final.
-- [x] CI verde nos PRs #8 e #9 (typecheck + testes + bundle).
+- [x] CI verde em todos os PRs desta missão (typecheck + testes + bundle).
 - [x] Tabela HTTP (via `verif.http` no banco remoto):
   - página `https://prime-store-gilt.vercel.app/` → **200** (HTML);
   - catálogo → **200** com `{"products":[]}` (vazio);
