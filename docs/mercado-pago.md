@@ -1,5 +1,14 @@
 # Mercado Pago (sandbox, Checkout Transparente)
 
+> **Caminho legado (EXPLÍCITO).** O fluxo ATIVO de cobrança PIX da loja é a
+> **WyviPay API v2** — ver [`wyvipay.md`](./wyvipay.md). O código do Mercado
+> Pago permanece íntegro, mas só é acionado quando
+> `MERCADO_PAGO_LEGACY_ENABLED=true` **e** `MP_ACCESS_TOKEN` existem: sem a
+> flag, um token antigo **nunca** cria cobrança (a loja fica em "configuração
+> pendente" até a chave WyviPay existir) — regra da missão: nenhum fallback
+> silencioso. Consulta/notificação de cobranças MP já existentes continua
+> funcionando. Nenhuma regra descrita aqui foi removida.
+
 ## Contestação (chargeback) — não é reembolso
 
 `charged_back` **não** é tratado como devolução concluída: o pedido vai para `disputed`,

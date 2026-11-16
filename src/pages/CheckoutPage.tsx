@@ -10,18 +10,24 @@ import { formatCurrency } from '../lib/format';
 import { describeBackendError, BackendError } from '../services/backend/http';
 import { getBackendConfig } from '../services/backend/config';
 import { catalogService } from '../services/catalogService';
-import { newClientToken, newIdempotencyKey } from '../services/orderService';
-import { createPurchaseRequest, saveRequestReceipt } from '../services/requestService';
+import { newClientToken, newIdempotencyKey, savePendingOrder } from '../services/orderService';
+import { saveRequestReceipt } from '../services/requestService';
+import { submitCheckout } from '../services/checkoutService';
 
 /**
- * ETAPA 04 da missão 08 — registro da solicitação, sem pagamento.
+ * ETAPA FINAL — checkout com cobrança PIX real (WyviPay) e fallback para
+ * solicitação sem pagamento.
  *
- * Diferenças em relação ao checkout de cobrança (preservado em
- * `pages/demo/PaymentCheckoutPage.tsx`):
- *  - envia o carrinho inteiro (um pedido com vários itens);
- *  - nenhum método de pagamento, nenhum gateway, nenhum campo de cartão;
- *  - o servidor recalcula produtos, quantidades e total a partir do banco;
- *  - o resultado é uma SOLICITAÇÃO que aguarda confirmação da loja.
+ * O envio usa o fluxo multi-item do servidor (`create-order`): o pedido nasce
+ * com reserva de estoque e a cobrança PIX é criada na mesma tentativa. Quando
+ * NENHUM provedor está configurado, o próprio servidor registra a solicitação
+ * sem pagamento (mesmo contrato de `order-request`) — a loja continua
+ * funcionando sem chave, sem reserva presa e sem pedido morto.
+ *
+ * Resultado do envio:
+ *   - `kind: 'payment'` → salva o pedido pendente e vai para `/pagamento`
+ *     (QR Code + copia-e-cola);
+ *   - `kind: 'request'` → confirmação clássica em `/pedido/:id`.
  */
 export function CheckoutPage() {
   const navigate = useNavigate();
@@ -77,7 +83,7 @@ export function CheckoutPage() {
     submitLock.current = true;
     setIsSubmitting(true);
     try {
-      const result = await createPurchaseRequest({
+      const outcome = await submitCheckout({
         items: lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
         buyerName: values.fullName.trim(),
         buyerEmail: values.email.trim(),
@@ -85,6 +91,32 @@ export function CheckoutPage() {
         clientToken: attempt.clientToken,
       });
 
+      if (outcome.kind === 'payment') {
+        const { result } = outcome;
+        const createdAt = result.order.created_at ?? new Date().toISOString();
+        // Pedido pendente: a tela de pagamento reabre por este registro mesmo
+        // depois de recarregar (sessionStorage) — e o comprovante permite
+        // consultá-lo depois pelo número + código de acompanhamento.
+        savePendingOrder({
+          orderId: result.order.order_id,
+          clientToken: result.client_token,
+          reference: result.order.reference,
+          createdAt,
+        });
+        saveRequestReceipt({
+          orderId: result.order.order_id,
+          reference: result.order.reference,
+          clientToken: result.client_token,
+          createdAt,
+          totalCents: result.order.total_cents,
+          itemsCount: result.order.items_count ?? lines.length,
+        });
+        clearCart();
+        navigate('/pagamento');
+        return;
+      }
+
+      const { result } = outcome;
       saveRequestReceipt({
         orderId: result.order.order_id,
         reference: result.order.reference,
@@ -186,7 +218,7 @@ export function CheckoutPage() {
       <div className="page-heading checkout-heading">
         <span className="eyebrow-label">ETAPA FINAL</span>
         <h1>Finalizar pedido</h1>
-        <p>Confira os itens e informe seus dados. Nenhum pagamento é feito pelo site.</p>
+        <p>Confira os itens e informe seus dados para seguir para a próxima etapa.</p>
       </div>
 
       {ignoredItems > 0 && (
@@ -306,8 +338,8 @@ export function CheckoutPage() {
             <div className="checkout-section__heading">
               <span className="checkout-step">03</span>
               <div>
-                <h2 id="terms-section-heading">Enviar solicitação</h2>
-                <p>O pedido fica registrado como "aguardando confirmação".</p>
+                <h2 id="terms-section-heading">Confirmar e seguir</h2>
+                <p>O pedido é registrado no servidor com os preços e a disponibilidade conferidos lá.</p>
               </div>
             </div>
             <label className={`terms-checkbox${visibleError('acceptedTerms') ? ' has-error' : ''}`}>
@@ -332,13 +364,14 @@ export function CheckoutPage() {
 
             <button className="button button--primary button--large checkout-submit" type="submit" disabled={!isValid || isSubmitting}>
               {isSubmitting ? (
-                <><span className="loading-spinner" aria-hidden="true" />Registrando solicitação…</>
+                <><span className="loading-spinner" aria-hidden="true" />Registrando pedido…</>
               ) : (
-                <>Enviar solicitação <Icon name="arrow-right" size={18} /></>
+                <>Finalizar pedido <Icon name="arrow-right" size={18} /></>
               )}
             </button>
             <p className="checkout-submit-note">
-              Nenhum pagamento é processado. Você recebe um número de pedido e um código para acompanhar.
+              Você recebe um número de pedido e um código de acompanhamento. Se a cobrança estiver
+              ativa, o pagamento é feito na etapa seguinte, com QR Code e código copia-e-cola.
             </p>
           </section>
         </form>

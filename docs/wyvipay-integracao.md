@@ -16,6 +16,17 @@
 > 0039–0041 confirmadas no histórico, secrets sem `MP_*`/`WyviPay`, D7
 > recuperado da fonte (§6.1), §6.2 e §8 atualizados. Nenhum endpoint novo
 > foi adicionado nem nada implementado.
+>
+> **Atualização 2026-11-13 — integração IMPLEMENTADA nesta branch:** migração
+> `0042` (CHECKs `wyvipay`, `attach_order_buyer`), cliente `_shared/wyvipay.ts`
+> (API v2), `create-order` multi-item com cobrança, `wyvi-webhook` (assinatura
+> + dedup + reconsulta), reconciliação em `order-status`, rota `/pagamento` no
+> frontend e suítes novas (`tests/unit/wyvipay.test.ts`,
+> `tests/db/24_wyvipay_fluxo.test.ts`). O operacional (env, cadastro do
+> webhook, checklist, estados, rotação, v1×v2) está em
+> [`docs/wyvipay.md`](./wyvipay.md). As seções abaixo continuam válidas como
+> mapeamento/auditoria — o estado "nada implementado" descreve o momento da
+> síntese.
 
 ---
 
@@ -142,7 +153,7 @@ dependências).
 | # | Risco | Gravidade | Status na Missão 11 |
 | --- | --- | --- | --- |
 | **R1** | Cobrança multi-item vs máquina mono-produto | crítico | **MITIGADO no banco e RECONFIRMADO na Missão 13.** Migrações `0034` (pedido + reserva + alocação + entrega multi-item) e `0035` (`apply_payment_status` multi-item) constam **no histórico remoto real** (`list_migrations` M13: `m08_0034…`–`m08_0038…` presentes; antes citadas como aplicadas nos registros M08–M10 ("0034–0038 aplicadas"). Resta, na etapa 6 do plano, ligar o handler `create-order` a `create_order_multi` — hoje ele ainda chama o fluxo mono (`create_order`) e, sem secrets, responde `503 payment_not_configured` |
-| **R2** | Rotação semanal de chaves (`wy_*` trocadas toda segunda; antiga morre no mesmo instante; evento `chave.rotacionada` não entrega a chave) | crítico | **Pendente de decisão operacional** — procedimento Caminho A/B/C no RELATORIO §6.1; exige responsável nomeado (D6) |
+| **R2** | Rotação semanal de chaves (`wy_*` trocadas toda segunda; antiga morre no mesmo instante; evento `chave.rotacionada` não entrega a chave) | crítico | **CORRIGIDO pela documentação oficial (Guias → Chaves):** a premissa estava ERRADA — chaves criadas por você **não** giram sozinhas; só a chave **padrão** gira semanalmente e não serve para integração. `WYVI_API_KEY` pessoal é estável; rotação só manual (vazou → revogar + criar nova, ver `wyvipay.md` §6). Evento `chave.rotacionada` segue informativo e sem a chave. |
 | **R3** | Divergência documental `wy_test_` (501 × "cria cobranças" × "não é mais devolvido") | alto | **Em aberto** — inferência documental do RELATORIO §5; só a primeira chamada autenticada resolve (etapa 2, D3) |
 | **R4** | Confusão "demo da loja" × "ambiente de teste da WyviPay" (`teste: true` em produção liberaria pedido real) | alto | **Controle obrigatório** previsto: recusar `teste: true` quando `WYVI_ENVIRONMENT=production` (RELATORIO §6, controle 9) |
 | **R5** | Destino de webhook se desliga (20 falhas seguidas → `ativo: false`, eventos não reenviados) | médio | Mitigação prevista: `GET /webhooks/{id}` periódico + reconciliação |

@@ -21,6 +21,35 @@ export interface AppConfig {
   mercadoPagoAccessToken: string | null;
   mercadoPagoWebhookSecret: string | null;
   mercadoPagoApiBase: string;
+  /**
+   * Caminho legado do Mercado Pago só com EXPLICITAÇÃO: `MERCADO_PAGO_LEGACY_ENABLED=true`.
+   *
+   * A Prime Store escolheu a WyviPay como provedora ativa. Com esta chave
+   * ausente (padrão), um `MP_ACCESS_TOKEN` antigo NUNCA volta a criar
+   * cobranças silenciosamente — a loja fica em "configuração pendente"
+   * (503/solicitação) até a `WYVI_API_KEY` existir. Consulta/notificação de
+   * cobranças MP já existentes continua funcionando (não cria nada).
+   */
+  mercadoPagoLegacyEnabled: boolean;
+  /**
+   * Chave de API da WyviPay (`wy_test_...` ou `wy_live_...`).
+   *
+   * SOMENTE por variável de ambiente (`WYVI_API_KEY`): nunca em código, log,
+   * resposta ou repositório. Ausente = fluxo de cobrança desligado (fail-closed).
+   */
+  wyviApiKey: string | null;
+  /** Segredo dos webhooks (`whsec_...`), exibido UMA vez na criação do destino. */
+  wyviWebhookSecret: string | null;
+  /** Base HTTPS da API v2 (sem `/api/v2`). */
+  wyviApiBase: string;
+  /**
+   * Ambiente da chave configurada: `test` ou `production`.
+   *
+   * Derivado do prefixo da chave (`wy_test_`/`wy_live_`) quando
+   * `WYVI_ENVIRONMENT` não é informado. Controla a recusa de eventos de teste
+   * (`dados.teste = true`) — nunca podem confirmar pedido real.
+   */
+  wyviEnvironment: 'test' | 'production';
   encryptionKey: string | null;
   storeUrl: string;
   paymentNotificationUrl: string | null;
@@ -68,6 +97,32 @@ export function parseRateLimitOverrides(raw: string): Record<string, number> {
   return result;
 }
 
+/**
+ * Resolve o ambiente da WyviPay sem depender de inferência solta:
+ * 1. override explícito (testes);
+ * 2. `WYVI_ENVIRONMENT` (`test` | `production`);
+ * 3. prefixo da chave (`wy_test_` / `wy_live_`);
+ * 4. chave presente com prefixo desconhecido → `production` (postura
+ *    fail-closed: prefere recusar evento de teste a aceitar simulação).
+ *
+ * Com `wy_live_` + eventos `dados.teste = true`, o webhook recusa — é o
+ * controle R4 da auditoria ("teste em produção liberaria pedido real").
+ */
+function resolveWyviEnvironment(
+  overrides: Partial<AppConfig>,
+  readEnv: (key: string) => string | undefined,
+): 'test' | 'production' {
+  if (overrides.wyviEnvironment) return overrides.wyviEnvironment;
+
+  const explicit = (readEnv('WYVI_ENVIRONMENT') ?? '').trim().toLowerCase();
+  if (explicit === 'test' || explicit === 'production') return explicit;
+
+  const apiKey = overrides.wyviApiKey ?? readEnv('WYVI_API_KEY') ?? '';
+  if (apiKey.startsWith('wy_test_')) return 'test';
+  if (apiKey.startsWith('wy_live_')) return 'production';
+  return apiKey ? 'production' : 'test';
+}
+
 export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   const supabaseUrl = overrides.supabaseUrl ?? readEnv('SUPABASE_URL') ?? '';
   const serviceRoleKey =
@@ -86,6 +141,13 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
       overrides.mercadoPagoWebhookSecret ?? readEnv('MP_WEBHOOK_SECRET') ?? null,
     mercadoPagoApiBase:
       overrides.mercadoPagoApiBase ?? readEnv('MP_API_BASE_URL') ?? 'https://api.mercadopago.com',
+    mercadoPagoLegacyEnabled:
+      overrides.mercadoPagoLegacyEnabled ??
+      (readEnv('MERCADO_PAGO_LEGACY_ENABLED') ?? '').trim().toLowerCase() === 'true',
+    wyviApiKey: overrides.wyviApiKey ?? readEnv('WYVI_API_KEY') ?? null,
+    wyviWebhookSecret: overrides.wyviWebhookSecret ?? readEnv('WYVI_WEBHOOK_SECRET') ?? null,
+    wyviApiBase: overrides.wyviApiBase ?? readEnv('WYVI_API_BASE') ?? 'https://api.wyvipay.com.br',
+    wyviEnvironment: resolveWyviEnvironment(overrides, readEnv),
     encryptionKey: overrides.encryptionKey ?? readEnv('PRIME_ENCRYPTION_KEY') ?? null,
     storeUrl: overrides.storeUrl ?? readEnv('STORE_URL') ?? 'http://localhost:5173',
     paymentNotificationUrl: overrides.paymentNotificationUrl ?? readEnv('MP_NOTIFICATION_URL') ?? null,
@@ -145,6 +207,38 @@ export function requireMercadoPago(config: AppConfig): string {
     throw new Error('payment_not_configured');
   }
   return config.mercadoPagoAccessToken;
+}
+
+/**
+ * WyviPay é o fluxo ATIVO de cobrança: presente quando há chave configurada.
+ * Sem chave, o checkout cai para o modo demonstrativo ou para a solicitação
+ * sem pagamento — nunca cria reserva presa.
+ */
+export function isWyviPayConfigured(config: AppConfig): boolean {
+  return Boolean(config.wyviApiKey);
+}
+
+/**
+ * O caminho legado do Mercado Pago só é acionado com EXPLICITAÇÃO.
+ * Sem `MERCADO_PAGO_LEGACY_ENABLED=true`, `MP_ACCESS_TOKEN` presente não cria
+ * cobrança nenhuma — a loja sinaliza configuração pendente (regra da missão:
+ * nenhum fallback automático para Mercado Pago).
+ */
+export function isMercadoPagoLegacyEnabled(config: AppConfig): boolean {
+  return config.mercadoPagoLegacyEnabled && Boolean(config.mercadoPagoAccessToken);
+}
+
+/** Config mínima para falar com a API v2 da WyviPay. */
+export function requireWyviPay(config: AppConfig): { apiKey: string; baseUrl: string } {
+  if (!config.wyviApiKey) {
+    throw new Error('payment_not_configured');
+  }
+  return { apiKey: config.wyviApiKey, baseUrl: config.wyviApiBase };
+}
+
+/** `true` quando a chave configurada é de PRODUÇÃO (dinheiro real). */
+export function isWyviProduction(config: AppConfig): boolean {
+  return config.wyviEnvironment === 'production';
 }
 
 export function requireEncryptionKey(config: AppConfig): string {

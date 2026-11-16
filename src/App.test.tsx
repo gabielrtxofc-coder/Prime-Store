@@ -127,6 +127,15 @@ function stubBackend(options: BackendOptions = {}) {
       return jsonResponse({ products, generated_at: new Date().toISOString() });
     }
 
+    if (url.endsWith('/create-order')) {
+      // Ambiente SEM chave de pagamento (cenário real desta suíte): o servidor
+      // responde 503 e o checkout cai para a solicitação sem pagamento.
+      return jsonResponse(
+        { error: 'payment_not_configured', message: 'Pagamento indisponível neste ambiente.' },
+        503,
+      );
+    }
+
     if (url.endsWith('/order-request')) {
       requestCount += 1;
       if (options.failFirstRequest && requestCount === 1) {
@@ -362,7 +371,7 @@ describe('jornada principal sem pagamento', () => {
     expect(screen.queryByText(/PIX|Cartão de crédito|Mercado Pago/i)).not.toBeInTheDocument();
 
     // Dados inválidos primeiro
-    const submit = screen.getByRole('button', { name: /Enviar solicitação/i });
+    const submit = screen.getByRole('button', { name: /Finalizar pedido/i });
     expect(submit).toBeDisabled();
     const nameField = screen.getByLabelText('Nome completo');
     await user.type(nameField, 'A');
@@ -416,7 +425,7 @@ describe('jornada principal sem pagamento', () => {
     await user.click(await screen.findByRole('link', { name: /Continuar para finalizar/i }));
     await fillCheckout(user);
 
-    const submit = screen.getByRole('button', { name: /Enviar solicitação/i });
+    const submit = screen.getByRole('button', { name: /Finalizar pedido/i });
     await user.dblClick(submit);
 
     expect(await screen.findByRole('heading', { name: 'Seu pedido foi registrado' })).toBeInTheDocument();
@@ -433,12 +442,12 @@ describe('jornada principal sem pagamento', () => {
     await user.click(await screen.findByRole('link', { name: /Continuar para finalizar/i }));
     await fillCheckout(user);
 
-    await user.click(screen.getByRole('button', { name: /Enviar solicitação/i }));
+    await user.click(screen.getByRole('button', { name: /Finalizar pedido/i }));
     const alerts = await screen.findAllByRole('alert');
     expect(alerts.some((alert) => /Não foi possível concluir a operação/i.test(alert.textContent ?? ''))).toBe(true);
     expect(screen.getByRole('link', { name: 'Carrinho, 1 item' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /Enviar solicitação/i }));
+    await user.click(screen.getByRole('button', { name: /Finalizar pedido/i }));
     expect(await screen.findByRole('heading', { name: 'Seu pedido foi registrado' })).toBeInTheDocument();
     expect(backend.requestCount).toBe(2);
   }, 20000);
@@ -452,7 +461,7 @@ describe('jornada principal sem pagamento', () => {
     await user.click(screen.getByRole('link', { name: 'Carrinho, 1 item' }));
     await user.click(await screen.findByRole('link', { name: /Continuar para finalizar/i }));
     await fillCheckout(user);
-    await user.click(screen.getByRole('button', { name: /Enviar solicitação/i }));
+    await user.click(screen.getByRole('button', { name: /Finalizar pedido/i }));
 
     const alerts = await screen.findAllByRole('alert');
     expect(alerts.some((alert) => /Outro cliente finalizou a compra/i.test(alert.textContent ?? ''))).toBe(true);
@@ -548,7 +557,7 @@ describe('acompanhamento e privacidade', () => {
     await user.click(screen.getByRole('link', { name: 'Carrinho, 1 item' }));
     await user.click(await screen.findByRole('link', { name: /Continuar para finalizar/i }));
     await fillCheckout(user);
-    await user.click(screen.getByRole('button', { name: /Enviar solicitação/i }));
+    await user.click(screen.getByRole('button', { name: /Finalizar pedido/i }));
     await screen.findByRole('heading', { name: 'Seu pedido foi registrado' });
     shop.unmount();
 
@@ -572,10 +581,12 @@ describe('acompanhamento e privacidade', () => {
     expect(screen.queryByText(/Acesso avulso/i)).not.toBeInTheDocument();
   });
 
-  it('a rota de pagamento não existe; a rota administrativa foi restaurada (missão 03.2A)', async () => {
+  it('a rota de pagamento existe e exige um pedido pendente; a rota administrativa foi restaurada (missão 03.2A)', async () => {
     stubBackend();
+    // Sem pedido pendente nesta sessão, a tela de pagamento não mostra nada —
+    // apenas convida a iniciar um checkout. Nenhum dado de pedido vaza.
     const payment = renderShopAt('/pagamento');
-    expect(await screen.findByRole('heading', { name: 'Não encontramos esta página' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Nenhum pedido em andamento' })).toBeInTheDocument();
     payment.unmount();
 
     // Acesso direto a /admin (missão 03.2A): abre o painel, mas sem sessão

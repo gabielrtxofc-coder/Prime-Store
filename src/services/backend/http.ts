@@ -96,7 +96,7 @@ export function describeBackendError(error: unknown): string {
       case 'payment_not_configured':
         return 'O pagamento PIX ainda não está configurado neste ambiente.';
       case 'payment_provider_unavailable':
-        return 'O Mercado Pago está indisponível agora. O estoque foi liberado; tente novamente.';
+        return 'O provedor de pagamento está indisponível agora. O estoque foi liberado; tente novamente.';
       case 'delivery_unavailable':
         return 'Este link de entrega foi revogado ou não está disponível.';
       case 'mfa_required':

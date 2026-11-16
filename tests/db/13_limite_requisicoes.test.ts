@@ -34,6 +34,7 @@ function depsFor(fetchImpl: typeof fetch, overrides: Partial<Deps['config']> = {
       serviceRoleKey: 'service-role-key-do-teste',
       anonKey: 'anon-key',
       mercadoPagoAccessToken: null,
+      mercadoPagoLegacyEnabled: true,
       mercadoPagoWebhookSecret: 'segredo-do-webhook-do-teste',
       mercadoPagoApiBase: 'https://api.mercadopago.test',
       encryptionKey: null,

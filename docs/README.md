@@ -10,7 +10,8 @@ configuração fora dele, exceto os segredos (que nunca são versionados).
 | --- | --- |
 | [`setup-local.md`](./setup-local.md) | Como rodar frontend, banco e testes na máquina local |
 | [`backend.md`](./backend.md) | Modelo de dados, migrações, funções SQL e endpoints das Edge Functions |
-| [`mercado-pago.md`](./mercado-pago.md) | Checkout Transparente PIX, webhook, idempotência e o que falta configurar |
+| [`mercado-pago.md`](./mercado-pago.md) | Checkout Transparente PIX, webhook, idempotência e o que falta configurar (caminho legado) |
+| [`wyvipay.md`](./wyvipay.md) | PIX pela WyviPay API v2: fluxo, secrets, cadastro do webhook, estados, rotação, checklist |
 | [`painel-admin.md`](./painel-admin.md) | Login, MFA/TOTP, provimento dos dois administradores, operações |
 | [`seguranca.md`](./seguranca.md) | RLS, criptografia de credenciais, tokens, auditoria, limites |
 | [`testes.md`](./testes.md) | Suítes automatizadas, resultados reais e matriz de cenários críticos |
