@@ -17,12 +17,14 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        # Mesma versão do banco local (scripts/local-db.mjs): PG 18.
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
         ports:
-          - 55432:55432
+          # host:contenedor — o Postgres escuta em 5432 DENTRO da imagem.
+          - 55432:5432
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
