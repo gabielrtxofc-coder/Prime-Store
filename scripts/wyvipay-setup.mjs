@@ -8,8 +8,12 @@
  *   npm run wyvi:setup
  *
  * O que faz, na ordem:
- *   1. recebe a chave de maneira interativa e OCULTA (env `WYVI_API_KEY` ou
- *      stdin sem eco) — nunca por argumento de linha de comando;
+ *   1. recebe a chave de maneira interativa e OCULTA (TTY real em modo raw
+ *      com eco desativado — Enter, backspace, Ctrl+C; restaura o terminal
+ *      em qualquer cenário). `WYVI_API_KEY` só é aceita em execução NÃO
+ *      interativa (automação/CI, sem TTY). Nunca por argumento de linha
+ *      de comando; sem TTY seguro e sem env ⇒ erro explícito (nunca
+ *      fallback com eco);
  *   2. valida o formato `wy_test_…`/`wy_live_…` (42 chars) e identifica o
  *      ambiente pela chave;
  *   3. prova a autenticidade e TODOS os escopos com requisições seguras:
@@ -29,7 +33,11 @@
  *          `POST https://api.supabase.com/v1/projects/{ref}/secrets`
  *          (endpoint/formato confirmados na documentação oficial —
  *           lista de nomes via `GET …/secrets`);
- *        - ou Supabase CLI autenticada (`supabase secrets set …`);
+ *        - ou Supabase CLI autenticada, SEM segredos em argv:
+ *          `supabase secrets set --env-file <temp0600> --project-ref <ref>`
+ *          (sintaxe confirmada com a própria CLI via `--help` antes;
+ *          arquivo temporário exclusivo com permissão 600, removido em
+ *          `finally`); verificação por `secrets list` (só nomes);
  *      os três segredos: `WYVI_API_KEY`, `WYVI_WEBHOOK_SECRET` e
  *      `WYVI_ENVIRONMENT` (test|production derivado da chave);
  *   8. VERIFICA a instalação relendo a lista de nomes no remoto;
@@ -49,12 +57,12 @@
  * `whsec_` e valores de secret nunca saem do arquivo/remoto.
  *
  * Uso:
- *   npm run wyvi:setup
+ *   npm run wyvi:setup                    # caminho manual normal (TTY oculto)
  *   npm run wyvi:setup -- --recreate      # troca o destino (novo whsec_)
- *   WYVI_API_KEY=wy_test_… npm run wyvi:setup   # chave via ambiente
+ *   WYVI_API_KEY=wy_test_… npm run wyvi:setup   # só automação/CI (sem TTY)
  *
  * Variáveis:
- *   WYVI_API_KEY             obrigatória (env ou stdin oculto)
+ *   WYVI_API_KEY             automação/CI (sem TTY); no manual, digite oculto
  *   WYVI_WEBHOOK_URL         destino completo (opcional; ver fallback)
  *   SUPABASE_URL             fallback: <SUPABASE_URL>/functions/v1/wyvi-webhook
  *   SUPABASE_PROJECT_REF     opcional (senão deriva de SUPABASE_URL)
@@ -63,10 +71,10 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
 
 const BASE = (process.env.WYVI_API_BASE ?? 'https://api.wyvipay.com.br').replace(/\/+$/, '');
@@ -178,13 +186,76 @@ export async function listSecretNames({ token, projectRef, fetchImpl = fetch, ap
   return { ok: true, status: 200, names };
 }
 
-/** Caminho CLI: `supabase secrets set K=V … --project-ref <ref>`. */
-export function installViaCli({ secrets, projectRef, spawn = spawnSync }) {
-  const args = ['secrets', 'set', ...secrets.map((s) => `${s.name}=${s.value}`), '--project-ref', projectRef];
-  const result = spawn('supabase', args, { encoding: 'utf8' });
-  if (result.error) return { ok: false, reason: 'cli_ausente' };
-  if (result.status !== 0) return { ok: false, reason: 'cli_falhou', detail: String(result.stderr ?? '').slice(0, 200) };
-  return { ok: true };
+/** Redige valores de segredo em qualquer texto de erro/log (nunca vazam). */
+function redactDetail(text, secrets) {
+  let out = String(text ?? '');
+  for (const s of secrets) {
+    if (s.value) out = out.split(s.value).join('[REMOVIDO]');
+  }
+  return out.slice(0, 200);
+}
+
+/** O output de `secrets list` menciona o nome exato (limites não-ident)? */
+export function cliListShowsName(output, name) {
+  const re = new RegExp(`(^|[^A-Za-z0-9_])${name}([^A-Za-z0-9_]|$)`);
+  return re.test(String(output ?? ''));
+}
+
+/**
+ * Caminho CLI SEM segredos em argv:
+ *   1. confirma a sintaxe com a própria CLI (`secrets set --help` deve
+ *      listar `--env-file` — sem suporte ⇒ bloqueio explícito, nunca
+ *      fallback para argv com valores);
+ *   2. grava arquivo temporário exclusivo com permissão 600;
+ *   3. `supabase secrets set --env-file <arq> --project-ref <ref>`;
+ *   4. verifica por NOMES via `secrets list` (nunca valores);
+ *   5. remove o arquivo temporário em QUALQUER cenário (finally).
+ */
+export function installViaCli({ secrets, projectRef, spawn = spawnSync, tmpBase = tmpdir() }) {
+  const help = spawn('supabase', ['secrets', 'set', '--help'], { encoding: 'utf8' });
+  if (help.error) return { ok: false, reason: 'cli_ausente' };
+  const helpOut = `${help.stdout ?? ''}${help.stderr ?? ''}`;
+  if (help.status !== 0 || !helpOut.includes('--env-file')) {
+    return {
+      ok: false,
+      reason: 'cli_sem_env_file',
+      detail: 'Supabase CLI sem suporte a `secrets set --env-file`; atualize a CLI (segredos nunca vão por argv).',
+    };
+  }
+
+  const dir = mkdtempSync(path.join(tmpBase, 'wyvi-secrets-'));
+  const file = path.join(dir, 'secrets.env');
+  try {
+    writeFileSync(file, `${secrets.map((s) => `${s.name}=${s.value}`).join('\n')}\n`, {
+      flag: 'wx',
+      mode: 0o600,
+    });
+    chmodSync(file, 0o600);
+
+    const result = spawn(
+      'supabase',
+      ['secrets', 'set', '--env-file', file, '--project-ref', projectRef],
+      { encoding: 'utf8' },
+    );
+    if (result.error) return { ok: false, reason: 'cli_ausente', tempFile: file };
+    if (result.status !== 0) {
+      return { ok: false, reason: 'cli_falhou', detail: redactDetail(result.stderr ?? result.stdout, secrets), tempFile: file };
+    }
+
+    const list = spawn('supabase', ['secrets', 'list', '--project-ref', projectRef], { encoding: 'utf8' });
+    if (list.error) return { ok: false, reason: 'verificacao_falhou', detail: 'secrets list indisponível', tempFile: file };
+    if (list.status !== 0) {
+      return { ok: false, reason: 'verificacao_falhou', detail: redactDetail(list.stderr ?? list.stdout, secrets), tempFile: file };
+    }
+    const saida = `${list.stdout ?? ''}`;
+    const faltando = secrets.filter((s) => !cliListShowsName(saida, s.name)).map((s) => s.name);
+    if (faltando.length > 0) {
+      return { ok: false, reason: 'nomes_ausentes', detail: faltando.join(', '), tempFile: file };
+    }
+    return { ok: true, tempFile: file };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 export function cliAvailable(spawn = spawnSync) {
@@ -232,8 +303,16 @@ export async function installRemoteSecrets({
   }
   if (cliAvailable(spawn)) {
     const inst = installViaCli({ secrets, projectRef, spawn });
-    if (!inst.ok) return { ok: false, fase: 'instalacao', motivo: inst.reason, detalhe: inst.detail, mecanismo: 'cli' };
-    return { ok: true, mecanismo: 'cli', projectRef, verificacao: 'saida_cli_set' };
+    if (!inst.ok) {
+      return {
+        ok: false,
+        fase: inst.reason === 'nomes_ausentes' || inst.reason === 'verificacao_falhou' ? 'verificacao' : 'instalacao',
+        motivo: inst.reason,
+        detalhe: inst.detail,
+        mecanismo: 'cli',
+      };
+    }
+    return { ok: true, mecanismo: 'cli', projectRef, verificacao: 'lista_nomes' };
   }
   return {
     ok: false,
@@ -255,17 +334,116 @@ function fail(message, detail) {
   process.exit(1);
 }
 
-async function readHidden(prompt) {
-  const rl = createInterface({ input: process.stdin, output: process.stderr, terminal: false });
-  try {
-    rl.write(prompt);
-    for await (const line of rl) {
-      return line.trim();
-    }
-    return '';
-  } finally {
-    rl.close();
+/**
+ * Entrada OCULTA em TTY real: modo raw (o terminal desativa o eco),
+ * tratando Enter, backspace, Ctrl+C (e sequências de seta ignoradas).
+ * Restaura o terminal em QUALQUER cenário (sucesso, erro, sinal).
+ * Nunca exibe nem registra o valor digitado. Sem TTY seguro → erro
+ * explícito (nunca lê pipe/stdin com eco implícito).
+ *
+ * `stdin`/`write`/`exit` são injetáveis para os testes de unidade;
+ * no uso real vêm de `process`.
+ */
+export async function readHidden(
+  prompt,
+  { stdin = process.stdin, write = (text) => process.stderr.write(text), exit = (code) => process.exit(code) } = {},
+) {
+  if (!stdin || !stdin.isTTY || typeof stdin.setRawMode !== 'function') {
+    throw new Error(
+      'entrada insegura: sem TTY — a chave deve ser digitada em um terminal com eco desativado; em automação/CI use WYVI_API_KEY.',
+    );
   }
+  const wasRaw = Boolean(stdin.isRaw);
+  return await new Promise((resolve, reject) => {
+    let buf = '';
+    let escapeState = 0; // 0=normal, 1=após ESC, 2=dentro de CSI/SS3
+    const cleanup = () => {
+      stdin.off('data', onData);
+      stdin.off('end', onEnd);
+      stdin.off('error', onError);
+      process.off('SIGINT', onSigint);
+      process.off('SIGTERM', onSigterm);
+      try {
+        stdin.setRawMode(wasRaw);
+      } catch {
+        // terminal já restaurado ou indisponível — nada mais a fazer
+      }
+      stdin.pause();
+    };
+    const cancel = (message, exitCode) => {
+      cleanup();
+      write('\n');
+      const error = new Error(message);
+      error.cancelled = true;
+      error.exitCode = exitCode;
+      reject(error);
+    };
+    const onEnd = () => cancel('entrada encerrada antes do Enter (EOF).', 1);
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const onSigint = () => {
+      cleanup();
+      exit(130);
+    };
+    const onSigterm = () => {
+      cleanup();
+      exit(143);
+    };
+    const onData = (chunk) => {
+      for (const ch of String(chunk)) {
+        if (escapeState === 2) {
+          // CSI/SS3 (ESC [ … final / ESC O … final): descarta até o byte final
+          if (ch >= '@' && ch <= '~') escapeState = 0;
+          continue;
+        }
+        if (escapeState === 1) {
+          // byte após ESC: '[' ou 'O' iniciam sequência; senão é byte final solto
+          escapeState = ch === '[' || ch === 'O' ? 2 : 0;
+          continue;
+        }
+        if (ch === '\u001b') {
+          escapeState = 1;
+          continue;
+        }
+        if (ch === '\r' || ch === '\n') {
+          cleanup();
+          write('\n');
+          resolve(buf.trim());
+          return;
+        }
+        if (ch === '\u0003') {
+          cancel('entrada cancelada (Ctrl+C).', 130);
+          return;
+        }
+        if (ch === '\u0004') {
+          if (buf.length === 0) cancel('entrada vazia (Ctrl+D).', 1);
+          continue;
+        }
+        if (ch === '\u007f' || ch === '\b') {
+          buf = buf.slice(0, -1);
+          continue;
+        }
+        if (ch < ' ') continue; // demais controles ignorados
+        buf += ch;
+      }
+    };
+    try {
+      stdin.setRawMode(true);
+    } catch (error) {
+      reject(new Error(`não foi possível ativar o modo raw do terminal: ${error.message}`));
+      return;
+    }
+    stdin.setEncoding('utf8');
+    stdin.on('data', onData);
+    stdin.on('end', onEnd);
+    stdin.on('error', onError);
+    process.on('SIGINT', onSigint);
+    process.on('SIGTERM', onSigterm);
+    stdin.resume();
+    write(prompt);
+  });
 }
 
 function parseRetryAfter(response) {
@@ -364,12 +542,33 @@ async function main() {
   }
 
   // ---------------------------------------------------------------------
-  // 1. Chave: ambiente ou stdin oculto — nunca argv.
+  // 1. Chave: env WYVI_API_KEY (automação/CI) OU entrada OCULTA em TTY
+  //    (caminho manual normal) — nunca argv; sem env e sem TTY seguro ⇒
+  //    erro explícito (nunca fallback lendo pipe com eco).
   // ---------------------------------------------------------------------
-  let key = (process.env.WYVI_API_KEY ?? '').trim();
-  if (!key) {
-    console.error('WYVI_API_KEY não encontrada no ambiente. Cole a chave (entrada oculta):');
-    key = await readHidden('chave: ');
+  let key;
+  let keyVia;
+  const envKey = (process.env.WYVI_API_KEY ?? '').trim();
+  if (envKey) {
+    key = envKey;
+    keyVia = 'WYVI_API_KEY (automação)';
+  } else if (process.stdin.isTTY) {
+    console.error('Cole a chave WyviPay (entrada oculta — nada aparecerá na tela):');
+    try {
+      key = await readHidden('chave: ');
+      keyVia = 'entrada oculta';
+    } catch (error) {
+      if (error?.cancelled) {
+        console.error(`\n✗ ${error.message}`);
+        process.exit(error.exitCode ?? 130);
+      }
+      fail('Não foi possível ler a chave do terminal.', String(error?.message ?? error));
+    }
+  } else {
+    fail(
+      'Sem TTY seguro e sem WYVI_API_KEY: entrada da chave recusada.',
+      'Rode em um terminal interativo (a chave é digitada com eco desativado) ou exporte WYVI_API_KEY em automação/CI.',
+    );
   }
   const chave = validateKey(key);
   if (!chave.ok) {
@@ -379,7 +578,7 @@ async function main() {
     );
   }
   const ambiente = chave.ambiente;
-  console.log(`\n✓ chave carregada do ambiente/stdin: ${maskKey(key)} (ambiente: ${ambiente})`);
+  console.log(`\n✓ chave carregada via ${keyVia}: ${maskKey(key)} (ambiente: ${ambiente})`);
 
   const url = resolveWebhookUrl(process.env);
   if (!url) {

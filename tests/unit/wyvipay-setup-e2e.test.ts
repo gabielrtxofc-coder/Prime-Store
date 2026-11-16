@@ -293,6 +293,21 @@ describe('wyvi:setup — E2E em subprocesso com API falsa', () => {
     }
   });
 
+  it('sem WYVI_API_KEY e sem TTY (pipe) → falha explícita, sem ler nada de eco inseguro', async () => {
+    const tmpSemChave = mkdtempSync(path.join(tmpdir(), 'wyvi-e2e-sem-chave-'));
+    try {
+      // runSetup injeta a chave; sobrescrevemos com '' (falsy) para simular
+      // automação sem chave — stdin do filho é pipe, logo NÃO é TTY.
+      const run = await runSetup(tmpSemChave, { WYVI_API_KEY: '' });
+      expect(run.status).toBe(1);
+      expect(run.output).toContain('Sem TTY seguro');
+      expect(run.output).toContain('WYVI_API_KEY');
+      expect(run.output).not.toContain(KEY);
+    } finally {
+      rmSync(tmpSemChave, { recursive: true, force: true });
+    }
+  });
+
   it('chave inválida (401) → falha imediata sem criar destino nem instalar nada', async () => {
     const tmp4 = mkdtempSync(path.join(tmpdir(), 'wyvi-e2e-401-'));
     try {

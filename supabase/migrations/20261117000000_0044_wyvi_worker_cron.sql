@@ -109,12 +109,33 @@ begin
   --    de servidor (postgres, service_role) e o próprio agendador do
   --    pg_cron não são afetados.
   -- ---------------------------------------------------------------------
+  -- Cada revoke tem seu próprio tratamento: funções internas de extensões
+  -- (ex.: pgsodium/vault `_crypto_aead_det_encrypt`) são propriedade de
+  -- outros papéis e o REVOKE falha com 42501 — o restante (schemas, tabelas
+  -- e sequências, onde está `vault.decrypted_secrets` e a fila do pg_net)
+  -- continua sendo aplicado, e o NOTICE registra o que não foi possível.
   foreach v_schema in array array['net', 'cron', 'vault'] loop
     if to_regnamespace(v_schema) is not null then
-      execute format('revoke usage on schema %I from public, anon, authenticated', v_schema);
-      execute format('revoke all on all tables in schema %I from public, anon, authenticated', v_schema);
-      execute format('revoke all on all sequences in schema %I from public, anon, authenticated', v_schema);
-      execute format('revoke all on all functions in schema %I from public, anon, authenticated', v_schema);
+      begin
+        execute format('revoke usage on schema %I from public, anon, authenticated', v_schema);
+      exception when insufficient_privilege then
+        raise notice 'revokes de schema em % ignorado: %', v_schema, sqlerrm;
+      end;
+      begin
+        execute format('revoke all on all tables in schema %I from public, anon, authenticated', v_schema);
+      exception when insufficient_privilege then
+        raise notice 'revokes de tabelas em % ignorado: %', v_schema, sqlerrm;
+      end;
+      begin
+        execute format('revoke all on all sequences in schema %I from public, anon, authenticated', v_schema);
+      exception when insufficient_privilege then
+        raise notice 'revokes de sequencias em % ignorado: %', v_schema, sqlerrm;
+      end;
+      begin
+        execute format('revoke all on all functions in schema %I from public, anon, authenticated', v_schema);
+      exception when insufficient_privilege then
+        raise notice 'revokes de funcoes em % ignorado: %', v_schema, sqlerrm;
+      end;
     end if;
   end loop;
 end;

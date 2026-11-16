@@ -79,10 +79,13 @@ npm run wyvi:setup -- --recreate    # troca o destino (novo whsec_)
 
 O script (`scripts/wyvipay-setup.mjs`):
 
-1. lê a chave **só** por variável de ambiente `WYVI_API_KEY` (ou stdin
-   oculto) — nunca por argv, arquivo versionado ou log; chave aparece
-   mascarada (`wy_test_••••`); valida o formato `wy_test_|wy_live_` + 42
-   e identifica o ambiente;
+1. lê a chave pela **entrada oculta em TTY** (modo raw, eco desativado —
+   Enter, backspace, Ctrl+C; o terminal é restaurado em qualquer cenário)
+   como caminho manual normal; `WYVI_API_KEY` só em execução **não
+   interativa** (automação/CI, sem TTY); sem env e sem TTY seguro ⇒ erro
+   explícito (nunca lê pipe com eco) — nunca por argv, arquivo versionado
+   ou log; chave aparece mascarada (`wy_test_••••`); valida o formato
+   `wy_test_|wy_live_` + 42 e identifica o ambiente;
 2. prova autenticidade e TODOS os escopos com requisições seguras:
    `GET /webhooks` (`webhook:ler`; 401 = chave recusada),
    `GET /cobrancas/<txid-inexistente>` → 404 (`cobranca:ler`) e
@@ -103,11 +106,15 @@ O script (`scripts/wyvipay-setup.mjs`):
      `POST https://api.supabase.com/v1/projects/{ref}/secrets` (lista
      `[{name,value}]`, escopo `secrets:write`);
    - senão, se a Supabase CLI estiver autenticada →
-     `supabase secrets set … --project-ref <ref>`;
+     `supabase secrets set --env-file <temp0600> --project-ref <ref>`
+     (nenhum valor em argv: arquivo temporário exclusivo com permissão
+     600, removido em `finally`; sintaxe confirmada com a própria CLI
+     via `--help` antes; sem `--env-file` ⇒ bloqueio explícito);
    - nenhum dos dois → saída 1 com o passo exato (nada de sucesso
      parcial disfarçado);
-6. **VERIFICA** a instalação relendo a lista de nomes no remoto (GET) —
-   os três precisam estar presentes antes de declarar sucesso;
+6. **VERIFICA** a instalação relendo só os **nomes** no remoto (Management
+   API: GET; CLI: `secrets list`) — os três precisam estar presentes antes
+   de declarar sucesso; valores remotos nunca são buscados nem exibidos;
 7. recuperação segura: destino já existe + `whsec_` no arquivo →
    reexecutar só refaz a instalação remota (idempotente); destino
    existe mas o `whsec_` se perdeu → saída 1 instruindo `--recreate`;
