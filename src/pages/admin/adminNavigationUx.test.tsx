@@ -96,7 +96,7 @@ describe('AdminPage — navegação do painel (missão UX)', () => {
     const overviewTab = screen.getByRole('button', { name: 'Visão geral' });
     expect(overviewTab).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('heading', { level: 2, name: 'Visão geral' })).toBeInTheDocument();
-    expect(screen.getByText(/Indicadores do período, pedidos recentes/)).toBeInTheDocument();
+    expect(screen.getByText(/Situação comercial da loja, pedidos recentes/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Produtos' }));
 

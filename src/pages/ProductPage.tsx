@@ -117,48 +117,50 @@ export function ProductPage() {
               <span>Modalidade</span><strong>{product.modality || 'Produto digital'}</strong>
               <span>Período</span><strong>{product.period || 'não informado'}</strong>
             </div>
-            <div className="product-detail__price-block">
-              <span>Preço</span>
-              <strong>{formatCurrency(product.priceCents)}</strong>
-              <small>
-                {product.available
-                  ? `${units ?? 0} unidade(s) disponível(is) agora`
-                  : 'Sem unidades disponíveis no momento'}
-              </small>
-              {product.available && units !== null && units > 0 && units <= 2 && (
-                <span className="product-detail__low-stock">
-                  <Icon name="clock" size={14} /> Últimas {units} unidade(s) — a disponibilidade pode mudar até a confirmação.
-                </span>
-              )}
-            </div>
-            {product.available && product.allowQuantity && (
-              <div className="product-detail__quantity">
-                <span>Quantidade</span>
-                <QuantityControl value={quantity} max={quantityLimit} label="quantidade do produto" onChange={setQuantity} />
-                {quantityLimit > 1 && <small className="field-hint">Máximo de {quantityLimit} unidade(s) por pedido.</small>}
-                {quantity > 1 && (
-                  <p className="product-detail__estimate" aria-live="polite">
-                    Total estimado: <strong>{formatCurrency(product.priceCents * quantity)}</strong> — o valor final é
-                    conferido no servidor ao enviar o pedido.
-                  </p>
+            <div className="buy-panel">
+              <div className="product-detail__price-block">
+                <span>Preço</span>
+                <strong>{formatCurrency(product.priceCents)}</strong>
+                <small>
+                  {product.available
+                    ? `${units ?? 0} unidade(s) disponível(is) agora`
+                    : 'Sem unidades disponíveis no momento'}
+                </small>
+                {product.available && units !== null && units > 0 && units <= 2 && (
+                  <span className="product-detail__low-stock">
+                    <Icon name="clock" size={14} /> Últimas {units} unidade(s) — a disponibilidade pode mudar até a confirmação.
+                  </span>
                 )}
               </div>
-            )}
-            {!product.available && (
-              <p className="availability-note">Este produto está sem unidades. Ele continua no catálogo, mas não pode ser solicitado.</p>
-            )}
-            <div className="product-detail__actions">
-              <button className="button button--primary button--large" type="button" onClick={handleAdd} disabled={!product.available}>
-                {product.available ? 'Adicionar ao carrinho' : 'Indisponível'}<Icon name="arrow-right" size={18} />
-              </button>
-              <Link className="button button--secondary button--large" to="/produtos">Continuar comprando</Link>
-            </div>
-            <div className="product-detail__notice">
-              <Icon name="alert" size={18} />
-              <p>
-                O preço exibido é o preço do catálogo e é reconferido no servidor ao enviar o pedido.
-                Nenhum pagamento é feito pelo site: a solicitação fica aguardando confirmação.
-              </p>
+              {product.available && product.allowQuantity && (
+                <div className="product-detail__quantity">
+                  <span>Quantidade</span>
+                  <QuantityControl value={quantity} max={quantityLimit} label="quantidade do produto" onChange={setQuantity} />
+                  {quantityLimit > 1 && <small className="field-hint">Máximo de {quantityLimit} unidade(s) por pedido.</small>}
+                  {quantity > 1 && (
+                    <p className="product-detail__estimate" aria-live="polite">
+                      Total estimado: <strong>{formatCurrency(product.priceCents * quantity)}</strong> — o valor final é
+                      conferido no servidor ao enviar o pedido.
+                    </p>
+                  )}
+                </div>
+              )}
+              {!product.available && (
+                <p className="availability-note">Este produto está sem unidades. Ele continua no catálogo, mas não pode ser solicitado.</p>
+              )}
+              <div className="product-detail__actions">
+                <button className="button button--primary button--large" type="button" onClick={handleAdd} disabled={!product.available}>
+                  {product.available ? 'Adicionar ao carrinho' : 'Indisponível'}<Icon name="arrow-right" size={18} />
+                </button>
+                <Link className="button button--secondary button--large" to="/produtos">Continuar comprando</Link>
+              </div>
+              <div className="product-detail__notice">
+                <Icon name="alert" size={18} />
+                <p>
+                  O preço exibido é o preço do catálogo e é reconferido no servidor ao enviar o pedido.
+                  Nenhum pagamento é feito pelo site: a solicitação fica aguardando confirmação.
+                </p>
+              </div>
             </div>
           </div>
         </div>

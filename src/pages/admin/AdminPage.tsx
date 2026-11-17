@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Icon } from '../../components/Icon';
+import { Icon, type IconName } from '../../components/Icon';
 import { getBackendConfig } from '../../services/backend/config';
 import {
   canUseAdminDemo,
@@ -19,14 +19,12 @@ import { AdminOrders } from './AdminOrders';
 
 type Tab = 'overview' | 'products' | 'stock' | 'orders';
 
-type IconName = Parameters<typeof Icon>[0]['name'];
-
 const TABS: Array<{ id: Tab; label: string; icon: IconName; description: string }> = [
   {
     id: 'overview',
     label: 'Visão geral',
     icon: 'grid',
-    description: 'Indicadores do período, pedidos recentes e registros de auditoria.',
+    description: 'Situação comercial da loja, pedidos recentes e pendências de atendimento.',
   },
   {
     id: 'products',
@@ -58,6 +56,7 @@ export function AdminPage() {
   const [booting, setBooting] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('overview');
+  const [navOpen, setNavOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     const result = await getCurrentSession();
@@ -94,6 +93,9 @@ export function AdminPage() {
     setTab('overview');
   };
 
+  const current = TABS.find((item) => item.id === tab) ?? TABS[0];
+  const sessionLabel = demoMode ? 'Sessão de demonstração (sem dados reais)' : (session?.email ?? 'Sessão ativa');
+
   const demoBanner = demoMode ? (
     <div className="admin-demo-banner" role="note">
       <Icon name="alert" size={18} />
@@ -106,7 +108,7 @@ export function AdminPage() {
 
   // Sem backend E sem modo demonstrativo disponível não há nada a exibir.
   // Com o build demo ligado, o visitante segue para o login, que oferece a
-  // entrada em modo demonstrativo — era inalcançável antes desta correção.
+  // entrada em modo demonstrativo.
   if (!configured && !demoMode && !demoAvailable) {
     return (
       <section className="container page-section">
@@ -163,53 +165,93 @@ export function AdminPage() {
   }
 
   return (
-    <section className="container page-section admin-page">
-      {demoBanner}
-      <header className="admin-header">
-        <div>
-          <span className="eyebrow-label">ADMINISTRAÇÃO</span>
-          <h1>Painel Prime Store</h1>
-          <p className="field-hint">
-            {demoMode
-              ? 'sessão de demonstração (sem dados reais)'
-              : `${session.email} · sessão com verificação em duas etapas (AAL2)`}
-          </p>
+    <div className={`admin-shell${navOpen ? ' admin-shell--nav-open' : ''}`}>
+      <aside className="admin-sidebar" id="admin-navigation">
+        <div className="admin-brand">
+          <span className="admin-brand__mark" aria-hidden="true">PS</span>
+          <span className="admin-brand__text">
+            <h1>Painel Prime Store</h1>
+            <small>Gestão comercial</small>
+          </span>
         </div>
-        <div className="admin-header__actions">
-          <Link className="button button--secondary button--small" to="/">Ver loja</Link>
-          <button className="button button--secondary button--small" type="button" onClick={logout}>Sair</button>
-        </div>
-      </header>
 
-      <nav className="admin-tabs" aria-label="Seções do painel">
-        {TABS.map((item) => (
+        <nav className="admin-nav" aria-label="Seções do painel">
+          {TABS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`admin-nav__item${tab === item.id ? ' is-active' : ''}`}
+              aria-current={tab === item.id ? 'page' : undefined}
+              onClick={() => {
+                setTab(item.id);
+                setNavOpen(false);
+              }}
+            >
+              <span className="admin-nav__icon" aria-hidden="true"><Icon name={item.icon} size={17} /></span>
+              <span className="admin-nav__label">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="admin-sidebar__footer">
+          <div className="admin-session">
+            <span className={`admin-session__dot${demoMode ? ' is-demo' : ''}`} aria-hidden="true" />
+            <span className="admin-session__text">
+              <strong>{demoMode ? 'Demonstração' : 'Administrador'}</strong>
+              <small>{sessionLabel}</small>
+            </span>
+          </div>
+          <div className="admin-sidebar__actions">
+            <Link className="button button--secondary button--small" to="/">Ver loja</Link>
+            <button className="button button--ghost button--small" type="button" onClick={logout}>Sair</button>
+          </div>
+        </div>
+      </aside>
+
+      <div className="admin-main">
+        <header className="admin-topbar">
           <button
-            key={item.id}
+            className="admin-topbar__menu"
             type="button"
-            className={`admin-tab${tab === item.id ? ' is-active' : ''}`}
-            aria-current={tab === item.id ? 'page' : undefined}
-            onClick={() => setTab(item.id)}
+            onClick={() => setNavOpen((open) => !open)}
+            aria-expanded={navOpen}
+            aria-controls="admin-navigation"
           >
-            <Icon name={item.icon} size={17} />
-            <span>{item.label}</span>
+            <Icon name={navOpen ? 'close' : 'menu'} size={18} />
+            <span>Menu</span>
           </button>
-        ))}
-      </nav>
+          <div className="admin-topbar__head">
+            <span className="eyebrow-label">ADMINISTRAÇÃO</span>
+            <h2>{current.label}</h2>
+            <p>{current.description}</p>
+          </div>
+          <div className="admin-topbar__aside">
+            {demoMode && <span className="admin-pill admin-pill--demo">Modo demonstração</span>}
+            <span className="admin-pill">{session.mfaSatisfied ? 'Verificação em duas etapas ativa' : 'Sessão ativa'}</span>
+          </div>
+        </header>
 
-      <div className="admin-content">
-        <div className="admin-content__heading">
-          <h2>{TABS.find((item) => item.id === tab)?.label}</h2>
-          <p className="field-hint">{TABS.find((item) => item.id === tab)?.description}</p>
+        <div className="admin-content">
+          {demoBanner}
+          {tab === 'overview' && <AdminOverview onNavigate={setTab} />}
+          {tab === 'products' && <AdminProducts />}
+          {tab === 'stock' && <AdminStock />}
+          {tab === 'orders' && <AdminOrders />}
         </div>
-        {tab === 'overview' && <AdminOverview />}
-        {tab === 'products' && <AdminProducts />}
-        {tab === 'stock' && <AdminStock />}
-        {tab === 'orders' && <AdminOrders />}
+
+        <p className="admin-footnote">
+          <Icon name="alert" size={15} /> Toda operação administrativa é registrada em auditoria com o identificador do administrador.
+        </p>
       </div>
 
-      <p className="admin-footnote">
-        <Icon name="alert" size={15} /> Toda operação administrativa é registrada em auditoria com o identificador do administrador.
-      </p>
-    </section>
+      {navOpen && (
+        <button
+          className="admin-nav-backdrop"
+          type="button"
+          aria-label="Fechar menu de navegação"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
+    </div>
   );
 }

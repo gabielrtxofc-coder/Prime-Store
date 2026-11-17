@@ -66,6 +66,14 @@ const PAYMENT_STATUS_TEXT: Record<string, string> = {
   amount_mismatch: 'divergência de valor',
 };
 
+const DELIVERY_STATUS_LABEL: Record<string, string> = {
+  not_ready: 'não liberada',
+  ready: 'liberada',
+  active: 'ativa',
+  expired: 'expirada',
+  revoked: 'revogada',
+};
+
 const ORDER_STATUS_TONE: Record<string, string> = {
   paid: 'is-on',
   requested: '',
@@ -284,7 +292,6 @@ export function AdminOrders() {
           </select>
         </div>
         <div className="admin-filter-field admin-filter-field--period">
-          <span className="admin-filter-label" aria-hidden="true">Período</span>
           <PeriodFilter
             idPrefix="orders"
             preset={preset}
@@ -321,54 +328,58 @@ export function AdminOrders() {
       </div>
 
       <div className="admin-table-wrapper">
-        <table className="admin-table">
+        <table className="admin-table orders-table">
           <thead>
             <tr>
               <th>Pedido</th>
               <th>Produto</th>
-              <th>Qtd.</th>
               <th>Valor</th>
-              <th>Criado</th>
               <th>Pagamento</th>
               <th>Pedido</th>
               <th>Entrega</th>
-              <th></th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>
             {(list?.items ?? []).map((order) => (
               <tr key={order.id}>
-                <td><code>{order.reference}</code></td>
-                <td>
-                  {order.product_name}
-                  {typeof order.items_count === 'number' && order.items_count > 1 && (
-                    <span className="admin-badge" title={`Pedido com ${order.items_count} produtos distintos; o nome exibido é o primeiro produto.`}>
-                      {' '}{order.items_count} itens
-                    </span>
-                  )}
+                <td data-label="Pedido">
+                  <code>{order.reference}</code>
+                  <small className="admin-code-hint">{new Date(order.created_at).toLocaleString('pt-BR')}</small>
                 </td>
-                <td>{order.quantity}</td>
-                <td>{formatCurrency(order.total_cents)}</td>
-                <td>{new Date(order.created_at).toLocaleString('pt-BR')}</td>
-                <td>
+                <td data-label="Produto">
+                  <span className="orders-product">{order.product_name}</span>
+                  <small className="admin-code-hint">
+                    {order.quantity} unidade(s)
+                    {typeof order.items_count === 'number' && order.items_count > 1 ? ` · ${order.items_count} itens distintos` : ''}
+                  </small>
+                </td>
+                <td data-label="Valor"><span className="orders-value">{formatCurrency(order.total_cents)}</span></td>
+                <td data-label="Pagamento">
                   <span className="admin-badge">{PAYMENT_STATUS_TEXT[order.payment_status] ?? order.payment_status}</span>
                   <small className="admin-code-hint">{order.payment_status}</small>
                 </td>
-                <td>
+                <td data-label="Pedido">
                   <span className={`admin-badge ${ORDER_STATUS_TONE[order.status] ?? ''}`.trim()}>
                     {ORDER_STATUS_TEXT[order.status] ?? order.status}
                   </span>
                   {order.open_refund_requests > 0 && <span className="admin-badge is-warn">reembolso</span>}
                   <small className="admin-code-hint">{order.status}</small>
                 </td>
-                <td>{order.delivery_link_status ?? order.delivery_status}</td>
-                <td>
-                  <button className="link-button" type="button" onClick={() => openDetail(order.id)}>Detalhes</button>
+                <td data-label="Entrega">
+                  <span className="orders-delivery">
+                    {DELIVERY_STATUS_LABEL[order.delivery_link_status ?? order.delivery_status] ??
+                      order.delivery_link_status ?? order.delivery_status}
+                  </span>
+                  <small className="admin-code-hint">{order.delivery_link_status ?? order.delivery_status}</small>
+                </td>
+                <td data-label="Ações">
+                  <button className="button button--secondary button--small" type="button" onClick={() => openDetail(order.id)}>Detalhes</button>
                 </td>
               </tr>
             ))}
             {(list?.items ?? []).length === 0 && (
-              <tr><td colSpan={9} className="field-hint">Nenhum pedido encontrado.</td></tr>
+              <tr><td colSpan={7} className="field-hint">Nenhum pedido encontrado.</td></tr>
             )}
           </tbody>
         </table>

@@ -13,3 +13,7 @@ coverage/
 
 # Supabase CLI temp/cache (gerado por `supabase migration new`)
 supabase/.temp/
+
+# Capturas intermediárias e scripts locais de verificação visual
+.cache/
+shots/v2/

@@ -11,6 +11,7 @@ import {
 import { formatCurrency } from '../../lib/format';
 import { presetToRange, type PeriodPreset } from '../../lib/period';
 import { PeriodFilter } from '../../components/admin/PeriodFilter';
+import { Icon } from '../../components/Icon';
 import { ConfirmActionDialog } from '../../components/admin/ConfirmActionDialog';
 import { useConfirmAction } from '../../components/admin/useConfirmAction';
 
@@ -69,7 +70,7 @@ const ORDER_STATUS_TONE: Record<string, string> = {
   failed: 'is-off',
 };
 
-export function AdminOverview() {
+export function AdminOverview({ onNavigate }: { onNavigate?: (tab: 'overview' | 'products' | 'stock' | 'orders') => void } = {}) {
   const [indicators, setIndicators] = useState<AdminIndicators | null>(null);
   const [period, setPeriod] = useState<PeriodSummary | null>(null);
   const [topProducts, setTopProducts] = useState<AdminProduct[] | null>(null);
@@ -212,12 +213,14 @@ export function AdminOverview() {
     });
   };
 
+  const openShortcuts = Boolean(onNavigate);
+
   return (
     <div className="admin-section">
       {error && <div className="payment-warning" role="alert"><p>{error}</p></div>}
       {notice && <p className="admin-notice" role="status">{notice}</p>}
 
-      <div className="admin-toolbar">
+      <div className="admin-filters admin-filters--bar">
         <PeriodFilter
           idPrefix="overview"
           preset={preset}
@@ -227,36 +230,72 @@ export function AdminOverview() {
           onCustomFromChange={setCustomFrom}
           onCustomToChange={setCustomTo}
         />
-        <button className="button button--secondary button--small" type="button" onClick={() => void load()} disabled={busy}>
-          {busy ? 'Atualizando…' : 'Atualizar dados'}
-        </button>
-        <button className="button button--secondary button--small" type="button" onClick={expireNow}>
-          Liberar reservas vencidas agora
-        </button>
+        <div className="admin-filters__actions">
+          <button className="button button--secondary button--small" type="button" onClick={() => void load()} disabled={busy}>
+            {busy ? 'Atualizando…' : 'Atualizar dados'}
+          </button>
+          <button className="button button--ghost button--small" type="button" onClick={expireNow}>
+            Liberar reservas vencidas
+          </button>
+        </div>
       </div>
 
-      <div className="admin-panel" aria-busy={busy}>
-        <div className="admin-panel__header">
-          <h2>No período selecionado</h2>
-          <span className="field-hint">
-            Datas reais de criação dos pedidos (created_at)
-            {period?.rangeFrom ? ` · desde ${new Date(period.rangeFrom).toLocaleDateString('pt-BR')}` : ''}
-            {period?.rangeTo ? ` · até ${new Date(period.rangeTo).toLocaleDateString('pt-BR')}` : ''}
-          </span>
+      {openShortcuts && (
+        <div className="ov-shortcuts" aria-label="Operações frequentes">
+          <button className="ov-shortcut" type="button" onClick={() => onNavigate?.('products')}>
+            <span className="ov-shortcut__icon" aria-hidden="true"><Icon name="tag" size={18} /></span>
+            <span className="ov-shortcut__copy">
+              <strong>Cadastrar produto</strong>
+              <small>Nome, preço, imagens e publicação</small>
+            </span>
+            <Icon name="arrow-right" size={16} />
+          </button>
+          <button className="ov-shortcut" type="button" onClick={() => onNavigate?.('stock')}>
+            <span className="ov-shortcut__icon" aria-hidden="true"><Icon name="box" size={18} /></span>
+            <span className="ov-shortcut__copy">
+              <strong>Repor estoque</strong>
+              <small>Adicionar unidades e importar CSV</small>
+            </span>
+            <Icon name="arrow-right" size={16} />
+          </button>
+          <button className="ov-shortcut" type="button" onClick={() => onNavigate?.('orders')}>
+            <span className="ov-shortcut__icon" aria-hidden="true"><Icon name="receipt" size={18} /></span>
+            <span className="ov-shortcut__copy">
+              <strong>Acompanhar pedidos</strong>
+              <small>Solicitações, pagamentos e entregas</small>
+            </span>
+            <Icon name="arrow-right" size={16} />
+          </button>
         </div>
+      )}
+
+      <section className="ov-period" aria-labelledby="ov-period-title">
+        <div className="ov-period__head">
+          <div>
+            <h3 id="ov-period-title">No período selecionado</h3>
+            <p className="field-hint">
+              Datas reais de criação dos pedidos (created_at)
+              {period?.rangeFrom ? ` · desde ${new Date(period.rangeFrom).toLocaleDateString('pt-BR')}` : ''}
+              {period?.rangeTo ? ` · até ${new Date(period.rangeTo).toLocaleDateString('pt-BR')}` : ''}
+            </p>
+          </div>
+          {period && !period.revenueComplete && <span className="admin-pill admin-pill--warn">Receita parcial</span>}
+        </div>
+
         {period ? (
           <>
-            <div className="admin-metrics admin-metrics--period">
-              <Metric
-                label={period.revenueComplete ? 'Receita confirmada' : 'Receita confirmada ≥'}
-                value={formatCurrency(period.revenueCents)}
-                hint="paid + refund_pending do período (reembolsados/disputados fora)"
-                tone="primary"
-              />
-              <Metric label="Pedidos recebidos" value={period.allTotal} hint="Todos os estados, inclusive solicitações" />
-              <Metric label="Vendas pagas" value={period.paidTotal} hint="status paid · pagamento aprovado" />
-              <Metric label="Solicitações sem pagamento" value={period.requestedTotal} hint="status requested · não são vendas" />
-              <Metric label="Pedidos reembolsados" value={period.refundedTotal} hint="status refunded" />
+            <div className="ov-kpis" aria-busy={busy}>
+              <div className="admin-metric admin-metric--primary ov-revenue">
+                <span>{period.revenueComplete ? 'Receita confirmada' : 'Receita confirmada ≥'}</span>
+                <strong>{formatCurrency(period.revenueCents)}</strong>
+                <small>paid + refund_pending do período (reembolsados/disputados fora)</small>
+              </div>
+              <div className="ov-kpis__grid">
+                <Metric label="Vendas pagas" value={period.paidTotal} hint="status paid · pagamento aprovado" />
+                <Metric label="Pedidos recebidos" value={period.allTotal} hint="Todos os estados, inclusive solicitações" />
+                <Metric label="Solicitações sem pagamento" value={period.requestedTotal} hint="status requested · não são vendas" />
+                <Metric label="Pedidos reembolsados" value={period.refundedTotal} hint="status refunded" />
+              </div>
             </div>
             {!period.revenueComplete && (
               <p className="field-hint" role="note">
@@ -264,60 +303,114 @@ export function AdminOverview() {
                 recentes. Os contadores acima continuam exatos.
               </p>
             )}
-            <h3 className="admin-subheading">Pedidos recentes</h3>
-            {period.recent.length === 0 ? (
+          </>
+        ) : (
+          <p className="field-hint">Carregando indicadores do período…</p>
+        )}
+      </section>
+
+      <div className="ov-columns">
+        <div className="admin-panel ov-panel">
+          <h3 className="panel-title">Pedidos recentes</h3>
+          {period ? (
+            period.recent.length === 0 ? (
               <p className="field-hint">Nenhum pedido criado neste período.</p>
             ) : (
-              <div className="admin-table-wrapper">
-                <table className="admin-table">
+              <div className="admin-table-wrapper admin-table-wrapper--flat">
+                <table className="admin-table ov-table">
                   <thead>
                     <tr>
                       <th>Pedido</th>
                       <th>Produto</th>
-                      <th>Criado</th>
                       <th>Valor</th>
-                      <th>Pagamento</th>
                       <th>Estado</th>
                     </tr>
                   </thead>
                   <tbody>
                     {period.recent.map((order) => (
                       <tr key={order.id}>
-                        <td><code>{order.reference}</code></td>
-                        <td>{order.product_name}</td>
-                        <td>{new Date(order.created_at).toLocaleString('pt-BR')}</td>
-                        <td>{formatCurrency(order.total_cents)}</td>
-                        <td>
-                          <span className="admin-badge">{PAYMENT_STATUS_TEXT[order.payment_status] ?? order.payment_status}</span>
-                          <small className="admin-code-hint">{order.payment_status}</small>
+                        <td data-label="Pedido">
+                          <code>{order.reference}</code>
+                          <small className="admin-code-hint">{new Date(order.created_at).toLocaleString('pt-BR')}</small>
                         </td>
-                        <td>
+                        <td data-label="Produto">{order.product_name}</td>
+                        <td data-label="Valor">{formatCurrency(order.total_cents)}</td>
+                        <td data-label="Estado">
                           <span className={`admin-badge ${ORDER_STATUS_TONE[order.status] ?? ''}`.trim()}>
                             {ORDER_STATUS_TEXT[order.status] ?? order.status}
                           </span>
-                          <small className="admin-code-hint">{order.status}</small>
+                          <small className="admin-code-hint">
+                            {PAYMENT_STATUS_TEXT[order.payment_status] ?? order.payment_status} · {order.payment_status}
+                          </small>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+            )
+          ) : (
+            <p className="field-hint">Carregando pedidos…</p>
+          )}
+        </div>
+
+        <div className="ov-side">
+          <div className="admin-panel ov-panel">
+            <h3 className="panel-title">Reembolsos pendentes</h3>
+            {refunds.length === 0 ? (
+              <p className="field-hint">Nenhum reembolso aguardando decisão.</p>
+            ) : (
+              <ul className="admin-list">
+                {refunds.map((refund) => (
+                  <li key={refund.id}>
+                    <div>
+                      <strong>{refund.reference}</strong>
+                      <span>{refund.product_name} · {formatCurrency(refund.amount_cents)}</span>
+                      <span className="field-hint">{refund.reason}</span>
+                    </div>
+                    <div className="admin-row-actions">
+                      <button className="button button--secondary button--small" type="button" onClick={() => askResolveRefund(refund.id, refund.reference, 'authorized')}>
+                        Autorizar
+                      </button>
+                      <button className="button button--secondary button--small" type="button" onClick={() => askResolveRefund(refund.id, refund.reference, 'processed')}>
+                        Marcar como processado
+                      </button>
+                      <button className="button button--ghost button--small" type="button" onClick={() => askResolveRefund(refund.id, refund.reference, 'rejected')}>
+                        Recusar
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
-          </>
-        ) : (
-          <p className="field-hint">Carregando indicadores do período…</p>
-        )}
+          </div>
+
+          {indicators && indicators.low_stock_products.length > 0 && (
+            <div className="admin-panel ov-panel">
+              <h3 className="panel-title">Estoque baixo (≤ 2 unidades)</h3>
+              <ul className="admin-list">
+                {indicators.low_stock_products.map((product) => (
+                  <li key={product.id}>
+                    <span>{product.name}</span>
+                    <strong>{product.available_units} disponíveis</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
 
       {indicators && (
-        <div className="admin-panel">
-          <div className="admin-panel__header">
-            <h2>Acumulado geral (servidor)</h2>
+        <div className="admin-panel ov-panel">
+          <div className="ov-panel__head">
+            <h3 className="panel-title">Acumulado geral (servidor)</h3>
             <span className="field-hint">Totais históricos calculados pelo banco · nunca inclui not_required</span>
           </div>
+
           <div className="admin-metric-groups">
             <div className="admin-metric-group">
-              <h3 className="admin-subheading">Receita e vendas</h3>
+              <h4 className="admin-subheading">Receita e vendas</h4>
               <div className="admin-metrics">
                 <Metric label="Receita aprovada (total)" value={formatCurrency(indicators.revenue_total_cents)} hint="paid + refund_pending, histórico" />
                 <Metric label="Receita (30 dias)" value={formatCurrency(indicators.revenue_30d_cents)} hint="mesmo critério, últimos 30 dias" />
@@ -327,112 +420,71 @@ export function AdminOverview() {
               </div>
             </div>
             <div className="admin-metric-group">
-              <h3 className="admin-subheading">Estoque</h3>
+              <h4 className="admin-subheading">Estoque</h4>
               <div className="admin-metrics">
                 <Metric label="Unidades disponíveis" value={indicators.units_available} hint={`${indicators.units_reserved} reservada(s)`} />
                 <Metric label="Unidades vendidas" value={indicators.units_sold} />
               </div>
             </div>
             <div className="admin-metric-group">
-              <h3 className="admin-subheading">Riscos e atendimento</h3>
+              <h4 className="admin-subheading">Riscos e atendimento</h4>
               <div className="admin-metrics">
                 <Metric label="Reembolsos abertos" value={indicators.open_refund_requests} hint={`${indicators.orders_refunded} pedido(s) reembolsado(s)`} />
                 <Metric label="Disputas abertas" value={indicators.orders_disputed} hint={`${indicators.payments_charged_back} chargeback(s)`} />
               </div>
             </div>
             <div className="admin-metric-group">
-              <h3 className="admin-subheading">Produtos e entregas</h3>
+              <h4 className="admin-subheading">Produtos e entregas</h4>
               <div className="admin-metrics">
                 <Metric label="Produtos ativos" value={indicators.products_active} hint={`${indicators.products_inactive} inativo(s)`} />
                 <Metric label="Entregas ativas" value={indicators.deliveries_active} hint={`${indicators.deliveries_revoked} revogada(s)`} />
               </div>
             </div>
           </div>
+        </div>
+      )}
 
-          {indicators.low_stock_products.length > 0 && (
-            <>
-              <h3 className="admin-subheading">Estoque baixo (≤ 2 unidades)</h3>
-              <ul className="admin-list">
-                {indicators.low_stock_products.map((product) => (
-                  <li key={product.id}>
-                    <span>{product.name}</span>
-                    <strong>{product.available_units} disponíveis</strong>
-                  </li>
-                ))}
-              </ul>
-            </>
+      <div className="ov-columns">
+        <div className="admin-panel ov-panel">
+          <h3 className="panel-title">Mais vendidos (total histórico)</h3>
+          <p className="field-hint">Unidades vendidas registradas no estoque — não é um ranking do período</p>
+          {productsError && (
+            <div className="payment-warning" role="alert">
+              <p>Não foi possível carregar o ranking de produtos: {productsError}</p>
+            </div>
+          )}
+          {topProducts && topProducts.length > 0 ? (
+            <ol className="admin-list admin-list--ranked">
+              {topProducts.map((product) => (
+                <li key={product.id}>
+                  <span>{product.name}</span>
+                  <strong>{product.sold_units} unidade(s)</strong>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            !productsError && <p className="field-hint">Nenhum produto com unidades vendidas até agora.</p>
           )}
         </div>
-      )}
 
-      {productsError && (
-        <div className="payment-warning" role="alert">
-          <p>Não foi possível carregar o ranking de produtos: {productsError}</p>
+        <div className="admin-panel ov-panel">
+          <h3 className="panel-title">Últimas ações administrativas</h3>
+          {audit.length === 0 ? (
+            <p className="field-hint">Sem registros de auditoria ainda.</p>
+          ) : (
+            <ul className="admin-audit">
+              {audit.map((entry) => (
+                <li key={entry.id}>
+                  <code>{new Date(entry.created_at).toLocaleString('pt-BR')}</code>
+                  <strong>{entry.action}</strong>
+                  <span>{entry.entity_type ?? '—'} {entry.entity_id ? `· ${entry.entity_id.slice(0, 8)}…` : ''}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-      )}
-      {topProducts && topProducts.length > 0 && (
-        <div className="admin-panel">
-          <div className="admin-panel__header">
-            <h2>Mais vendidos (total histórico)</h2>
-            <span className="field-hint">Unidades vendidas registradas no estoque — não é um ranking do período</span>
-          </div>
-          <ol className="admin-list admin-list--ranked">
-            {topProducts.map((product) => (
-              <li key={product.id}>
-                <span>{product.name}</span>
-                <strong>{product.sold_units} unidade(s)</strong>
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
-
-      <div className="admin-panel">
-        <h2>Reembolsos pendentes</h2>
-        {refunds.length === 0 ? (
-          <p className="field-hint">Nenhum reembolso aguardando decisão.</p>
-        ) : (
-          <ul className="admin-list">
-            {refunds.map((refund) => (
-              <li key={refund.id}>
-                <div>
-                  <strong>{refund.reference}</strong>
-                  <span>{refund.product_name} · {formatCurrency(refund.amount_cents)}</span>
-                  <span className="field-hint">{refund.reason}</span>
-                </div>
-                <div className="admin-row-actions">
-                  <button className="button button--secondary button--small" type="button" onClick={() => askResolveRefund(refund.id, refund.reference, 'authorized')}>
-                    Autorizar
-                  </button>
-                  <button className="button button--secondary button--small" type="button" onClick={() => askResolveRefund(refund.id, refund.reference, 'processed')}>
-                    Marcar como processado
-                  </button>
-                  <button className="button button--secondary button--small" type="button" onClick={() => askResolveRefund(refund.id, refund.reference, 'rejected')}>
-                    Recusar
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
 
-      <div className="admin-panel">
-        <h2>Últimas ações administrativas</h2>
-        {audit.length === 0 ? (
-          <p className="field-hint">Sem registros de auditoria ainda.</p>
-        ) : (
-          <ul className="admin-audit">
-            {audit.map((entry) => (
-              <li key={entry.id}>
-                <code>{new Date(entry.created_at).toLocaleString('pt-BR')}</code>
-                <strong>{entry.action}</strong>
-                <span>{entry.entity_type ?? '—'} {entry.entity_id ? `· ${entry.entity_id.slice(0, 8)}…` : ''}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
       <ConfirmActionDialog
         open={confirmAction !== null}
         title={confirmAction?.title ?? ''}

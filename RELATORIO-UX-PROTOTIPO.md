@@ -258,3 +258,73 @@ VITE_ADMIN_DEMO=true npm run dev
 | Testes relevantes executados | ✅ | `npm test` 162/162, `npm run build` |
 | Código isolado em branch própria | ✅ | `arena/b804eb72-prime-store`, sem merge |
 | Sem publicação/alteração em produção | ✅ | nenhum deploy, banco ou integração tocados |
+---
+
+## J. Redesign visual v2 (rodada de acabamento)
+
+Reformulação **só de apresentação** — nenhum serviço, contrato de dados, rota ou regra de negócio foi
+alterado. O objetivo foi tirar o painel do estado "formulário empilhado" e dar à loja uma composição
+comercial consistente com a marca.
+
+### J.1 Como está organizado
+
+- `src/styles-v2.css` — camada nova importada depois de `styles.css` em `src/main.tsx`. Tokens `--v2-*`,
+  shell do painel, componentes do dashboard, tabelas do admin e loja pública. As seções numeradas
+  (1–15) registram a ordem das correções; o fim do arquivo vence a media query por ordem de declaração,
+  então toda regra de desktop que precise ser desfeita no celular é reposta nas seções finais.
+- `src/pages/admin/AdminPage.tsx` — shell com sidebar fixa (272 px), topbar com botão **Menu**
+  (`aria-expanded` / `aria-controls="admin-navigation"`), pílulas de contexto, faixa de demonstração e
+  backdrop do menu móvel.
+- `src/pages/admin/AdminOverview.tsx` — faixa de receita + filtro de período, grade de KPIs, atalhos
+  para as outras abas, "Pedidos recentes" reduzida de 6 para 4 colunas, reembolsos, estoque baixo,
+  ranking e auditoria.
+- `src/pages/admin/AdminProducts.tsx` — lista com miniatura, categoria, preço + custo/margem, estoque +
+  reservas/vendas, situação (ATIVO + DESTAQUE) e três ações de mesmo peso; formulário em 6 cartões
+  numerados, coluna lateral de preço/estoque, prévia de vitrine e barra de salvar com resumo.
+- `src/pages/admin/AdminOrders.tsx` — 9 → 7 colunas (data dentro de Pedido, quantidade dentro de
+  Produto/Qtd. e Valor, entrega com rótulo legível + código), tabela fixa no desktop e cartões com
+  rótulo/valor no celular.
+- `src/pages/HomePage.tsx` / `ProductPage.tsx` — hero com prévia real do destaque, quatro cartões de
+  destaque, `buy-panel` com preço, quantidade, ações e aviso de pedido sem pagamento.
+
+### J.2 Decisões de layout que resolveram problemas concretos
+
+| Problema | Correção |
+|---|---|
+| Colunas da lista de produtos se espremiam e o selo "DESTAQUE" quebrava letra por letra | `table-layout: fixed` com larguras por `th:nth-child` + `white-space: nowrap` nos selos, selo de destaque movido para a coluna Situação |
+| Metadados de preço/estoque sobrepunham a coluna vizinha | metadados com quebra de linha própria e colunas de 15% para preço/estoque |
+| Tabela "Pedidos recentes" estourava o painel com 6 colunas | reescrita para 4 colunas (Pedido + data, Produto, Valor, Estado + pagamento) |
+| Tabela de pedidos cortava "DETALHES" e cobria a coluna Entrega | 7 colunas com folga, `Entrega` traduzida (`ativa`, `não liberada`) e botão compacto alinhado à direita |
+| Sidebar "acabava" em páginas longas (fundo aparecia abaixo dela) | `admin-shell::before` fixo pintando a coluna de 272 px em telas ≥ 1024 px |
+| Cartões do celular mostravam valor em 9–10 px e colunas trocadas | grades de 2 colunas (rótulo / valor), todos os valores na 2ª coluna, fontes 12–16 px |
+| `min-width` de desktop vencia a media query do celular | reposição explícita de `min-width: 0` no fim da folha para as três tabelas do painel |
+| Faixa de demonstração ilegível no celular | altura automática, 10 px, centralizada (40–52 px) |
+
+### J.3 Evidências
+
+- `shots/antes/` — 7 capturas do estado anterior (1440×900).
+- `shots/final/` — 19 capturas do estado atual: 9 telas em 1440×900 e as mesmas em 390×844, mais
+  `admin-pedidos-360.png`. Arquivos `01-loja-*`, `02-loja-catalogo-*`, `03-loja-produto-*`,
+  `04-admin-visao-geral-*`, `05-admin-produtos-*`, `06-admin-produto-novo-*`,
+  `07-admin-produto-editar-*`, `08-admin-pedidos-*`, `09-admin-estoque-desktop`.
+- `shots/v2/` — capturas intermediárias da rodada (inclui recortes de viewport por tela).
+
+### J.4 Verificação
+
+| Verificação | Resultado |
+|---|---|
+| `npx tsc -b` | sem erros |
+| `npm run build` | ok (`dist` com CSS 118 kB / JS 325 kB + chunk do painel 328 kB) |
+| `npm test` | **23 arquivos / 162 testes** verdes |
+| Foco admin (`App`, `adminProducts*`, `adminRoute`, `adminOverview`, `adminDemo`, `adminNavigationUx`, `adminOrders`) | 8 arquivos / 80 testes verdes |
+| Dados/serviços | `src/services/**` e `adminApi` intactos; payload de produto inalterado |
+
+### J.5 Limites do que foi feito
+
+- Tudo é CSS/JSX: nenhuma funcionalidade nova de backend (upload, galeria, preço promocional) foi
+  simulada — as limitações da seção I continuam valendo.
+- A barra de salvar do formulário é `sticky` no rodapé do cartão: em telas curtas ela cobre parcialmente
+  o campo em edição durante a rolagem (comportamento esperado de barra de ação), e o resumo é limitado a
+  duas linhas no celular.
+- Contraste e tipografia foram ajustados por inspeção visual em Chromium headless; não houve auditoria
+  formal de WCAG nesta rodada (as metas de alvo ≥ 44 px e foco visível seguem as da missão anterior).

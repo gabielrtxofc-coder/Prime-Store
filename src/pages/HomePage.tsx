@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
 import { FAQAccordion } from '../components/FAQAccordion';
 import { Icon } from '../components/Icon';
+import { ProductArtwork } from '../components/ProductArtwork';
 import { ProductGrid } from '../components/ProductGrid';
+import { formatCurrency } from '../lib/format';
 import { faqs } from '../data/faqs';
 import { useCatalog } from '../context/CatalogContext';
 
@@ -14,7 +16,14 @@ const steps = [
 export function HomePage() {
   const { products, categories, status, error, reload, lastSyncedAt } = useCatalog();
   const featuredProducts = products.filter((product) => product.featured).slice(0, 4);
-  const highlights = featuredProducts.length > 0 ? featuredProducts : products.slice(0, 4);
+  // Destaques primeiro; se houver menos de quatro, completa com os demais
+  // produtos ativos para manter a vitrine visualmente equilibrada.
+  const orderedProducts = [
+    ...featuredProducts,
+    ...products.filter((product) => !product.featured),
+  ];
+  const highlights = orderedProducts.slice(0, 4);
+  const spotlight = highlights[0] ?? null;
 
   return (
     <>
@@ -36,21 +45,38 @@ export function HomePage() {
               <span>Pedido registrado no servidor · nenhum pagamento é feito pelo site</span>
             </div>
           </div>
-          <div className="home-hero__visual" role="img" aria-label="Representação abstrata de produtos digitais">
-            <div className="hero-visual__ring hero-visual__ring--outer" />
-            <div className="hero-visual__ring hero-visual__ring--inner" />
-            <div className="hero-visual__card hero-visual__card--back">
-              <span className="hero-visual__mini-icon hero-visual__mini-icon--violet">C</span>
-              <span><small>DESIGN &amp; CRIATIVIDADE</small><strong>Novas ideias</strong></span>
-            </div>
-            <div className="hero-visual__card hero-visual__card--front">
-              <div className="hero-visual__card-top"><span className="hero-visual__label">CATÁLOGO ATIVO</span><span className="hero-visual__spark" aria-hidden="true">✳</span></div>
-              <div className="hero-visual__tiles" aria-hidden="true"><span className="hero-visual__tile hero-visual__tile--green">S</span><span className="hero-visual__tile hero-visual__tile--blue">T</span><span className="hero-visual__tile hero-visual__tile--rose">Y</span></div>
-              <strong>Um espaço para descobrir.</strong>
-              <span className="hero-visual__caption">Produtos digitais · pedido online</span>
-            </div>
-            <span className="hero-visual__orbit-dot hero-visual__orbit-dot--one" />
-            <span className="hero-visual__orbit-dot hero-visual__orbit-dot--two" />
+          <div className="home-hero__visual">
+            {spotlight ? (
+              <article className="hero-spotlight" aria-label={`Destaque do catálogo: ${spotlight.name}`}>
+                <span className="hero-spotlight__label">
+                  Destaque do catálogo
+                  <span className={`availability-badge${spotlight.available ? '' : ' availability-badge--out'}`}>
+                    {spotlight.available ? 'Disponível agora' : 'Sem unidades'}
+                  </span>
+                </span>
+                <Link className="hero-spotlight__art" to={`/produto/${spotlight.slug}`} aria-label={`Ver ${spotlight.name}`}>
+                  <ProductArtwork product={spotlight} />
+                </Link>
+                <div className="hero-spotlight__body">
+                  <strong>{spotlight.name}</strong>
+                  <p>{spotlight.shortDescription || spotlight.description}</p>
+                </div>
+                <div className="hero-spotlight__row">
+                  <span className="hero-spotlight__price">{formatCurrency(spotlight.priceCents)}</span>
+                  <Link className="button button--primary" to={`/produto/${spotlight.slug}`}>
+                    Ver produto <Icon name="arrow-right" size={16} />
+                  </Link>
+                </div>
+              </article>
+            ) : (
+              <div className="hero-spotlight">
+                <p className="hero-spotlight__empty">
+                  {status === 'loading'
+                    ? 'Carregando o catálogo da loja…'
+                    : 'O catálogo está vazio neste momento. Assim que um produto for publicado, ele aparece aqui.'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </section>
