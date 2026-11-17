@@ -1544,3 +1544,46 @@ select.form-control { cursor: pointer; }
   .prod-actions .button--small { flex: 1 1 auto; }
   .prod-actions .button--ghost { border-color: #263141; }
 }
+
+/* Seção 16 — capas reais: proporção que respeita a arte (16:10) e leve zoom no hover */
+.product-detail__art .product-art {
+  aspect-ratio: 16 / 10;
+  min-height: 0;
+}
+
+.product-art__image {
+  transition: transform .5s ease;
+}
+
+.product-card:hover .product-art__image,
+.product-card:focus-within .product-art__image {
+  transform: scale(1.04);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-art__image { transition: none; }
+  .product-card:hover .product-art__image,
+  .product-card:focus-within .product-art__image { transform: none; }
+}
+
+/* Seção 17 — cartões da loja alinhados (rótulo de categoria em 2 linhas) */
+@media (min-width: 901px) {
+  .product-card__meta {
+    min-height: 30px;
+    align-items: flex-start;
+  }
+
+  .product-card__meta .eyebrow-label { line-height: 1.25; }
+}
+
+@media (min-width: 901px) {
+  .product-card__title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.7em;
+  }
+
+  .product-card__description { min-height: 3.1em; }
+}

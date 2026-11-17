@@ -17,3 +17,4 @@ supabase/.temp/
 # Capturas intermediárias e scripts locais de verificação visual
 .cache/
 shots/v2/
+

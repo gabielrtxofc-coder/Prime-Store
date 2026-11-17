@@ -328,3 +328,45 @@ comercial consistente com a marca.
   duas linhas no celular.
 - Contraste e tipografia foram ajustados por inspeção visual em Chromium headless; não houve auditoria
   formal de WCAG nesta rodada (as metas de alvo ≥ 44 px e foco visível seguem as da missão anterior).
+---
+
+## K. Catálogo de demonstração com capas reais
+
+Para ver a loja com aparência de loja (e não só com monogramas), o catálogo de demonstração
+ganhou oito capas e dois produtos novos. Nada disso muda contrato: `imageUrl` é o campo que já
+existia em `Product` e o backend continua sendo a única fonte de catálogo.
+
+**Conteúdo**
+
+- `public/produtos/` — 8 capas 16:10 geradas para este protótipo (arte abstrata, sem marcas,
+  sem textos): `streaming-premium`, `suite-design`, `organizador-tarefas`, `curso-fotografia`,
+  `antivirus`, `musica-avulsa`, `vpn-segura`, `planilhas-financeiras`.
+- `.cache/mock/catalog.mjs` — produtos do mock agora apontam `imageUrl` para essas capas, e
+  entraram dois itens novos: **VPN segura — 6 meses** (R$ 45,90, 6 unidades) e **Pacote de
+  planilhas financeiras** (R$ 79,00, vitalício). Total: 8 produtos, 7 disponíveis.
+- `src/services/adminDemoData.ts` — os dois produtos do painel de demonstração passam a exibir a
+  capa na miniatura da lista, no detalhe e na prévia do formulário.
+- `vite.config.ts` — proxy de dev `/mock → http://127.0.0.1:8787`, para o navegador do preview
+  conversar só com a origem da própria loja (nada de `localhost` a partir do navegador).
+
+**Como rodar o catálogo de demonstração**
+
+```bash
+node .cache/mock/catalog.mjs        # 8 produtos em http://127.0.0.1:8787
+VITE_ADMIN_DEMO=true VITE_BACKEND_ENABLED=true \
+VITE_SUPABASE_URL=https://demo-primestore.supabase.co \
+VITE_SUPABASE_ANON_KEY=demo-anon-key \
+VITE_BACKEND_URL=/mock \
+npm run dev -- --port 5173
+```
+
+**Ajustes de apresentação que as capas exigiram**
+
+| Ajuste | Motivo |
+|---|---|
+| `.product-detail__art .product-art` em 16:10 | capa 1,58:1 cortada em caixa vertical perdia a composição |
+| zoom de 4% na capa ao passar o mouse (desligado com `prefers-reduced-motion`) | dá vida ao cartão sem mexer no layout |
+| `min-height` de categoria/título/descrição nos cartões (≥ 901 px) | com rótulos de 2 linhas ("Design e criatividade") os preços e botões ficavam desalinhados entre os 4 cartões |
+
+**Evidências:** `shots/arte/` (home desktop, catálogo desktop e mobile, página de produto desktop e
+mobile, lista de produtos do painel com miniaturas).
