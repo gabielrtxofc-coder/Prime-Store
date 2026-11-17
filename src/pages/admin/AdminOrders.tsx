@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { formatCurrency } from '../../lib/format';
 import {
   adminApi,
@@ -11,6 +11,35 @@ import { presetToRange, type PeriodPreset } from '../../lib/period';
 import { PeriodFilter } from '../../components/admin/PeriodFilter';
 import { ConfirmActionDialog } from '../../components/admin/ConfirmActionDialog';
 import { useConfirmAction } from '../../components/admin/useConfirmAction';
+
+// Tom de cor para cada estado (apenas apresentação; o texto permanece o valor cru).
+const ORDER_STATUS_TONE: Record<string, string> = {
+  requested: 'warn',
+  pending_payment: 'warn',
+  paid: 'ok',
+  expired: 'muted',
+  cancelled: 'muted',
+  refund_pending: 'warn',
+  refunded: 'muted',
+  disputed: 'danger',
+  failed: 'danger',
+};
+
+const PAYMENT_STATUS_TONE: Record<string, string> = {
+  not_required: 'muted',
+  pending: 'warn',
+  in_process: 'warn',
+  approved: 'ok',
+  rejected: 'danger',
+  cancelled: 'muted',
+  refunded: 'muted',
+  charged_back: 'danger',
+  amount_mismatch: 'danger',
+};
+
+function StatusPill({ tone, children }: { tone: string; children: ReactNode }) {
+  return <span className={`status-pill status-pill--${tone}`}>{children}</span>;
+}
 
 // Estados reais do banco (enums `order_status`/`payment_status`).
 // `requested`/`not_required` existem desde a migração 0033 (solicitação sem pagamento).
@@ -286,11 +315,11 @@ export function AdminOrders() {
                 <td>{formatCurrency(order.total_cents)}</td>
                 <td>{new Date(order.created_at).toLocaleString('pt-BR')}</td>
                 <td>
-                  {order.payment_status}
+                  <StatusPill tone={PAYMENT_STATUS_TONE[order.payment_status] ?? 'muted'}>{order.payment_status}</StatusPill>
                   {order.payment_status === 'not_required' && <span className="admin-badge"> sem cobrança</span>}
                 </td>
                 <td>
-                  {order.status}
+                  <StatusPill tone={ORDER_STATUS_TONE[order.status] ?? 'muted'}>{order.status}</StatusPill>
                   {order.status === 'requested' && <span className="admin-badge"> solicitação</span>}
                   {order.status === 'disputed' && <span className="admin-badge is-warn">contestar</span>}
                   {order.open_refund_requests > 0 && <span className="admin-badge is-warn">reembolso</span>}

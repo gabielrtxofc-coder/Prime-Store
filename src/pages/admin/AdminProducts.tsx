@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { categoryOptions as categories } from '../../data/categories';
 import { centsToInput, formatCurrency, parseBrlToCents } from '../../lib/format';
 import { adminApi, type AdminProduct, type ProductInput } from '../../services/adminApi';
@@ -53,7 +53,7 @@ const slugify = (value: string): string =>
   value
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '') // remove acentos combináveis
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
@@ -78,6 +78,26 @@ function parseBoundedInt(input: string, min: number, max: number): number | null
   return value;
 }
 
+/** Marcador visual de campo obrigatório (fora do <label> para não alterar o texto acessível). */
+function RequiredMark() {
+  return (
+    <span className="required-mark" aria-hidden="true" title="Campo obrigatório">
+      *
+    </span>
+  );
+}
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  // Sem role="alert" para não duplicar o aviso de nível superior (o campo já
+  // aponta para esta mensagem via aria-describedby).
+  return (
+    <p className="field-error" id={id}>
+      {message}
+    </p>
+  );
+}
+
 export function AdminProducts() {
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [search, setSearch] = useState('');
@@ -88,6 +108,8 @@ export function AdminProducts() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [imgError, setImgError] = useState(false);
   const [pendingToggle, setPendingToggle] = useState<AdminProduct | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
 
@@ -104,6 +126,17 @@ export function AdminProducts() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(EMPTY_FORM), [form]);
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
 
   const visibleProducts = products.filter((product) => {
     if (activeFilter === 'active') return product.is_active;
@@ -123,8 +156,17 @@ export function AdminProducts() {
     }
   };
 
-  const update = (field: keyof FormState, value: string | boolean) =>
+  const update = (field: keyof FormState, value: string | boolean) => {
     setForm((previous) => ({ ...previous, [field]: value }));
+    setFieldErrors((previous) => {
+      if (!previous[field as string]) return previous;
+      const next = { ...previous };
+      delete next[field as string];
+      return next;
+    });
+    if (field === 'imageUrl') setImgError(false);
+    setError(null);
+  };
 
   const edit = (product: AdminProduct) => {
     setForm({
@@ -148,50 +190,49 @@ export function AdminProducts() {
       imageUrl: product.image_url ?? '',
       featured: product.is_featured,
     });
+    setFieldErrors({});
+    setImgError(false);
     setNotice(`Editando "${product.name}".`);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError(null);
+    const errors: Record<string, string> = {};
+
     const name = form.name.trim();
-    if (name.length < 3) {
-      setError('Informe o nome do produto (mínimo de 3 caracteres).');
-      return;
-    }
+    if (name.length < 3) errors.name = 'Informe o nome do produto (mínimo de 3 caracteres).';
+
     const priceCents = parseBrlToCents(form.price);
-    if (priceCents === null) {
-      setError('Informe o preço de venda em reais, maior que zero (ex.: 49,90).');
-      return;
-    }
+    if (priceCents === null) errors.price = 'Informe o preço de venda em reais, maior que zero (ex.: 49,90).';
+
     const costCents = parseCostToCents(form.cost);
-    if (costCents === null) {
-      setError('Custo de aquisição inválido. Use zero ou um valor positivo (ex.: 12,50).');
-      return;
-    }
+    if (costCents === null) errors.cost = 'Custo de aquisição inválido. Use zero ou um valor positivo (ex.: 12,50).';
+
     const maxQuantity = parseBoundedInt(form.maxQuantity, 1, 20);
-    if (maxQuantity === null) {
-      setError('Quantidade máxima por pedido deve ser um inteiro entre 1 e 20.');
-      return;
-    }
+    if (maxQuantity === null) errors.maxQuantity = 'Quantidade máxima por pedido deve ser um inteiro entre 1 e 20.';
+
     const validityRaw = form.validityDays.trim();
     const validityDays = validityRaw ? parseBoundedInt(validityRaw, 1, 3650) : null;
-    if (validityRaw && validityDays === null) {
-      setError('Validade do acesso deve ser um inteiro de dias entre 1 e 3650 (ou vazio para sem validade).');
-      return;
-    }
+    if (validityRaw && validityDays === null)
+      errors.validityDays = 'Validade do acesso deve ser um inteiro de dias entre 1 e 3650 (ou vazio para sem validade).';
+
     const slug = form.id ? undefined : slugify(form.slug || form.name);
-    if (!form.id && !slug) {
-      setError('Informe um slug válido: letras minúsculas, números e hífens.');
+    if (!form.id && !slug) errors.slug = 'Informe um slug válido: letras minúsculas, números e hífens.';
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setError(Object.values(errors)[0]);
       return;
     }
+    setFieldErrors({});
+
     const payload: ProductInput = {
       name,
       slug,
       category_id: form.categoryId,
-      price_cents: priceCents,
-      cost_cents: costCents,
-      max_quantity_per_order: maxQuantity,
+      price_cents: priceCents!,
+      cost_cents: costCents!,
+      max_quantity_per_order: maxQuantity!,
       access_validity_days: validityDays,
       access_validity_label: form.validityLabel.trim() || null,
       short_description: form.shortDescription.trim(),
@@ -218,6 +259,8 @@ export function AdminProducts() {
         setNotice('Produto criado. Adicione unidades de estoque para liberá-lo no catálogo.');
       }
       setForm(EMPTY_FORM);
+      setFieldErrors({});
+      setImgError(false);
       await load();
     } catch (submitError) {
       setError(describeBackendError(submitError));
@@ -246,10 +289,27 @@ export function AdminProducts() {
     }
   };
 
+  // Valores derivados para as pré-visualizações das seções de preço e publicação.
+  const previewPriceCents = parseBrlToCents(form.price);
+  const previewCostCents = parseCostToCents(form.cost);
+  const previewMargin =
+    previewPriceCents != null && previewCostCents != null ? previewPriceCents - previewCostCents : null;
+  const previewCategoryLabel =
+    categories.find((category) => category.id === form.categoryId)?.label ?? form.categoryId;
+  const previewSlug = form.id ? form.slug : slugify(form.slug || form.name) || '—';
+
   return (
     <div className="admin-section">
-      {error && <div className="payment-warning" role="alert"><p>{error}</p></div>}
-      {notice && <p className="admin-notice" role="status">{notice}</p>}
+      {error && (
+        <div className="payment-warning" role="alert">
+          <p>{error}</p>
+        </div>
+      )}
+      {notice && (
+        <p className="admin-notice" role="status">
+          {notice}
+        </p>
+      )}
 
       <div className="admin-toolbar">
         <input
@@ -270,7 +330,16 @@ export function AdminProducts() {
           <option value="active">Somente ativos</option>
           <option value="inactive">Somente inativos</option>
         </select>
-        <button className="button button--secondary button--small" type="button" onClick={() => { setForm(EMPTY_FORM); setNotice(null); }}>
+        <button
+          className="button button--secondary button--small"
+          type="button"
+          onClick={() => {
+            setForm(EMPTY_FORM);
+            setFieldErrors({});
+            setImgError(false);
+            setNotice(null);
+          }}
+        >
           Novo produto
         </button>
       </div>
@@ -297,8 +366,15 @@ export function AdminProducts() {
             {visibleProducts.map((product) => (
               <tr key={product.id}>
                 <td>
-                  <strong>{product.name}</strong>
-                  <small>/{product.slug}</small>
+                  <div className="admin-product-cell">
+                    <span className={`admin-thumb admin-thumb--${product.theme}`} aria-hidden="true">
+                      {product.monogram}
+                    </span>
+                    <span className="admin-product-cell__text">
+                      <strong>{product.name}</strong>
+                      <small>/{product.slug}</small>
+                    </span>
+                  </div>
                 </td>
                 <td>{product.category_label}</td>
                 <td>{formatCurrency(product.price_cents)}</td>
@@ -313,8 +389,17 @@ export function AdminProducts() {
                   </span>
                 </td>
                 <td className="admin-row-actions">
-                  <button className="link-button" type="button" onClick={() => openDetail(product.id)} disabled={detailBusy}>Detalhes</button>
-                  <button className="link-button" type="button" onClick={() => edit(product)}>Editar</button>
+                  <button
+                    className="link-button"
+                    type="button"
+                    onClick={() => openDetail(product.id)}
+                    disabled={detailBusy}
+                  >
+                    Detalhes
+                  </button>
+                  <button className="link-button" type="button" onClick={() => edit(product)}>
+                    Editar
+                  </button>
                   <button className="link-button" type="button" onClick={() => toggleActive(product)}>
                     {product.is_active ? 'Desativar' : 'Ativar'}
                   </button>
@@ -338,21 +423,74 @@ export function AdminProducts() {
         <section className="admin-panel" aria-label="Detalhes do produto">
           <div className="admin-panel__header">
             <h2>Detalhes — {detail.product.name}</h2>
-            <button className="button button--secondary button--small" type="button" onClick={() => setDetail(null)}>Fechar</button>
+            <button
+              className="button button--secondary button--small"
+              type="button"
+              onClick={() => setDetail(null)}
+            >
+              Fechar
+            </button>
           </div>
           <dl className="admin-detail-grid">
-            <div><dt>Slug</dt><dd>/{detail.product.slug}</dd></div>
-            <div><dt>Categoria</dt><dd>{detail.product.category_label}</dd></div>
-            <div><dt>Situação</dt><dd>{detail.product.is_active ? 'ativo' : 'inativo'}{detail.product.is_featured ? ' · destacado' : ''}</dd></div>
-            <div><dt>Preço</dt><dd>{formatCurrency(detail.product.price_cents)}</dd></div>
-            <div><dt>Custo</dt><dd>{formatCurrency(detail.product.cost_cents)}</dd></div>
-            <div><dt>Margem</dt><dd>{formatCurrency(detail.product.margin_cents)}</dd></div>
-            <div><dt>Estoque</dt><dd>{detail.product.available_units} disponíveis · {detail.product.reserved_units} reservadas · {detail.product.sold_units} vendidas</dd></div>
-            <div><dt>Qtd. máx. por pedido</dt><dd>{detail.product.max_quantity_per_order}</dd></div>
-            <div><dt>Validade</dt><dd>{detail.product.access_validity_days ? `${detail.product.access_validity_days} dias` : 'sem validade'}{detail.product.access_validity_label ? ` · ${detail.product.access_validity_label}` : ''}</dd></div>
-            <div><dt>Modalidade</dt><dd>{detail.product.modality}</dd></div>
-            <div><dt>Período</dt><dd>{detail.product.period}</dd></div>
-            <div><dt>Atualizado em</dt><dd>{new Date(detail.product.updated_at).toLocaleString('pt-BR')}</dd></div>
+            <div>
+              <dt>Slug</dt>
+              <dd>/{detail.product.slug}</dd>
+            </div>
+            <div>
+              <dt>Categoria</dt>
+              <dd>{detail.product.category_label}</dd>
+            </div>
+            <div>
+              <dt>Situação</dt>
+              <dd>
+                {detail.product.is_active ? 'ativo' : 'inativo'}
+                {detail.product.is_featured ? ' · destacado' : ''}
+              </dd>
+            </div>
+            <div>
+              <dt>Preço</dt>
+              <dd>{formatCurrency(detail.product.price_cents)}</dd>
+            </div>
+            <div>
+              <dt>Custo</dt>
+              <dd>{formatCurrency(detail.product.cost_cents)}</dd>
+            </div>
+            <div>
+              <dt>Margem</dt>
+              <dd>{formatCurrency(detail.product.margin_cents)}</dd>
+            </div>
+            <div>
+              <dt>Estoque</dt>
+              <dd>
+                {detail.product.available_units} disponíveis · {detail.product.reserved_units} reservadas ·{' '}
+                {detail.product.sold_units} vendidas
+              </dd>
+            </div>
+            <div>
+              <dt>Qtd. máx. por pedido</dt>
+              <dd>{detail.product.max_quantity_per_order}</dd>
+            </div>
+            <div>
+              <dt>Validade</dt>
+              <dd>
+                {detail.product.access_validity_days
+                  ? `${detail.product.access_validity_days} dias`
+                  : 'sem validade'}
+                {detail.product.access_validity_label ? ` · ${detail.product.access_validity_label}` : ''}
+              </dd>
+            </div>
+            <div>
+              <dt>Modalidade</dt>
+              <dd>{detail.product.modality}</dd>
+            </div>
+            <div>
+              <dt>Período</dt>
+              <dd>{detail.product.period}</dd>
+            </div>
+            <div>
+              <dt>Atualizado em</dt>
+              <dd>{new Date(detail.product.updated_at).toLocaleString('pt-BR')}</dd>
+            </div>
           </dl>
           {detail.product.description && <p>{detail.product.description}</p>}
           {detail.price_history.length > 0 && (
@@ -360,16 +498,40 @@ export function AdminProducts() {
               <h3 className="admin-subheading">Histórico de preço</h3>
               <table className="admin-table">
                 <thead>
-                  <tr><th>Data</th><th>Preço anterior</th><th>Preço novo</th><th>Custo anterior</th><th>Custo novo</th></tr>
+                  <tr>
+                    <th>Data</th>
+                    <th>Preço anterior</th>
+                    <th>Preço novo</th>
+                    <th>Custo anterior</th>
+                    <th>Custo novo</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {detail.price_history.map((entry, index) => (
                     <tr key={index}>
-                      <td>{entry.changed_at ? new Date(String(entry.changed_at)).toLocaleString('pt-BR') : '—'}</td>
-                      <td>{typeof entry.old_price_cents === 'number' ? formatCurrency(entry.old_price_cents) : '—'}</td>
-                      <td>{typeof entry.new_price_cents === 'number' ? formatCurrency(entry.new_price_cents) : '—'}</td>
-                      <td>{typeof entry.old_cost_cents === 'number' ? formatCurrency(entry.old_cost_cents) : '—'}</td>
-                      <td>{typeof entry.new_cost_cents === 'number' ? formatCurrency(entry.new_cost_cents) : '—'}</td>
+                      <td>
+                        {entry.changed_at ? new Date(String(entry.changed_at)).toLocaleString('pt-BR') : '—'}
+                      </td>
+                      <td>
+                        {typeof entry.old_price_cents === 'number'
+                          ? formatCurrency(entry.old_price_cents)
+                          : '—'}
+                      </td>
+                      <td>
+                        {typeof entry.new_price_cents === 'number'
+                          ? formatCurrency(entry.new_price_cents)
+                          : '—'}
+                      </td>
+                      <td>
+                        {typeof entry.old_cost_cents === 'number'
+                          ? formatCurrency(entry.old_cost_cents)
+                          : '—'}
+                      </td>
+                      <td>
+                        {typeof entry.new_cost_cents === 'number'
+                          ? formatCurrency(entry.new_cost_cents)
+                          : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -379,103 +541,368 @@ export function AdminProducts() {
         </section>
       )}
 
-      <form className="admin-panel admin-form" onSubmit={submit}>
-        <h2>{form.id ? 'Editar produto' : 'Novo produto'}</h2>
-        <div className="form-grid">
-          <div className="form-field">
-            <label htmlFor="product-name">Nome</label>
-            <input id="product-name" value={form.name} onChange={(event) => update('name', event.target.value)} required />
-          </div>
-          <div className="form-field">
-            <label htmlFor="product-slug">Slug (URL)</label>
-            <input
-              id="product-slug"
-              value={form.slug}
-              onChange={(event) => update('slug', event.target.value)}
-              placeholder={slugify(form.name) || 'produto-exemplo'}
-              disabled={Boolean(form.id)}
-            />
-          </div>
-          <div className="form-field">
-            <label htmlFor="product-category">Categoria</label>
-            <select id="product-category" value={form.categoryId} onChange={(event) => update('categoryId', event.target.value)}>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>{category.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-field">
-            <label htmlFor="product-price">Preço de venda (R$)</label>
-            <input id="product-price" inputMode="decimal" value={form.price} onChange={(event) => update('price', event.target.value)} required />
-          </div>
-          <div className="form-field">
-            <label htmlFor="product-cost">Custo de aquisição (R$)</label>
-            <input id="product-cost" inputMode="decimal" value={form.cost} onChange={(event) => update('cost', event.target.value)} />
-          </div>
-          <div className="form-field">
-            <label htmlFor="product-max">Qtd. máxima por pedido</label>
-            <input id="product-max" inputMode="numeric" value={form.maxQuantity} onChange={(event) => update('maxQuantity', event.target.value)} />
-          </div>
-          <div className="form-field">
-            <label htmlFor="product-validity-days">Validade do acesso (dias)</label>
-            <input id="product-validity-days" inputMode="numeric" value={form.validityDays} onChange={(event) => update('validityDays', event.target.value)} />
-          </div>
-          <div className="form-field">
-            <label htmlFor="product-validity-label">Rótulo da validade</label>
-            <input id="product-validity-label" value={form.validityLabel} onChange={(event) => update('validityLabel', event.target.value)} />
-          </div>
-          <div className="form-field form-field--full">
-            <label htmlFor="product-short">Descrição curta</label>
-            <input id="product-short" value={form.shortDescription} onChange={(event) => update('shortDescription', event.target.value)} />
-          </div>
-          <div className="form-field form-field--full">
-            <label htmlFor="product-description">Descrição completa</label>
-            <textarea id="product-description" rows={3} value={form.description} onChange={(event) => update('description', event.target.value)} />
-          </div>
-          <div className="form-field form-field--full">
-            <label htmlFor="product-instructions">Instruções de acesso (públicas)</label>
-            <textarea id="product-instructions" rows={3} value={form.instructions} onChange={(event) => update('instructions', event.target.value)} />
-            <p className="field-hint">Aparece na página de entrega. Nunca inclua senhas ou dados internos.</p>
-          </div>
-          <div className="form-field form-field--full">
-            <label htmlFor="product-conditions">Condições (uma por linha)</label>
-            <textarea id="product-conditions" rows={2} value={form.conditions} onChange={(event) => update('conditions', event.target.value)} />
-          </div>
-          <div className="form-field">
-            <label htmlFor="product-modality">Modalidade</label>
-            <input id="product-modality" value={form.modality} onChange={(event) => update('modality', event.target.value)} />
-          </div>
-          <div className="form-field">
-            <label htmlFor="product-period">Período</label>
-            <input id="product-period" value={form.period} onChange={(event) => update('period', event.target.value)} />
-          </div>
-          <div className="form-field">
-            <label htmlFor="product-monogram">Monograma</label>
-            <input id="product-monogram" maxLength={2} value={form.monogram} onChange={(event) => update('monogram', event.target.value)} />
-          </div>
-          <div className="form-field">
-            <label htmlFor="product-theme">Tema visual</label>
-            <select id="product-theme" value={form.theme} onChange={(event) => update('theme', event.target.value)}>
-              {['blue', 'green', 'violet', 'red', 'rose', 'gray', 'orange'].map((theme) => (
-                <option key={theme} value={theme}>{theme}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-field form-field--full">
-            <label htmlFor="product-image">URL da imagem (opcional)</label>
-            <input id="product-image" value={form.imageUrl} onChange={(event) => update('imageUrl', event.target.value)} />
-          </div>
-          <label className="terms-checkbox form-field--full">
-            <input type="checkbox" checked={form.featured} onChange={(event) => update('featured', event.target.checked)} />
-            <span>Destacar na página inicial</span>
-          </label>
+      <form className="admin-panel admin-form" onSubmit={submit} noValidate>
+        <div className="admin-form__intro">
+          <h2>{form.id ? 'Editar produto' : 'Novo produto'}</h2>
+          <span className="admin-form__required-note">
+            Campos com <RequiredMark /> são obrigatórios
+          </span>
         </div>
-        <div className="admin-row-actions">
+
+        {/* A. Informações principais */}
+        <fieldset className="admin-form-section">
+          <legend className="admin-form-section__legend">
+            <span className="admin-form-section__index">A</span> Informações principais
+          </legend>
+          <div className="form-grid">
+            <div className="form-field">
+              <div className="form-field__head">
+                <label htmlFor="product-name">Nome</label>
+                <RequiredMark />
+              </div>
+              <input
+                id="product-name"
+                value={form.name}
+                onChange={(event) => update('name', event.target.value)}
+                required
+                aria-invalid={Boolean(fieldErrors.name)}
+                aria-describedby={fieldErrors.name ? 'error-name' : undefined}
+              />
+              <FieldError id="error-name" message={fieldErrors.name} />
+            </div>
+            <div className="form-field">
+              <label htmlFor="product-slug">Slug (URL)</label>
+              <input
+                id="product-slug"
+                value={form.slug}
+                onChange={(event) => update('slug', event.target.value)}
+                placeholder={slugify(form.name) || 'produto-exemplo'}
+                disabled={Boolean(form.id)}
+              />
+              <p className="field-hint">Endereço do produto na loja. Gerado do nome se deixar em branco.</p>
+            </div>
+            <div className="form-field">
+              <label htmlFor="product-category">Categoria</label>
+              <select
+                id="product-category"
+                value={form.categoryId}
+                onChange={(event) => update('categoryId', event.target.value)}
+              >
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-field form-field--full">
+              <label htmlFor="product-short">Descrição curta</label>
+              <input
+                id="product-short"
+                value={form.shortDescription}
+                onChange={(event) => update('shortDescription', event.target.value)}
+                placeholder="Resumo de uma linha exibido nos cards do catálogo"
+              />
+            </div>
+            <div className="form-field form-field--full">
+              <label htmlFor="product-description">Descrição completa</label>
+              <textarea
+                id="product-description"
+                rows={3}
+                value={form.description}
+                onChange={(event) => update('description', event.target.value)}
+                className="form-control form-control--textarea"
+              />
+            </div>
+            <div className="form-field form-field--full">
+              <label htmlFor="product-instructions">Instruções de acesso (públicas)</label>
+              <textarea
+                id="product-instructions"
+                rows={3}
+                value={form.instructions}
+                onChange={(event) => update('instructions', event.target.value)}
+                className="form-control form-control--textarea"
+              />
+              <p className="field-hint">Aparece na página de entrega. Nunca inclua senhas ou dados internos.</p>
+            </div>
+            <div className="form-field form-field--full">
+              <label htmlFor="product-conditions">Condições (uma por linha)</label>
+              <textarea
+                id="product-conditions"
+                rows={2}
+                value={form.conditions}
+                onChange={(event) => update('conditions', event.target.value)}
+                className="form-control form-control--textarea"
+              />
+            </div>
+          </div>
+        </fieldset>
+
+        {/* Apresentação (outras informações já existentes) */}
+        <fieldset className="admin-form-section">
+          <legend className="admin-form-section__legend">
+            <span className="admin-form-section__index">A2</span> Apresentação e categorização
+          </legend>
+          <div className="form-grid">
+            <div className="form-field">
+              <label htmlFor="product-modality">Modalidade</label>
+              <input
+                id="product-modality"
+                value={form.modality}
+                onChange={(event) => update('modality', event.target.value)}
+              />
+            </div>
+            <div className="form-field">
+              <label htmlFor="product-period">Período</label>
+              <input
+                id="product-period"
+                value={form.period}
+                onChange={(event) => update('period', event.target.value)}
+              />
+            </div>
+            <div className="form-field">
+              <label htmlFor="product-monogram">Monograma</label>
+              <input
+                id="product-monogram"
+                maxLength={2}
+                value={form.monogram}
+                onChange={(event) => update('monogram', event.target.value)}
+              />
+              <p className="field-hint">Até 2 letras exibidas na arte do produto.</p>
+            </div>
+            <div className="form-field">
+              <label htmlFor="product-theme">Tema visual</label>
+              <select
+                id="product-theme"
+                value={form.theme}
+                onChange={(event) => update('theme', event.target.value)}
+              >
+                {['blue', 'green', 'violet', 'red', 'rose', 'gray', 'orange'].map((theme) => (
+                  <option key={theme} value={theme}>
+                    {theme}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </fieldset>
+
+        {/* B. Imagens */}
+        <fieldset className="admin-form-section">
+          <legend className="admin-form-section__legend">
+            <span className="admin-form-section__index">B</span> Imagens
+          </legend>
+          <div className="form-grid">
+            <div className="form-field form-field--full">
+              <label htmlFor="product-image">URL da imagem principal</label>
+              <input
+                id="product-image"
+                value={form.imageUrl}
+                onChange={(event) => update('imageUrl', event.target.value)}
+                placeholder="https://exemplo.com/capa.jpg"
+              />
+              <p className="field-hint">
+                Imagem de capa exibida no catálogo e na página do produto. Aceita um endereço (URL) de imagem pública.
+              </p>
+              <div className="image-preview" aria-live="polite">
+                {form.imageUrl.trim() ? (
+                  <img
+                    className="image-preview__img"
+                    src={form.imageUrl.trim()}
+                    alt={`Pré-visualização da imagem de ${form.name || 'produto'}`}
+                    onError={() => setImgError(true)}
+                    onLoad={() => setImgError(false)}
+                  />
+                ) : (
+                  <div className="image-preview__empty">
+                    <span>Pré-visualização da imagem aparecerá aqui</span>
+                  </div>
+                )}
+              </div>
+              {imgError && (
+                <p className="field-error">
+                  Não foi possível carregar a imagem. Verifique se a URL está correta e acessível.
+                </p>
+              )}
+              {form.imageUrl.trim() && !imgError && (
+                <button
+                  className="button button--secondary button--small"
+                  type="button"
+                  onClick={() => update('imageUrl', '')}
+                >
+                  Limpar imagem
+                </button>
+              )}
+            </div>
+          </div>
+        </fieldset>
+
+        {/* C. Preços */}
+        <fieldset className="admin-form-section">
+          <legend className="admin-form-section__legend">
+            <span className="admin-form-section__index">C</span> Preços
+          </legend>
+          <div className="form-grid">
+            <div className="form-field">
+              <div className="form-field__head">
+                <label htmlFor="product-price">Preço de venda (R$)</label>
+                <RequiredMark />
+              </div>
+              <input
+                id="product-price"
+                inputMode="decimal"
+                value={form.price}
+                onChange={(event) => update('price', event.target.value)}
+                required
+                aria-invalid={Boolean(fieldErrors.price)}
+                aria-describedby={fieldErrors.price ? 'error-price' : 'price-hint'}
+              />
+              <FieldError id="error-price" message={fieldErrors.price} />
+              <p className="field-hint" id="price-hint">
+                Valor cobrado ao cliente. Use vírgula para centavos (ex.: 49,90).
+              </p>
+            </div>
+            <div className="form-field">
+              <label htmlFor="product-cost">Custo de aquisição (R$)</label>
+              <input
+                id="product-cost"
+                inputMode="decimal"
+                value={form.cost}
+                onChange={(event) => update('cost', event.target.value)}
+                aria-invalid={Boolean(fieldErrors.cost)}
+                aria-describedby={fieldErrors.cost ? 'error-cost' : 'cost-hint'}
+              />
+              <FieldError id="error-cost" message={fieldErrors.cost} />
+              <p className="field-hint" id="cost-hint">
+                Opcional. Use zero se não houver custo. Ajuda a calcular a margem.
+              </p>
+            </div>
+          </div>
+          {previewMargin != null && previewPriceCents != null && (
+            <p className="price-margin-note" aria-live="polite">
+              <span>Margem estimada</span>
+              <strong>{formatCurrency(previewMargin)}</strong>
+              <small>
+                {previewPriceCents > 0 ? `${Math.round((previewMargin / previewPriceCents) * 100)}% do preço de venda` : ''}
+              </small>
+            </p>
+          )}
+        </fieldset>
+
+        {/* D. Estoque */}
+        <fieldset className="admin-form-section">
+          <legend className="admin-form-section__legend">
+            <span className="admin-form-section__index">D</span> Estoque
+          </legend>
+          <div className="form-grid">
+            <div className="form-field">
+              <label htmlFor="product-max">Qtd. máxima por pedido</label>
+              <input
+                id="product-max"
+                inputMode="numeric"
+                value={form.maxQuantity}
+                onChange={(event) => update('maxQuantity', event.target.value)}
+                aria-invalid={Boolean(fieldErrors.maxQuantity)}
+                aria-describedby={fieldErrors.maxQuantity ? 'error-max' : undefined}
+              />
+              <FieldError id="error-max" message={fieldErrors.maxQuantity} />
+            </div>
+            <div className="form-field">
+              <label htmlFor="product-validity-days">Validade do acesso (dias)</label>
+              <input
+                id="product-validity-days"
+                inputMode="numeric"
+                value={form.validityDays}
+                onChange={(event) => update('validityDays', event.target.value)}
+                aria-invalid={Boolean(fieldErrors.validityDays)}
+                aria-describedby={fieldErrors.validityDays ? 'error-validity' : undefined}
+              />
+              <FieldError id="error-validity" message={fieldErrors.validityDays} />
+            </div>
+            <div className="form-field form-field--full">
+              <label htmlFor="product-validity-label">Rótulo da validade</label>
+              <input
+                id="product-validity-label"
+                value={form.validityLabel}
+                onChange={(event) => update('validityLabel', event.target.value)}
+                placeholder="Ex.: 30 dias"
+              />
+            </div>
+          </div>
+          <p className="field-hint">
+            A quantidade física em estoque é gerenciada na aba <strong>Estoque</strong> (unidades de credencial). Aqui você
+            define limites de venda e a validade do acesso.
+          </p>
+        </fieldset>
+
+        {/* E. Publicação */}
+        <fieldset className="admin-form-section">
+          <legend className="admin-form-section__legend">
+            <span className="admin-form-section__index">E</span> Publicação
+          </legend>
+          <div className="form-grid">
+            <div className="form-field form-field--full">
+              <label className="terms-checkbox">
+                <input
+                  type="checkbox"
+                  checked={form.featured}
+                  onChange={(event) => update('featured', event.target.checked)}
+                />
+                <span>Destacar na página inicial</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="publish-status">
+            <span className="publish-status__label">Situação na loja</span>
+            <span className={`publish-status__value${form.id ? '' : ' publish-status__value--draft'}`}>
+              {form.id ? 'Edição de produto existente' : 'Novo (começa como rascunho)'}
+            </span>
+            <p className="field-hint">
+              {form.id
+                ? 'Ativar ou desativar este produto no catálogo é feito pela lista acima (botão Ativar/Desativar), preservando o histórico de pedidos.'
+                : 'Após salvar, ative o produto na lista acima para exibi-lo no catálogo e adicione unidades de estoque.'}
+            </p>
+          </div>
+
+          <div className="product-summary" aria-label="Resumo do produto antes de salvar">
+            <span className={`product-summary__thumb product-summary__thumb--${form.theme}`} aria-hidden="true">
+              {form.imageUrl.trim() ? (
+                <img src={form.imageUrl.trim()} alt="" onError={(event) => (event.currentTarget.style.display = 'none')} />
+              ) : (
+                form.monogram || 'P'
+              )}
+            </span>
+            <div className="product-summary__body">
+              <strong className="product-summary__name">{form.name || 'Nome do produto'}</strong>
+              <span className="product-summary__meta">
+                {previewCategoryLabel}
+                {form.id ? ` · /${form.slug}` : ` · /${previewSlug}`}
+              </span>
+              <span className="product-summary__price">
+                {previewPriceCents != null ? formatCurrency(previewPriceCents) : 'Preço não informado'}
+                {form.featured && <span className="product-summary__flag">Destaque</span>}
+              </span>
+            </div>
+          </div>
+        </fieldset>
+
+        <div className="admin-row-actions admin-form__actions">
           <button className="button button--primary" type="submit" disabled={busy}>
             {busy ? 'Salvando…' : form.id ? 'Salvar alterações' : 'Criar produto'}
           </button>
           {form.id && (
-            <button className="button button--secondary" type="button" onClick={() => setForm(EMPTY_FORM)}>Cancelar edição</button>
+            <button
+              className="button button--secondary"
+              type="button"
+              onClick={() => {
+                setForm(EMPTY_FORM);
+                setFieldErrors({});
+                setImgError(false);
+              }}
+            >
+              Cancelar edição
+            </button>
           )}
         </div>
       </form>

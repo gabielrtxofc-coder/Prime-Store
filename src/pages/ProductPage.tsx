@@ -118,7 +118,7 @@ export function ProductPage() {
               <span>Período</span><strong>{product.period || 'não informado'}</strong>
             </div>
             <div className="product-detail__price-block">
-              <span>Preço</span>
+              <span>Preço à vista</span>
               <strong>{formatCurrency(product.priceCents)}</strong>
               <small>
                 {product.available

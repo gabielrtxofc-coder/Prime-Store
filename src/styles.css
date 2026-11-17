@@ -227,6 +227,10 @@ button:disabled { cursor: not-allowed; }
 .page-heading--catalog { display: flex; align-items: end; justify-content: space-between; gap: 24px; max-width: none; }
 .page-heading--catalog > div { max-width: 700px; }
 .catalog-toolbar { display: flex; align-items: center; gap: 15px; margin-bottom: 22px; }
+/* Mantém os filtros acessíveis enquanto o usuário rola o catálogo. */
+@media (min-width: 901px) {
+  .catalog-toolbar { position: sticky; top: 0; z-index: 6; background: var(--bg); padding: 10px 0; border-bottom: 1px solid var(--border); }
+}
 .catalog-search, .faq-search { min-height: 48px; display: flex; align-items: center; gap: 11px; padding: 0 14px; color: #8c98a9; background: #11151d; border: 1px solid #2a313c; border-radius: 8px; }
 .catalog-search { flex: 1; }
 .catalog-search:focus-within, .faq-search:focus-within { border-color: #4b81d9; box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
@@ -875,6 +879,13 @@ button:disabled { cursor: not-allowed; }
 .admin-badge.is-on { background: #10241b; color: #7ee2b0; }
 .admin-badge.is-off { background: #241a1a; color: #ff9d9d; }
 .admin-badge.is-warn { margin-left: 6px; background: #2a2113; color: #ffd479; }
+
+/* Pílulas de estado (pedidos): cor codifica o estado sem mudar o texto. */
+.status-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; border: 1px solid transparent; white-space: nowrap; }
+.status-pill--ok { background: #10241b; color: #7ee2b0; border-color: #1f4a37; }
+.status-pill--warn { background: #2a2113; color: #ffd479; border-color: #5b4426; }
+.status-pill--danger { background: #241a1a; color: #ff9d9d; border-color: #5c2b2b; }
+.status-pill--muted { background: #171d27; color: var(--text-muted); border-color: #2a323f; }
 .admin-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .admin-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid #1b212c; font-size: 12.5px; }
 .admin-list li:last-child { border-bottom: 0; }
@@ -1103,3 +1114,85 @@ button:disabled { cursor: not-allowed; }
 .admin-dialog__fields { display: grid; gap: 10px; margin: 0 0 18px; }
 .admin-dialog__fields label { font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px; }
 .admin-dialog__fields .field-hint { margin: 0; }
+
+/* ----------------------------------------------------------------------------
+ * Missão UX (Fase 2) — formulário de produto reorganizado em seções
+ * Mantém o funcionamento e os rótulos existentes; apenas melhora a organização,
+ * a hierarquia visual e o feedback de campo.
+ * ------------------------------------------------------------------------- */
+
+/* Cabeçalho do formulário + nota de obrigatoriedade */
+.admin-form__intro { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.admin-form__intro h2 { margin: 0; }
+.admin-form__required-note { display: inline-flex; align-items: center; gap: 2px; color: var(--text-subtle); font-size: 11px; }
+.required-mark { color: var(--error); font-weight: 800; }
+
+/* Seções (fieldsets) com legenda clara */
+.admin-form-section { border: 0; margin: 0; padding: 0; min-width: 0; }
+.admin-form-section + .admin-form-section { margin-top: 22px; }
+.admin-form-section__legend { display: flex; align-items: center; gap: 9px; width: 100%; margin: 0 0 14px; padding: 0 0 10px; border-bottom: 1px solid var(--border); color: #e7ecf3; font-size: 13px; font-weight: 700; letter-spacing: .01em; }
+.admin-form-section__index { display: inline-grid; place-items: center; width: 23px; height: 23px; flex: 0 0 23px; border-radius: 7px; background: #16233a; border: 1px solid #2c456d; color: #8db8ff; font-size: 11px; font-weight: 800; }
+.admin-form-section .form-grid { margin: 0 0 2px; }
+.admin-form-section .field-hint { margin-top: 10px; }
+
+/* Cabeçalho de campo com marcador de obrigatório alinhado */
+.form-field__head { display: flex; align-items: baseline; gap: 6px; }
+.form-field__head .required-mark { transform: translateY(-1px); }
+
+/* Nota de margem estimada (seção Preços) */
+.price-margin-note { display: flex; align-items: baseline; gap: 10px; padding: 10px 12px; margin: 12px 0 0; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 8px; }
+.price-margin-note span { color: var(--text-subtle); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.price-margin-note strong { color: #8db8ff; font-size: 15px; }
+.price-margin-note small { color: var(--text-subtle); font-size: 11px; }
+
+/* Pré-visualização de imagem (seção Imagens) */
+.image-preview { margin-top: 10px; border: 1px dashed var(--border-light); border-radius: 10px; background: var(--surface-soft); min-height: 132px; display: grid; place-items: center; overflow: hidden; }
+.image-preview__img { width: 100%; height: 100%; max-height: 260px; object-fit: cover; }
+.image-preview__empty { color: var(--text-subtle); font-size: 12px; padding: 18px; text-align: center; }
+
+/* Avatar de monograma na lista de produtos */
+.admin-product-cell { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.admin-product-cell__text { min-width: 0; display: flex; flex-direction: column; }
+.admin-product-cell__text strong { font-size: 13px; line-height: 1.3; }
+.admin-product-cell__text small { color: var(--text-subtle); font-size: 11px; }
+.admin-thumb { flex: 0 0 auto; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 760; letter-spacing: -.04em; border: 1px solid rgba(255,255,255,.16); }
+.admin-thumb--blue { background: #1c416c; }
+.admin-thumb--green { background: #1d604d; }
+.admin-thumb--violet { background: #3c3064; }
+.admin-thumb--red { background: #54242c; }
+.admin-thumb--rose { background: #59303d; }
+.admin-thumb--gray { background: #333740; }
+.admin-thumb--orange { background: #614326; }
+
+/* Situação de publicação (seção Publicação) */
+.publish-status { padding: 13px 14px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 10px; }
+.publish-status__label { display: block; color: var(--text-subtle); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; }
+.publish-status__value { display: inline-block; margin-top: 3px; font-size: 13px; font-weight: 600; color: #cdd6e2; }
+.publish-status__value--draft { color: #ffd479; }
+.publish-status .field-hint { margin: 8px 0 0; }
+
+/* Resumo do produto antes de salvar */
+.product-summary { display: flex; align-items: center; gap: 14px; margin-top: 14px; padding: 14px; border: 1px solid var(--border-light); border-radius: 10px; background: var(--surface); }
+.product-summary__thumb { flex: 0 0 auto; width: 56px; height: 56px; display: grid; place-items: center; border-radius: 12px; color: #fff; font-size: 22px; font-weight: 760; letter-spacing: -.05em; overflow: hidden; background: #1c416c; border: 1px solid rgba(255,255,255,.18); }
+.product-summary__thumb img { width: 100%; height: 100%; object-fit: cover; }
+.product-summary__thumb--blue { background: #1c416c; }
+.product-summary__thumb--green { background: #1d604d; }
+.product-summary__thumb--violet { background: #3c3064; }
+.product-summary__thumb--red { background: #54242c; }
+.product-summary__thumb--rose { background: #59303d; }
+.product-summary__thumb--gray { background: #333740; }
+.product-summary__thumb--orange { background: #614326; }
+.product-summary__body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.product-summary__name { font-size: 14px; line-height: 1.3; }
+.product-summary__meta { color: var(--text-subtle); font-size: 11px; overflow-wrap: anywhere; }
+.product-summary__price { color: #8db8ff; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 9px; }
+.product-summary__flag { padding: 2px 7px; border-radius: 999px; background: #2a2113; color: #ffd479; border: 1px solid #5b4426; font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+
+.admin-form__actions { margin-top: 6px; }
+
+/* Ajustes de responsividade para o formulário em telas pequenas */
+@media (max-width: 700px) {
+  .admin-form-section__legend { font-size: 12px; }
+  .product-summary { flex-direction: row; }
+  .image-preview { min-height: 110px; }
+}
