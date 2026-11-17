@@ -32,6 +32,43 @@ interface PeriodSummary {
 
 const PAGE_LIMIT = 200; // limite máximo aplicado pelo backend (`admin_list_orders`)
 
+/** Rótulos legíveis para os enums do banco (o código cru continua visível). */
+const ORDER_STATUS_TEXT: Record<string, string> = {
+  requested: 'solicitação',
+  pending_payment: 'aguardando pagamento',
+  paid: 'pago',
+  expired: 'expirado',
+  cancelled: 'cancelado',
+  refund_pending: 'reembolso em análise',
+  refunded: 'reembolsado',
+  disputed: 'contestado',
+  failed: 'não concluído',
+};
+
+const PAYMENT_STATUS_TEXT: Record<string, string> = {
+  not_required: 'sem cobrança',
+  pending: 'aguardando',
+  in_process: 'em processamento',
+  approved: 'aprovado',
+  rejected: 'recusado',
+  cancelled: 'cancelado',
+  refunded: 'reembolsado',
+  charged_back: 'chargeback',
+  amount_mismatch: 'divergência de valor',
+};
+
+const ORDER_STATUS_TONE: Record<string, string> = {
+  paid: 'is-on',
+  requested: '',
+  pending_payment: 'is-warn',
+  refund_pending: 'is-warn',
+  disputed: 'is-warn',
+  refunded: '',
+  expired: 'is-off',
+  cancelled: 'is-off',
+  failed: 'is-off',
+};
+
 export function AdminOverview() {
   const [indicators, setIndicators] = useState<AdminIndicators | null>(null);
   const [period, setPeriod] = useState<PeriodSummary | null>(null);
@@ -209,15 +246,16 @@ export function AdminOverview() {
         </div>
         {period ? (
           <>
-            <div className="admin-metrics">
-              <Metric label="Pedidos recebidos" value={period.allTotal} hint="Todos os estados, inclusive solicitações" />
-              <Metric label="Solicitações sem pagamento" value={period.requestedTotal} hint="status requested · não são vendas" />
-              <Metric label="Vendas pagas" value={period.paidTotal} hint="status paid · pagamento aprovado" />
+            <div className="admin-metrics admin-metrics--period">
               <Metric
                 label={period.revenueComplete ? 'Receita confirmada' : 'Receita confirmada ≥'}
                 value={formatCurrency(period.revenueCents)}
                 hint="paid + refund_pending do período (reembolsados/disputados fora)"
+                tone="primary"
               />
+              <Metric label="Pedidos recebidos" value={period.allTotal} hint="Todos os estados, inclusive solicitações" />
+              <Metric label="Vendas pagas" value={period.paidTotal} hint="status paid · pagamento aprovado" />
+              <Metric label="Solicitações sem pagamento" value={period.requestedTotal} hint="status requested · não são vendas" />
               <Metric label="Pedidos reembolsados" value={period.refundedTotal} hint="status refunded" />
             </div>
             {!period.revenueComplete && (
@@ -249,10 +287,15 @@ export function AdminOverview() {
                         <td>{order.product_name}</td>
                         <td>{new Date(order.created_at).toLocaleString('pt-BR')}</td>
                         <td>{formatCurrency(order.total_cents)}</td>
-                        <td>{order.payment_status}</td>
                         <td>
-                          {order.status}
-                          {order.status === 'requested' && <span className="admin-badge"> solicitação</span>}
+                          <span className="admin-badge">{PAYMENT_STATUS_TEXT[order.payment_status] ?? order.payment_status}</span>
+                          <small className="admin-code-hint">{order.payment_status}</small>
+                        </td>
+                        <td>
+                          <span className={`admin-badge ${ORDER_STATUS_TONE[order.status] ?? ''}`.trim()}>
+                            {ORDER_STATUS_TEXT[order.status] ?? order.status}
+                          </span>
+                          <small className="admin-code-hint">{order.status}</small>
                         </td>
                       </tr>
                     ))}
@@ -272,18 +315,38 @@ export function AdminOverview() {
             <h2>Acumulado geral (servidor)</h2>
             <span className="field-hint">Totais históricos calculados pelo banco · nunca inclui not_required</span>
           </div>
-          <div className="admin-metrics">
-            <Metric label="Receita aprovada (total)" value={formatCurrency(indicators.revenue_total_cents)} hint="paid + refund_pending, histórico" />
-            <Metric label="Receita (30 dias)" value={formatCurrency(indicators.revenue_30d_cents)} hint="mesmo critério, últimos 30 dias" />
-            <Metric label="Pedidos pagos (total)" value={indicators.orders_paid} hint={`${indicators.orders_total} pedidos no total`} />
-            <Metric label="Aguardando pagamento" value={indicators.orders_pending_payment} hint="pending_payment · não são pagas" />
-            <Metric label="Reservas ativas" value={indicators.active_reservations} />
-            <Metric label="Reembolsos abertos" value={indicators.open_refund_requests} hint={`${indicators.orders_refunded} pedido(s) reembolsado(s)`} />
-            <Metric label="Disputas abertas" value={indicators.orders_disputed} hint={`${indicators.payments_charged_back} chargeback(s)`} />
-            <Metric label="Unidades disponíveis" value={indicators.units_available} hint={`${indicators.units_reserved} reservada(s)`} />
-            <Metric label="Unidades vendidas" value={indicators.units_sold} />
-            <Metric label="Produtos ativos" value={indicators.products_active} hint={`${indicators.products_inactive} inativo(s)`} />
-            <Metric label="Entregas ativas" value={indicators.deliveries_active} hint={`${indicators.deliveries_revoked} revogada(s)`} />
+          <div className="admin-metric-groups">
+            <div className="admin-metric-group">
+              <h3 className="admin-subheading">Receita e vendas</h3>
+              <div className="admin-metrics">
+                <Metric label="Receita aprovada (total)" value={formatCurrency(indicators.revenue_total_cents)} hint="paid + refund_pending, histórico" />
+                <Metric label="Receita (30 dias)" value={formatCurrency(indicators.revenue_30d_cents)} hint="mesmo critério, últimos 30 dias" />
+                <Metric label="Pedidos pagos (total)" value={indicators.orders_paid} hint={`${indicators.orders_total} pedidos no total`} />
+                <Metric label="Aguardando pagamento" value={indicators.orders_pending_payment} hint="pending_payment · não são pagas" />
+                <Metric label="Reservas ativas" value={indicators.active_reservations} />
+              </div>
+            </div>
+            <div className="admin-metric-group">
+              <h3 className="admin-subheading">Estoque</h3>
+              <div className="admin-metrics">
+                <Metric label="Unidades disponíveis" value={indicators.units_available} hint={`${indicators.units_reserved} reservada(s)`} />
+                <Metric label="Unidades vendidas" value={indicators.units_sold} />
+              </div>
+            </div>
+            <div className="admin-metric-group">
+              <h3 className="admin-subheading">Riscos e atendimento</h3>
+              <div className="admin-metrics">
+                <Metric label="Reembolsos abertos" value={indicators.open_refund_requests} hint={`${indicators.orders_refunded} pedido(s) reembolsado(s)`} />
+                <Metric label="Disputas abertas" value={indicators.orders_disputed} hint={`${indicators.payments_charged_back} chargeback(s)`} />
+              </div>
+            </div>
+            <div className="admin-metric-group">
+              <h3 className="admin-subheading">Produtos e entregas</h3>
+              <div className="admin-metrics">
+                <Metric label="Produtos ativos" value={indicators.products_active} hint={`${indicators.products_inactive} inativo(s)`} />
+                <Metric label="Entregas ativas" value={indicators.deliveries_active} hint={`${indicators.deliveries_revoked} revogada(s)`} />
+              </div>
+            </div>
           </div>
 
           {indicators.low_stock_products.length > 0 && (
@@ -384,9 +447,19 @@ export function AdminOverview() {
   );
 }
 
-function Metric({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+function Metric({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+  tone?: 'primary';
+}) {
   return (
-    <div className="admin-metric">
+    <div className={`admin-metric${tone ? ` admin-metric--${tone}` : ''}`}>
       <span>{label}</span>
       <strong>{value}</strong>
       {hint && <small>{hint}</small>}

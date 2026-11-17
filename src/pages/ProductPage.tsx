@@ -125,12 +125,23 @@ export function ProductPage() {
                   ? `${units ?? 0} unidade(s) disponível(is) agora`
                   : 'Sem unidades disponíveis no momento'}
               </small>
+              {product.available && units !== null && units > 0 && units <= 2 && (
+                <span className="product-detail__low-stock">
+                  <Icon name="clock" size={14} /> Últimas {units} unidade(s) — a disponibilidade pode mudar até a confirmação.
+                </span>
+              )}
             </div>
             {product.available && product.allowQuantity && (
               <div className="product-detail__quantity">
                 <span>Quantidade</span>
                 <QuantityControl value={quantity} max={quantityLimit} label="quantidade do produto" onChange={setQuantity} />
                 {quantityLimit > 1 && <small className="field-hint">Máximo de {quantityLimit} unidade(s) por pedido.</small>}
+                {quantity > 1 && (
+                  <p className="product-detail__estimate" aria-live="polite">
+                    Total estimado: <strong>{formatCurrency(product.priceCents * quantity)}</strong> — o valor final é
+                    conferido no servidor ao enviar o pedido.
+                  </p>
+                )}
               </div>
             )}
             {!product.available && (

@@ -1103,3 +1103,252 @@ button:disabled { cursor: not-allowed; }
 .admin-dialog__fields { display: grid; gap: 10px; margin: 0 0 18px; }
 .admin-dialog__fields label { font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px; }
 .admin-dialog__fields .field-hint { margin: 0; }
+
+/* ==========================================================================
+   Missão UX — protótipo de usabilidade (cadastro de produtos, painel e loja)
+   Apenas apresentação: nenhuma regra de negócio, contrato ou cor de marca
+   foi alterada. Tokens já existentes são reaproveitados.
+   ========================================================================== */
+
+/* Navegação do painel: ícone + rótulo, com a seção atual destacada de forma
+   mais evidente (antes o sublinhado era o único indício). */
+.admin-tabs { gap: 4px; }
+.admin-tab { display: inline-flex; align-items: center; gap: 8px; border-radius: 8px 8px 0 0; }
+.admin-tab svg { flex: 0 0 auto; opacity: .75; }
+.admin-tab.is-active { background: #141a24; }
+.admin-tab.is-active svg { opacity: 1; }
+.admin-content { display: grid; gap: 16px; }
+.admin-content__heading h2 { margin: 0 0 2px; font-size: 18px; letter-spacing: -.01em; }
+.admin-content__heading .field-hint { margin: 0; }
+
+/* Agrupamento de filtros: cada controle ganha um rótulo curto visível e o
+   bloco inteiro fica separado da listagem. */
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+.admin-filter-field { display: grid; gap: 5px; min-width: 0; flex: 1 1 190px; }
+.admin-filter-label { color: var(--text-subtle); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.admin-filter-field .form-control { width: 100%; min-width: 0; }
+.admin-filter-field--search { flex: 2 1 240px; }
+.admin-filter-field--period { flex: 2 1 260px; }
+.admin-filter-field--actions { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.admin-filters .admin-inline-check { color: var(--text-muted); font-size: 11.5px; }
+
+/* Indicadores: valor principal em destaque, o resto em leitura secundária. */
+.admin-metrics--period { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.admin-metric--primary { background: linear-gradient(180deg, #142033, #11151d); border-color: #2b3d5c; }
+.admin-metric--primary strong { font-size: 26px; letter-spacing: -.02em; }
+.admin-metric-groups { display: grid; gap: 22px; }
+.admin-metric-group .admin-metrics { margin-top: 10px; }
+.admin-subheading { margin: 20px 0 0; color: var(--text-subtle); font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.admin-metric-group .admin-subheading { margin: 0; }
+.admin-code-hint { display: block; margin-top: 4px; color: var(--text-subtle); font-size: 10.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.admin-order-detail__badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 14px; }
+.admin-order-detail__badges .admin-badge { text-transform: none; letter-spacing: 0; font-size: 11px; }
+
+/* Lista de produtos: miniatura + nome/slug na mesma célula, estoque legível. */
+.product-cell { display: inline-block; min-width: 0; vertical-align: middle; }
+.product-cell small { display: block; color: var(--text-subtle); font-size: 11px; }
+.product-thumb {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-right: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  background: var(--surface-soft);
+  color: #9bbef1;
+  font-size: 13px;
+  font-weight: 700;
+  vertical-align: middle;
+  overflow: hidden;
+}
+.product-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.product-stock-detail { display: block; margin-top: 3px; color: var(--text-subtle); font-size: 10.5px; }
+.product-detail-image { margin: 0 0 12px; }
+.product-detail-image img { width: 100%; max-width: 320px; border-radius: 10px; border: 1px solid var(--border); }
+
+/* Formulário de produto em seções A–E. Cada seção é um bloco discreto, sem
+   virar "card de tudo": usa apenas espaçamento, hairlines e um marcador
+   numérico para dar ordem de leitura. */
+.product-form { display: grid; gap: 0; padding: 0; overflow: hidden; }
+.product-form__header { padding: 20px 22px 16px; border-bottom: 1px solid var(--border); }
+.product-form__header h2 { margin: 0 0 4px; font-size: 17px; }
+.product-form__required-note { margin: 0; color: var(--text-subtle); font-size: 11px; }
+.product-form__required-note span { color: #ff9396; font-weight: 700; }
+.product-form__section { padding: 18px 22px 4px; border-bottom: 1px solid var(--border); }
+.product-form__section:last-of-type { border-bottom: 0; }
+.product-form__section-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 4px; }
+.product-form__section-header h3 { margin: 0; font-size: 14px; letter-spacing: -.01em; }
+.product-form__section-header p { margin: 2px 0 0; color: var(--text-subtle); font-size: 11px; line-height: 1.5; }
+.product-form__step {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 999px;
+  background: #1b2637;
+  color: #9bbef1;
+  font-size: 11px;
+  font-weight: 700;
+}
+.product-form .form-grid { margin: 14px 0 16px; }
+.product-form .form-field label { color: #d7dde6; font-size: 12px; }
+.product-form .form-field label.is-required::after { content: " *"; color: #ff9396; }
+.product-form .field-hint { margin: 0; color: var(--text-subtle); font-size: 10.5px; line-height: 1.5; }
+.product-form .field-error { margin: 0; font-size: 11px; }
+.product-form__preview { margin: 0; color: var(--text-subtle); font-size: 10.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.product-form input[aria-invalid='true'],
+.product-form textarea[aria-invalid='true'] { border-color: #7f2f33; background: #1b1417; }
+
+/* Imagens: campo + pré-visualização lado a lado (empilha no celular). */
+.product-form__image { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 16px; margin: 14px 0 18px; align-items: start; }
+.product-form__image-field { min-width: 0; }
+.product-form__image-side { display: grid; gap: 8px; justify-items: start; }
+.product-form__image-preview {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  padding: 10px;
+  border: 1px dashed var(--border-light);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  overflow: hidden;
+}
+.product-form__image-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
+.product-form__image-fallback { color: var(--text-subtle); font-size: 11px; line-height: 1.5; text-align: center; }
+.product-form__margin { margin: 0 0 16px; color: var(--text-muted); font-size: 11.5px; }
+.product-form__margin strong { color: #a7f3d0; }
+
+/* Barra de ações fixa no rodapé do formulário: o botão de salvar acompanha a
+   rolagem, então nunca é preciso "procurar" o fim da página. */
+.product-form__actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--border-light);
+  background: #0f141c;
+  box-shadow: 0 -12px 24px rgb(0 0 0 / 28%);
+}
+.product-form__summary { margin: 0; flex: 1 1 320px; min-width: 0; color: var(--text-muted); font-size: 11.5px; line-height: 1.5; }
+.product-form__summary strong { color: var(--text-subtle); font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: .06em; }
+.product-form__actions .admin-row-actions { flex: 0 0 auto; }
+
+@media (max-width: 900px) {
+  .product-form__image { grid-template-columns: minmax(0, 1fr); }
+  .product-form__image-side { justify-items: stretch; }
+  .product-form__image-preview { max-width: 260px; }
+}
+
+@media (max-width: 640px) {
+  .admin-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; border-bottom: 0; margin-bottom: 16px; }
+  .admin-tab { justify-content: center; padding: 10px 8px; border: 1px solid var(--border); border-radius: 9px; font-size: 12px; }
+  .admin-tab.is-active { border-color: var(--blue); border-bottom-color: var(--blue); background: #142033; }
+  .admin-filters { padding: 12px; }
+  .admin-filter-field,
+  .admin-filter-field--search,
+  .admin-filter-field--period { flex: 1 1 100%; }
+  .product-form__header,
+  .product-form__section { padding-left: 16px; padding-right: 16px; }
+  .product-form__actions { flex-direction: column; align-items: stretch; padding: 12px 16px; }
+  .product-form__actions .admin-row-actions { justify-content: stretch; }
+  .product-form__actions .button { flex: 1 1 auto; }
+  .product-form .form-field label { font-size: 11.5px; }
+  .product-form .field-hint { font-size: 10px; }
+}
+
+/* --------------------------------------------------------------------------
+   Missão UX — loja pública: refinamentos proporcionais de leitura, hierarquia
+   e toque. Nenhum texto, fluxo ou regra comercial foi alterado.
+   -------------------------------------------------------------------------- */
+
+/* Cartão de produto: preço com mais peso, disponibilidade legível e ações
+   alinhadas — a leitura vai de nome → descrição → preço → ação. */
+.product-card__title { font-size: 15.5px; }
+.product-card__description { color: #9fa9b7; font-size: 11.5px; }
+.product-card__price { font-size: 19px; }
+.product-card .price-caption { color: #8a96a6; font-size: 10px; line-height: 1.4; text-align: right; }
+.product-card__actions { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
+.product-card__add { justify-content: center; }
+.product-card__actions .button { min-height: 40px; font-size: 11.5px; }
+@media (pointer: coarse) {
+  .product-card__actions .button { min-height: 44px; }
+}
+
+/* Catálogo: busca e ordenação ocupam a linha inteira no celular, chips com
+   área de toque confortável e contagem de resultados mais visível. */
+.catalog-toolbar { flex-wrap: wrap; row-gap: 10px; }
+.catalog-results-heading p strong { font-size: 14px; }
+.catalog-results-heading__actions { display: flex; flex-wrap: wrap; gap: 14px; }
+.filter-label { display: block; margin-bottom: 8px; color: #7f8a99; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+@media (max-width: 700px) {
+  .catalog-toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
+  .sort-control { justify-content: space-between; }
+  .sort-control select { width: auto; flex: 1 1 auto; max-width: 60%; }
+  .filter-chip { min-height: 40px; padding: 8px 14px; font-size: 12px; }
+  .catalog-results-heading { flex-wrap: wrap; gap: 8px; padding: 6px 0; }
+  .catalog-results-heading__actions { width: 100%; justify-content: space-between; }
+}
+
+/* Página do produto: bloco de preço com contorno próprio (destaque comercial),
+   ação principal em largura total no celular e avisos com leitura clara. */
+.product-detail__price-block {
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid #2a3648;
+  border-radius: 11px;
+  background: #0f1620;
+}
+.product-detail__price-block strong { font-size: clamp(28px, 4vw, 34px); }
+.product-detail__price-block small { font-size: 11px; }
+.product-detail__low-stock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 9px;
+  align-self: flex-start;
+  border-radius: 999px;
+  background: #2a2113;
+  color: #ffd479;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.product-detail__estimate { margin: 0; flex: 1 1 100%; padding-top: 8px; color: #a9b5c4; font-size: 11px; }
+.product-detail__estimate strong { color: #d9e6ff; }
+.product-detail__quantity { flex-wrap: wrap; }
+.product-detail__actions { gap: 12px; }
+.product-detail__actions .button--primary { flex: 1 1 220px; }
+.product-detail__actions .button--secondary { flex: 0 1 auto; }
+@media (max-width: 700px) {
+  .product-detail__actions { flex-direction: column; align-items: stretch; }
+  .product-detail__actions .button { width: 100%; justify-content: center; }
+  .product-detail__information { margin-top: 36px; gap: 12px; }
+}
+
+/* Cabeçalho: alvo de toque do carrinho e menu coerentes com o restante da loja. */
+.site-header__actions .button,
+.site-header__actions a { min-height: 40px; }
+@media (pointer: coarse) {
+  .site-header__actions .button,
+  .site-header__actions a,
+  .header-search-toggle,
+  .mobile-menu-toggle { min-height: 44px; }
+}

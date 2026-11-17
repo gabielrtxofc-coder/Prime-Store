@@ -19,11 +19,33 @@ import { AdminOrders } from './AdminOrders';
 
 type Tab = 'overview' | 'products' | 'stock' | 'orders';
 
-const TABS: Array<{ id: Tab; label: string }> = [
-  { id: 'overview', label: 'Visão geral' },
-  { id: 'products', label: 'Produtos' },
-  { id: 'stock', label: 'Estoque' },
-  { id: 'orders', label: 'Pedidos' },
+type IconName = Parameters<typeof Icon>[0]['name'];
+
+const TABS: Array<{ id: Tab; label: string; icon: IconName; description: string }> = [
+  {
+    id: 'overview',
+    label: 'Visão geral',
+    icon: 'grid',
+    description: 'Indicadores do período, pedidos recentes e registros de auditoria.',
+  },
+  {
+    id: 'products',
+    label: 'Produtos',
+    icon: 'tag',
+    description: 'Cadastre, edite, ative ou desative os produtos vendidos na loja.',
+  },
+  {
+    id: 'stock',
+    label: 'Estoque',
+    icon: 'box',
+    description: 'Cadastre unidades, acompanhe a disponibilidade e importe planilhas.',
+  },
+  {
+    id: 'orders',
+    label: 'Pedidos',
+    icon: 'receipt',
+    description: 'Acompanhe solicitações, pagamentos, entregas e reembolsos.',
+  },
 ];
 
 export function AdminPage() {
@@ -168,12 +190,17 @@ export function AdminPage() {
             aria-current={tab === item.id ? 'page' : undefined}
             onClick={() => setTab(item.id)}
           >
-            {item.label}
+            <Icon name={item.icon} size={17} />
+            <span>{item.label}</span>
           </button>
         ))}
       </nav>
 
       <div className="admin-content">
+        <div className="admin-content__heading">
+          <h2>{TABS.find((item) => item.id === tab)?.label}</h2>
+          <p className="field-hint">{TABS.find((item) => item.id === tab)?.description}</p>
+        </div>
         {tab === 'overview' && <AdminOverview />}
         {tab === 'products' && <AdminProducts />}
         {tab === 'stock' && <AdminStock />}
