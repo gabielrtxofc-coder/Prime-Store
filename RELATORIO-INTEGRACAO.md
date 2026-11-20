@@ -186,3 +186,137 @@ Commit final desta preparação: o commit que acompanha este relatório (hash no
 
 Com o “pode fazer o merge”, o comando é `gh pr merge` / `git merge --ff-only main` seguido de push;
 enquanto isso, a branch fica publicada mas intocada no destino.
+
+---
+
+# Adendo — respostas às suas três decisões (17/11/2026)
+
+## 1. Merge para `main` dispara deploy de produção na Vercel? **Sim.**
+
+Verificado no projeto Vercel `prime-store` (`prj_pVhaf3jVffFX24OK5GjAZNZz4vvC`):
+
+| Configuração | Valor |
+|---|---|
+| Repositório ligado | `gabielrtxofc-coder/Prime-Store` (GitHub) |
+| **Production Branch** | **`main`** |
+| `gitProviderOptions.createDeployments` | `enabled` |
+| Ignored Build Step (`commandForIgnoringBuildStep`) | `null` (nenhum) |
+| Build | `npm ci` → `npm run build` → `dist` |
+| Produção atual | deploy `dpl_HvSgZWC…` do commit **`8a9afbc`** (merge do PR #10), estado `READY/PROMOTED`, alias **`prime-store-gilt.vercel.app`** |
+
+Histórico confirma o gatilho: **cada PR mergeado na `main` (#6 a #10) gerou um deploy `target: production`
+promovido automaticamente** para o alias público. Nossa branch, por sua vez, só gera *preview* — o push do
+commit `11090d6` criou um deploy `target: null` com alias `…-git-arena-b804eb-67fe4f-….vercel.app`.
+
+**Conclusão:** ao mergear, a Vercel publica sozinha em produção em segundos. Nenhum merge foi feito, então
+nada foi publicado.
+
+Três formas de evitar a publicação automática, se você quiser mergear sem ir ao ar (todas reversíveis):
+
+| Opção | Como | Efeito |
+|---|---|---|
+| A | aceitar o deploy | o redesign entra no ar em `prime-store-gilt.vercel.app` |
+| B | `vercel.json` com `"git": { "deploymentEnabled": { "main": false } }` | a Vercel ignora builds da `main`; remover a chave reativa |
+| C | mergear e, em seguida, promover de volta o deploy `8a9afbc` ("Rollback") no painel | janela de poucos segundos no ar com a versão nova |
+
+⚠️ **Contexto importante:** as variáveis de produção deste projeto apontam para o Supabase **sandbox**
+(`VITE_SUPABASE_URL=https://eorlmqolbknrplvdbbtl.supabase.co`, `VITE_SUPABASE_ANON_KEY` do projeto demo,
+`VITE_BACKEND_ENABLED=true`, `VITE_ADMIN_DEMO=false`). Ou seja, "produção" hoje é um site de demonstração
+apontando para o banco de testes — e com `WYVI_API_KEY` configurada. Vale decidir isso antes do go-live.
+
+## 2. Imagens de demonstração: mantidas
+
+- `public/produtos/` com as **8 capas** (1,2 MB) versionadas em `f516cdc`; nada foi removido.
+- Continuam referenciadas pelas fixtures do modo demonstração (`adminDemoData.ts`) e pelo mock local, então
+  a apresentação aprovada segue idêntica (`shots/final/` e `shots/arte/`).
+- Consequência aceita: 1,2 MB de estáticos no `dist` (não são requisitadas em produção, pois o catálogo real
+  vem do backend).
+
+## 3. Banco: lista exata, origem comprovada e backup verificado
+
+### 3.1 Lista exata dos registros de teste (projeto `eorlmqolbknrplvdbbtl`)
+
+**Produtos (2) — já arquivados, não precisam de ação**
+
+| Produto | Flags | Criado | `archived_at` | Unidades | Itens |
+|---|---|---|---|---|---|
+| `f8c3c8f2…` Produto de exemplo — acesso avulso | `is_demo=true`, `is_active=false` | 31/10 00:34 | **16/11 15:06** | 13 | 2 |
+| `23d8f61c…` Produto de exemplo — acesso mensal | `is_demo=true`, `is_active=false`, `is_featured=true` | 31/10 00:34 | **16/11 15:06** | 14 | 4 |
+
+**Pedidos (12) — nenhum tem coluna de arquivamento**
+
+| Referência | Estado | Pagamento | Total | Criado | Itens/Pagto/Entrega |
+|---|---|---|---|---|---|
+| PS-DL28KM | paid | approved | R$ 29,90 | 31/10 15:41 | 0/1/1 |
+| PS-X2KL5N | paid | approved | R$ 29,90 | 01/11 02:35 | 0/1/1 |
+| PS-Q56ZCP | paid | approved | R$ 29,90 | 01/11 03:11 | 0/1/1 |
+| PS-3PXQ75 | failed | pending | R$ 29,90 | 01/11 03:49 | 0/0/0 |
+| PS-3GN6P2 | failed | pending | R$ 29,90 | 01/11 04:01 | 0/0/0 |
+| PS-5NG8C2 | expired | pending | R$ 29,90 | 01/11 04:01 | 0/0/0 |
+| PS-RHT8MA | expired | pending | R$ 29,90 | 01/11 06:12 | 0/0/0 |
+| PS-S2SDYS | requested | not_required | R$ 129,70 | 01/11 07:11 | 2/0/0 |
+| PS-5AA364 | requested | not_required | R$ 59,80 | 13/11 13:23 | 1/0/0 |
+| PS-GTW9UY | requested | not_required | R$ 49,90 | 13/11 13:51 | 1/0/0 |
+| PS-VGA3S7 | paid | approved | R$ 29,90 | 16/11 14:02 | 1/1/1 |
+| PS-WBCLBE | failed | pending | R$ 29,90 | 16/11 22:37 | 1/0/0 |
+
+**Demais objetos**
+
+| Objeto | Qtd | Marcador de origem |
+|---|---|---|
+| `order_items` | 6 | **100% ligados aos 2 produtos `is_demo`** |
+| `payments` | 4 | **`provider = 'demo'`** em todas (PIX demonstrativo, `approved`) |
+| `deliveries` | 4 | vinculadas aos pedidos `paid` acima; 0 revogadas |
+| `stock_units` | 27 | **`is_demo = true` em 27/27** (0 unidades reais) |
+| `order_events` | 26 | histórico dos 12 pedidos acima |
+| `payment_events` | 3 | eventos dos pagamentos demo |
+| `admin_audit_log` | 3 | registros de operação do painel (mantidos) |
+| `refund_requests` | 0 | — |
+| `_revoke_probe` (tabela) | 0 linhas | sobra de teste de revogação, vazia |
+
+**Origem comprovada:** o catálogo inteiro é `is_demo`; todo estoque é `is_demo`; todo pagamento tem
+`provider = 'demo'`; nenhum item aponta para produto fora dos dois de exemplo. Não existe receita real
+nesse projeto.
+
+### 3.2 Backup: existe e foi testado
+
+| Item | Valor |
+|---|---|
+| Arquivo | `.backups/produtos-demo-2026-11-17.sql` (fora do Git — `.gitignore`, por conter dados) |
+| SHA-256 | `94b17386e88ade38c92b198ff9097207e191dbacf9ed5af31c354737eb52752e` |
+| Conteúdo | `INSERT` completo das 2 linhas de `products`, com `ON CONFLICT (id) DO NOTHING` |
+| **Teste de restauração** | aplicado em Postgres 18 local com todas as migrações → **2 linhas** e fingerprint **`7781da84ca091709382344d8ec917fa7`**, idêntico ao do projeto |
+
+Restaurar = rodar esse arquivo; nada é sobrescrito.
+
+Para os pedidos/pagamentos, a recuperação hoje dependeria de backup do provedor: o projeto é **Hobby**
+(sem PITR, sem backup diário gerenciado), então **não existe snapshot automático** — só o export manual.
+
+### 3.3 O que foi executado
+
+**Nada.** O arquivamento dos produtos **já estava feito** (`archived_at` em 16/11 15:06, `is_active=false`,
+`is_demo=true`) — não havia o que arquivar de novo. Nenhum `INSERT`, `UPDATE`, `DELETE` ou `DROP` foi
+executado no projeto nesta rodada; a única escrita foi em hardware local (`.backups/` e Postgres de teste).
+
+**Recomendação para os pedidos:** não mudar `orders.status` (o cancelamento dispara liberação de reserva e
+altera `stock_units`, o que não é reversível de forma limpa). Em vez disso, uma migração pequena e reversível
+adicionando `orders.archived_at` (mesmo padrão de `products`), e o painel passa a filtrar por ela. Fica como
+tarefa separada, para você decidir.
+
+`_revoke_probe` está vazia: pode ser removida (`DROP TABLE`) em uma limpeza avulsa — não executei porque é
+destrutivo.
+
+## 4. Situação final
+
+| Item | Estado |
+|---|---|
+| Branch | `arena/b804eb72-prime-store` (publicada, sem merge) |
+| Commit | `11090d6` + este adendo |
+| Merge | **não executado**, aguardando sua autorização |
+| Deploy | nenhum deploy disparado por esta preparação além do *preview* automático já existente |
+| Imagens | 8 capas mantidas |
+| Banco | intacto; arquivamento dos produtos já vigente; backup verificado |
+| Testes | 162 (interface) + 424 (banco/sistema) + build + 18 verificações de UI |
+
+**Pendências para a autorização do merge:** escolher A, B ou C do item 1 (o que acontece com o deploy) e
+dizer se quer o `archived_at` em `orders` como missão separada.

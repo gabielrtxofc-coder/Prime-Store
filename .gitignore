@@ -17,3 +17,6 @@ supabase/.temp/
 # Capturas intermediárias e scripts locais de verificação visual
 .cache/
 shots/v2/
+
+# Backups locais de dados de teste (contêm dados pessoais — nunca versionar)
+.backups/
