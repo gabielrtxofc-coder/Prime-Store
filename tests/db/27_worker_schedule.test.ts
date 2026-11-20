@@ -1,0 +1,25 @@
+import {readFileSync} from 'node:fs';
+import {expect, it} from 'vitest';
+import {connect, MIGRATIONS_DIR} from './helpers';
+
+it('agenda para o projeto do token sem gravar o bearer no cron', async () => {
+  const db = await connect();
+  try {
+    await db.query('begin');
+    // Substitutos transacionais: nenhuma extensão envia tráfego no teste.
+    await db.query(`create schema cron; create schema net; create schema if not exists vault;
+      create table cron.job(jobname text primary key, command text);
+      create table net.http_request_queue(url text);
+      create table vault.decrypted_secrets(name text, decrypted_secret text);
+      create function cron.schedule(text,text,text) returns void language sql as $$insert into cron.job values ($1,$3)$$;
+      create function net.http_post(url text,headers jsonb,body jsonb) returns void language sql as $$insert into net.http_request_queue values ($1)$$;`);
+    const ref = 'abcdefghijklmnopqrst';
+    const jwt = 'fixture.' + Buffer.from(JSON.stringify({ref,role:'service_role'})).toString('base64url') + '.fixture';
+    await db.query("insert into vault.decrypted_secrets values ('wyvi_worker_jwt',$1)",[jwt]);
+    await db.query(readFileSync(`${MIGRATIONS_DIR}/20261120160000_0045_worker_destino_por_projeto.sql`,'utf8'));
+    const {rows:[job]} = await db.query('select command from cron.job');
+    expect(job.command).not.toContain(jwt);
+    await db.query(job.command);
+    expect((await db.query('select url from net.http_request_queue')).rows).toEqual([{url:`https://${ref}.supabase.co/functions/v1/wyvi-worker`}]);
+  } finally {await db.query('rollback'); await db.end();}
+});
