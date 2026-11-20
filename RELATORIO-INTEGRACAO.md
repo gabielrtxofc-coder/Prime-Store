@@ -320,3 +320,33 @@ destrutivo.
 
 **Pendências para a autorização do merge:** escolher A, B ou C do item 1 (o que acontece com o deploy) e
 dizer se quer o `archived_at` em `orders` como missão separada.
+
+---
+
+# Opção B aplicada — deploy automático da `main` desativado
+
+`vercel.json` passou a declarar:
+
+```json
+{
+  "git": {
+    "deploymentEnabled": {
+      "main": false
+    }
+  },
+  "rewrites": [ ... ]
+}
+```
+
+Como funciona: a Vercel lê essa chave no commit que chega ao branch e **ignora a criação de deploy**
+para o branch listado. As demais branches continuam gerando *preview* normalmente (foi assim que os
+previews desta missão apareceram). O deploy de produção existente **não é removido nem promovido** —
+o alias `prime-store-gilt.vercel.app` continua servindo o deploy atual.
+
+**Para reativar a publicação automática** (qualquer uma das duas formas):
+
+1. Remover o bloco `"git"` do `vercel.json` (ou trocar `false` por `true`), commitar e mergear; o próximo
+   push na `main` volta a gerar produção.
+2. Ou, no painel da Vercel, **Deploy Hooks / Deploy** manual ou o botão *Redeploy* no commit desejado.
+
+Nada foi alterado em variáveis de ambiente, banco de dados, credenciais da WyviPay ou domínios.
