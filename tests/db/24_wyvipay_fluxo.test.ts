@@ -261,7 +261,7 @@ describe('24 — WyviPay: cobrança, webhook protegido e entrega', () => {
   // ---------------------------------------------------------------------
 
   it('cria cobrança PIX multi-item em centavos, com Idempotency-Key por pedido e sem PII', async () => {
-    const { first, second, order, payment, txid } = await newWyviOrder();
+    const { first, second, order, payment, txid } = await newWyviOrder({ total_cents: 1, price_cents: 1 });
 
     // Valor inteiro em centavos, decidido pelo banco.
     expect(order.total_cents).toBe(2 * 5000 + 7990);

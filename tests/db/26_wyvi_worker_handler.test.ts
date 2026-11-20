@@ -181,6 +181,19 @@ describe('26 — wyvi-worker: autenticação, fila e recuperação', () => {
     expect(fake.getReadCalls()).toHaveLength(0);
   });
 
+  it('falha de persistência não é sucesso e não expõe a exceção do banco', async () => {
+    const ntf = `ntf_settle_${randomToken(8)}`;
+    await insertEvent(FIXED_TXID, ntf, "sem-referencia-valida");
+    const unavailable: Deps = {...deps, rpc: (name, args) => {
+      if (name === 'finish_payment_event') throw new Error('private fixture detail');
+      return deps.rpc(name, args);
+    }};
+    const res = await callWorker('service_role', unavailable);
+    expect(res).toEqual({status:500, body:{error:'worker_failed'}});
+    expect((await eventRow(ntf)).status).toBe('received');
+    await runSql('delete from public.payment_events where notification_id=$1', [ntf]);
+  });
+
   it('service_role + fila vazia → 200 {claimed: 0}', async () => {
     const ok = await callWorker('service_role');
     expect(ok.status).toBe(200);

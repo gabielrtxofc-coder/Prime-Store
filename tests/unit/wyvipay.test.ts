@@ -326,6 +326,26 @@ describe('classifyWyviFailure — resultado incerto x recusa definitiva', () => 
     }
   });
 
+  it('preserva a reserva em respostas ambíguas', () => {
+    for (const status of [408, 409, 500]) {
+      expect(classifyWyviFailure(wyviError(status, 'sem_escopo')).uncertain).toBe(true);
+    }
+  });
+
+  it('não aceita cobrança consultada para outro pedido', async () => {
+    const cfg = config(createFakeWyvi().fetchImpl);
+    const charge = await createCharge(cfg, validInput());
+    await expect(getCharge(cfg, charge.txid, 'outro')).rejects.toMatchObject({providerCode: 'resposta_divergente'});
+  });
+
+  it('aborta consulta travada sem declarar recusa definitiva', async () => {
+    const fetchImpl: typeof fetch = (_, init) => new Promise((_, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new Error('abort')));
+    });
+    await expect(createCharge({...config(fetchImpl), timeoutMs: 5}, validInput()))
+      .rejects.toMatchObject({httpStatus: 503});
+  });
+
   it('429 não cria cobrança e carrega Retry-After', () => {
     const verdict = classifyWyviFailure(wyviError(429, 'limite_atingido', 30));
     expect(verdict.uncertain).toBe(false);

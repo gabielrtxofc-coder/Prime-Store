@@ -77,7 +77,7 @@ Estado na Missão 05: `npm run typecheck` limpo · `npm test` **68/68** ·
 
 O `test:db` precisa de um PostgreSQL acessível. Neste ambiente ele foi iniciado
 com o pacote embutido (`@embedded-postgres/linux-x64`) em `/tmp/pgdata` e
-`DATABASE_URL=postgresql://postgres@/postgres?host=/tmp/pgdata`. Cada arquivo de
+`DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/postgres`. Cada arquivo de
 teste recria o schema do zero (`bootstrap_local.sql` + todas as migrações).
 
 ## Missão 04 (integração)

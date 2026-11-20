@@ -58,3 +58,6 @@ jobs:
 
       - name: Bundle das Edge Functions
         run: npm run bundle:functions
+
+      - name: Jornada Chromium + PostgreSQL + WyviPay simulada
+        run: CHROMIUM_PATH="$(command -v google-chrome)" npm run test:e2e

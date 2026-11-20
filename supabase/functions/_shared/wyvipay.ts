@@ -135,9 +135,7 @@ export function classifyWyviFailure(error: unknown): WyviFailureClassification {
 
   if (
     httpStatus === 401 ||
-    httpStatus === 403 ||
-    providerCode === 'sem_credencial' ||
-    providerCode === 'sem_escopo'
+    httpStatus === 403
   ) {
     return { uncertain: false, configError: true, retryAfterSeconds, providerCode, httpStatus };
   }
@@ -148,17 +146,10 @@ export function classifyWyviFailure(error: unknown): WyviFailureClassification {
     return { uncertain: false, configError: false, retryAfterSeconds, providerCode, httpStatus };
   }
 
-  if (httpStatus === 409 && providerCode === 'idempotencia_conflitante') {
-    // Prova de que EXISTE cobrança sob esta chave com dados divergentes.
-    return { uncertain: true, configError: false, retryAfterSeconds, providerCode, httpStatus };
-  }
-
-  if (httpStatus >= 500) {
-    return { uncertain: true, configError: false, retryAfterSeconds, providerCode, httpStatus };
-  }
-
-  // 400/404/409 de limite/422: recusa explícita, sem cobrança criada.
-  return { uncertain: false, configError: false, retryAfterSeconds, providerCode, httpStatus };
+  // Só libera a reserva quando há evidência de recusa definitiva.
+  const refused = [400, 404, 422].includes(httpStatus) ||
+    (httpStatus === 409 && ['limite_de_testes', 'limite_de_webhooks'].includes(providerCode));
+  return { uncertain: !refused, configError: false, retryAfterSeconds, providerCode, httpStatus };
 }
 
 /** Janela máxima de idade do `X-Wyvi-Carimbo` (±300 s), conforme a documentação. */
@@ -361,11 +352,16 @@ export async function createCharge(
 
   const replayed =
     headers.get('idempotent-replayed') === 'true' || status === 200;
-  return toSnapshot(body, replayed);
+  const charge = toSnapshot(body, replayed);
+  if (!/^[A-Za-z0-9]{26,35}$/.test(charge.txid) || charge.valorCentavos !== input.amountCents ||
+      charge.referencia !== input.reference.slice(0, 120)) {
+    throw new WyviPayError(503, 'resposta_divergente', 'cobranca nao corresponde ao pedido');
+  }
+  return charge;
 }
 
 /** Consulta a fonte de verdade da cobrança pelo `txid`. */
-export async function getCharge(config: WyviPayConfig, txid: string): Promise<ChargeSnapshot> {
+export async function getCharge(config: WyviPayConfig, txid: string, expectedReference?: string): Promise<ChargeSnapshot> {
   if (!/^[A-Za-z0-9]{26,35}$/.test(txid)) {
     throw new WyviPayError(404, 'nao_encontrada', 'txid fora do formato');
   }
@@ -373,7 +369,11 @@ export async function getCharge(config: WyviPayConfig, txid: string): Promise<Ch
     method: 'GET',
     path: `/cobrancas/${encodeURIComponent(txid)}`,
   });
-  return toSnapshot(body, false);
+  const charge = toSnapshot(body, false);
+  if (charge.txid !== txid || (expectedReference !== undefined && charge.referencia !== expectedReference)) {
+    throw new WyviPayError(503, 'resposta_divergente', 'identidade da cobranca divergente');
+  }
+  return charge;
 }
 
 /**

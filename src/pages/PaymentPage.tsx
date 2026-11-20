@@ -210,8 +210,7 @@ export function PaymentPage() {
         <span className="eyebrow-label">{demoAvailable ? 'PAGAMENTO · DEMONSTRAÇÃO' : 'PAGAMENTO PIX'}</span>
         <h1>{demoAvailable ? 'Finalizar em modo de demonstração' : 'Finalize com PIX'}</h1>
         <p>
-          Pedido <strong className="payment-reference">{pending.reference}</strong>. A reserva das unidades fica garantida por 30 minutos; depois disso
-          as unidades voltam ao estoque.
+          Pedido <strong className="payment-reference">{pending.reference}</strong>. O prazo da reserva é informado no status do pedido.
         </p>
       </div>
 
@@ -340,12 +339,12 @@ export function PaymentPage() {
           <aside className="payment-aside">
             <h2>O que acontece depois</h2>
             <ol>
-              <li>O pagamento é confirmado (no sandbox, pela simulação).</li>
+              <li>{demoAvailable ? 'O sandbox simula a confirmação.' : 'A loja verifica o pagamento com o provedor PIX.'}</li>
               <li>O backend valida e consome as unidades reservadas.</li>
               <li>A entrega é gerada e vinculada ao seu pedido.</li>
               <li>Você recebe um link privado com e-mail, senha e instruções.</li>
             </ol>
-            <p className="field-hint">Nenhum dado de cartão é solicitado ou armazenado. O e-mail informado é usado apenas na criação da cobrança.</p>
+            <p className="field-hint">Nenhum dado de cartão é solicitado ou armazenado. O e-mail informado fica associado ao pedido.</p>
             <Link className="confirmation-catalog-link" to="/produtos">Continuar explorando o catálogo</Link>
           </aside>
         </div>
