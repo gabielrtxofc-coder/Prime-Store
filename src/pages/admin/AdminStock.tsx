@@ -21,6 +21,7 @@ export function AdminStock() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [showCredentials, setShowCredentials] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -88,6 +89,7 @@ export function AdminStock() {
       setError('Observações podem ter no máximo 500 caracteres.');
       return;
     }
+    setAddBusy(true);
     try {
       await adminApi.addStock({ productId, email: trimmedEmail, password, notes: notes.trim() });
       setNotice('Unidade cadastrada. E-mail e senha foram cifrados antes de gravar.');
@@ -97,6 +99,8 @@ export function AdminStock() {
       await load();
     } catch (addError) {
       setError(describeBackendError(addError));
+    } finally {
+      setAddBusy(false);
     }
   };
 
@@ -228,33 +232,41 @@ export function AdminStock() {
         </div>
       )}
 
-      <div className="admin-toolbar">
-        <select
-          className="form-control"
-          value={productId}
-          onChange={(event) => setProductId(event.target.value)}
-          aria-label="Filtrar por produto"
-        >
-          <option value="">Todos os produtos</option>
-          {products.map((product) => (
-            <option key={product.id} value={product.id}>{product.name}</option>
-          ))}
-        </select>
-        <select
-          className="form-control"
-          value={status}
-          onChange={(event) => setStatus(event.target.value)}
-          aria-label="Filtrar por status"
-        >
-          {STATUS_FILTERS.map((value) => (
-            <option key={value || 'all'} value={value}>{value ? STATUS_LABEL[value] : 'Todos os status'}</option>
-          ))}
-        </select>
-        <label className="admin-inline-check">
-          <input type="checkbox" checked={showCredentials} onChange={(event) => setShowCredentials(event.target.checked)} />
-          Exibir credenciais (registrado em auditoria como stock_credentials_listed)
-        </label>
-        <button className="button button--secondary button--small" type="button" onClick={() => void load()}>Atualizar</button>
+      <div className="admin-filters" role="group" aria-label="Filtros de estoque">
+        <div className="admin-filter-field">
+          <span className="admin-filter-label" aria-hidden="true">Produto</span>
+          <select
+            className="form-control"
+            value={productId}
+            onChange={(event) => setProductId(event.target.value)}
+            aria-label="Filtrar por produto"
+          >
+            <option value="">Todos os produtos</option>
+            {products.map((product) => (
+              <option key={product.id} value={product.id}>{product.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="admin-filter-field">
+          <span className="admin-filter-label" aria-hidden="true">Situação da unidade</span>
+          <select
+            className="form-control"
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+            aria-label="Filtrar por status"
+          >
+            {STATUS_FILTERS.map((value) => (
+              <option key={value || 'all'} value={value}>{value ? STATUS_LABEL[value] : 'Todos os status'}</option>
+            ))}
+          </select>
+        </div>
+        <div className="admin-filter-field admin-filter-field--actions">
+          <label className="admin-inline-check">
+            <input type="checkbox" checked={showCredentials} onChange={(event) => setShowCredentials(event.target.checked)} />
+            Exibir credenciais (registrado em auditoria como stock_credentials_listed)
+          </label>
+          <button className="button button--secondary button--small" type="button" onClick={() => void load()}>Atualizar</button>
+        </div>
       </div>
 
       <div className="admin-table-wrapper">
@@ -326,28 +338,34 @@ export function AdminStock() {
           <p className="field-hint">A credencial é cifrada (AES-256-GCM) antes de chegar ao banco. Só a entrega privada a decifra.</p>
           <div className="form-grid">
             <div className="form-field form-field--full">
-              <label htmlFor="stock-product">Produto</label>
-              <select id="stock-product" value={productId} onChange={(event) => setProductId(event.target.value)} required>
+              <label className="is-required" htmlFor="stock-product">Produto</label>
+              <select id="stock-product" className="form-control" value={productId} onChange={(event) => setProductId(event.target.value)} required aria-describedby="stock-product-hint">
                 <option value="">Selecione…</option>
                 {products.map((product) => (
                   <option key={product.id} value={product.id}>{product.name}</option>
                 ))}
               </select>
+              <p className="field-hint" id="stock-product-hint">Escolha o produto ao qual esta credencial pertence. O filtro acima também altera esta seleção.</p>
             </div>
             <div className="form-field">
-              <label htmlFor="stock-email">E-mail / login da conta</label>
-              <input id="stock-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+              <label className="is-required" htmlFor="stock-email">E-mail / login da conta</label>
+              <input id="stock-email" className="form-control" type="email" autoComplete="off" value={email} onChange={(event) => setEmail(event.target.value)} required aria-describedby="stock-email-hint" />
+              <p className="field-hint" id="stock-email-hint">Credencial entregue ao cliente após a compra.</p>
             </div>
             <div className="form-field">
-              <label htmlFor="stock-password">Senha da conta</label>
-              <input id="stock-password" type="text" value={password} onChange={(event) => setPassword(event.target.value)} required />
+              <label className="is-required" htmlFor="stock-password">Senha da conta</label>
+              <input id="stock-password" className="form-control" type="text" autoComplete="off" value={password} onChange={(event) => setPassword(event.target.value)} required aria-describedby="stock-password-hint" />
+              <p className="field-hint" id="stock-password-hint">Mínimo de 6 caracteres. Fica cifrada no banco.</p>
             </div>
             <div className="form-field form-field--full">
               <label htmlFor="stock-notes">Observações internas (opcional)</label>
-              <input id="stock-notes" value={notes} maxLength={500} onChange={(event) => setNotes(event.target.value)} />
+              <input id="stock-notes" className="form-control" value={notes} maxLength={500} onChange={(event) => setNotes(event.target.value)} aria-describedby="stock-notes-hint" />
+              <p className="field-hint" id="stock-notes-hint">Não aparece para o cliente. Útil para registrar lote ou validade.</p>
             </div>
           </div>
-          <button className="button button--primary" type="submit">Cadastrar unidade</button>
+          <button className="button button--primary" type="submit" disabled={addBusy}>
+            {addBusy ? 'Cadastrando…' : 'Cadastrar unidade'}
+          </button>
         </form>
 
         <section className="admin-panel admin-form">

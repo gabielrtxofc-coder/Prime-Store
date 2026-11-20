@@ -41,6 +41,51 @@ const PAYMENT_STATUS_LABEL: Record<string, string> = {
   amount_mismatch: 'amount_mismatch — divergência de valor',
 };
 
+/** Rótulos curtos para os selos da listagem (o código cru segue visível abaixo). */
+const ORDER_STATUS_TEXT: Record<string, string> = {
+  requested: 'solicitação',
+  pending_payment: 'aguardando pagamento',
+  paid: 'pago',
+  expired: 'expirado',
+  cancelled: 'cancelado',
+  refund_pending: 'reembolso em análise',
+  refunded: 'reembolsado',
+  disputed: 'contestado',
+  failed: 'não concluído',
+};
+
+const PAYMENT_STATUS_TEXT: Record<string, string> = {
+  not_required: 'sem cobrança',
+  pending: 'aguardando',
+  in_process: 'em processamento',
+  approved: 'aprovado',
+  rejected: 'recusado',
+  cancelled: 'cancelado',
+  refunded: 'reembolsado',
+  charged_back: 'chargeback',
+  amount_mismatch: 'divergência de valor',
+};
+
+const DELIVERY_STATUS_LABEL: Record<string, string> = {
+  not_ready: 'não liberada',
+  ready: 'liberada',
+  active: 'ativa',
+  expired: 'expirada',
+  revoked: 'revogada',
+};
+
+const ORDER_STATUS_TONE: Record<string, string> = {
+  paid: 'is-on',
+  requested: '',
+  pending_payment: 'is-warn',
+  refund_pending: 'is-warn',
+  disputed: 'is-warn',
+  refunded: '',
+  expired: 'is-off',
+  cancelled: 'is-off',
+  failed: 'is-off',
+};
+
 export function AdminOrders() {
   const [list, setList] = useState<AdminOrderList | null>(null);
   const [search, setSearch] = useState('');
@@ -218,91 +263,123 @@ export function AdminOrders() {
       {error && <div className="payment-warning" role="alert"><p>{error}</p></div>}
       {notice && <p className="admin-notice" role="status">{notice}</p>}
 
-      <div className="admin-toolbar">
-        <input
-          className="form-control admin-search"
-          type="search"
-          placeholder="Buscar por referência ou produto"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          aria-label="Buscar pedidos"
-        />
-        <select className="form-control" value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Status do pedido">
-          {ORDER_STATUS.map((value) => (
-            <option key={value || 'all'} value={value}>{value ? ORDER_STATUS_LABEL[value] : 'Todos os pedidos'}</option>
-          ))}
-        </select>
-        <select className="form-control" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value)} aria-label="Status do pagamento">
-          {PAYMENT_STATUS.map((value) => (
-            <option key={value || 'all'} value={value}>{value ? PAYMENT_STATUS_LABEL[value] : 'Todos os pagamentos'}</option>
-          ))}
-        </select>
-        <PeriodFilter
-          idPrefix="orders"
-          preset={preset}
-          customFrom={customFrom}
-          customTo={customTo}
-          onPresetChange={setPreset}
-          onCustomFromChange={setCustomFrom}
-          onCustomToChange={setCustomTo}
-        />
-        <label className="admin-inline-check">
-          <input type="checkbox" checked={problemOnly} onChange={(event) => setProblemOnly(event.target.checked)} />
-          Somente problemas
-        </label>
-        <button className="button button--secondary button--small" type="button" onClick={() => void load()} disabled={busy}>
-          {busy ? 'Carregando…' : 'Atualizar'}
-        </button>
+      <div className="admin-filters" role="group" aria-label="Filtros de pedidos">
+        <div className="admin-filter-field admin-filter-field--search">
+          <span className="admin-filter-label" aria-hidden="true">Buscar</span>
+          <input
+            className="form-control admin-search"
+            type="search"
+            placeholder="Referência ou produto"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            aria-label="Buscar pedidos"
+          />
+        </div>
+        <div className="admin-filter-field">
+          <span className="admin-filter-label" aria-hidden="true">Status do pedido</span>
+          <select className="form-control" value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Status do pedido">
+            {ORDER_STATUS.map((value) => (
+              <option key={value || 'all'} value={value}>{value ? ORDER_STATUS_LABEL[value] : 'Todos os pedidos'}</option>
+            ))}
+          </select>
+        </div>
+        <div className="admin-filter-field">
+          <span className="admin-filter-label" aria-hidden="true">Pagamento</span>
+          <select className="form-control" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value)} aria-label="Status do pagamento">
+            {PAYMENT_STATUS.map((value) => (
+              <option key={value || 'all'} value={value}>{value ? PAYMENT_STATUS_LABEL[value] : 'Todos os pagamentos'}</option>
+            ))}
+          </select>
+        </div>
+        <div className="admin-filter-field admin-filter-field--period">
+          <PeriodFilter
+            idPrefix="orders"
+            preset={preset}
+            customFrom={customFrom}
+            customTo={customTo}
+            onPresetChange={setPreset}
+            onCustomFromChange={setCustomFrom}
+            onCustomToChange={setCustomTo}
+          />
+        </div>
+        <div className="admin-filter-field admin-filter-field--actions">
+          <label className="admin-inline-check">
+            <input type="checkbox" checked={problemOnly} onChange={(event) => setProblemOnly(event.target.checked)} />
+            Somente problemas
+          </label>
+          <button className="button button--secondary button--small" type="button" onClick={() => void load()} disabled={busy}>
+            {busy ? 'Carregando…' : 'Atualizar'}
+          </button>
+          {(search || status || paymentStatus || problemOnly) && (
+            <button
+              className="link-button"
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setStatus('');
+                setPaymentStatus('');
+                setProblemOnly(false);
+              }}
+            >
+              Limpar filtros
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="admin-table-wrapper">
-        <table className="admin-table">
+        <table className="admin-table orders-table">
           <thead>
             <tr>
               <th>Pedido</th>
               <th>Produto</th>
-              <th>Qtd.</th>
               <th>Valor</th>
-              <th>Criado</th>
               <th>Pagamento</th>
               <th>Pedido</th>
               <th>Entrega</th>
-              <th></th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>
             {(list?.items ?? []).map((order) => (
               <tr key={order.id}>
-                <td><code>{order.reference}</code></td>
-                <td>
-                  {order.product_name}
-                  {typeof order.items_count === 'number' && order.items_count > 1 && (
-                    <span className="admin-badge" title={`Pedido com ${order.items_count} produtos distintos; o nome exibido é o primeiro produto.`}>
-                      {' '}{order.items_count} itens
-                    </span>
-                  )}
+                <td data-label="Pedido">
+                  <code>{order.reference}</code>
+                  <small className="admin-code-hint">{new Date(order.created_at).toLocaleString('pt-BR')}</small>
                 </td>
-                <td>{order.quantity}</td>
-                <td>{formatCurrency(order.total_cents)}</td>
-                <td>{new Date(order.created_at).toLocaleString('pt-BR')}</td>
-                <td>
-                  {order.payment_status}
-                  {order.payment_status === 'not_required' && <span className="admin-badge"> sem cobrança</span>}
+                <td data-label="Produto">
+                  <span className="orders-product">{order.product_name}</span>
+                  <small className="admin-code-hint">
+                    {order.quantity} unidade(s)
+                    {typeof order.items_count === 'number' && order.items_count > 1 ? ` · ${order.items_count} itens distintos` : ''}
+                  </small>
                 </td>
-                <td>
-                  {order.status}
-                  {order.status === 'requested' && <span className="admin-badge"> solicitação</span>}
-                  {order.status === 'disputed' && <span className="admin-badge is-warn">contestar</span>}
+                <td data-label="Valor"><span className="orders-value">{formatCurrency(order.total_cents)}</span></td>
+                <td data-label="Pagamento">
+                  <span className="admin-badge">{PAYMENT_STATUS_TEXT[order.payment_status] ?? order.payment_status}</span>
+                  <small className="admin-code-hint">{order.payment_status}</small>
+                </td>
+                <td data-label="Pedido">
+                  <span className={`admin-badge ${ORDER_STATUS_TONE[order.status] ?? ''}`.trim()}>
+                    {ORDER_STATUS_TEXT[order.status] ?? order.status}
+                  </span>
                   {order.open_refund_requests > 0 && <span className="admin-badge is-warn">reembolso</span>}
+                  <small className="admin-code-hint">{order.status}</small>
                 </td>
-                <td>{order.delivery_link_status ?? order.delivery_status}</td>
-                <td>
-                  <button className="link-button" type="button" onClick={() => openDetail(order.id)}>Detalhes</button>
+                <td data-label="Entrega">
+                  <span className="orders-delivery">
+                    {DELIVERY_STATUS_LABEL[order.delivery_link_status ?? order.delivery_status] ??
+                      order.delivery_link_status ?? order.delivery_status}
+                  </span>
+                  <small className="admin-code-hint">{order.delivery_link_status ?? order.delivery_status}</small>
+                </td>
+                <td data-label="Ações">
+                  <button className="button button--secondary button--small" type="button" onClick={() => openDetail(order.id)}>Detalhes</button>
                 </td>
               </tr>
             ))}
             {(list?.items ?? []).length === 0 && (
-              <tr><td colSpan={9} className="field-hint">Nenhum pedido encontrado.</td></tr>
+              <tr><td colSpan={7} className="field-hint">Nenhum pedido encontrado.</td></tr>
             )}
           </tbody>
         </table>
@@ -325,6 +402,15 @@ export function AdminOrders() {
               </p>
             </div>
             <button className="button button--secondary button--small" type="button" onClick={() => setDetail(null)}>Fechar</button>
+          </div>
+          <div className="admin-order-detail__badges">
+            <span className={`admin-badge ${ORDER_STATUS_TONE[detail.order.status] ?? ''}`.trim()}>
+              {ORDER_STATUS_TEXT[detail.order.status] ?? detail.order.status}
+            </span>
+            <span className="admin-badge">
+              pagamento: {PAYMENT_STATUS_TEXT[detail.order.payment_status] ?? detail.order.payment_status}
+            </span>
+            <span className="admin-badge">entrega: {detail.delivery?.status ?? detail.order.delivery_status}</span>
           </div>
 
           {/* buyer_name / buyer_email não são exibidos neste painel:
