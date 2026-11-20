@@ -1,5 +1,28 @@
 # Prime Store — decisão de lançamento | 20/11/2026 UTC
 
+## Decisão vigente — Missão 09: BLOCKED para produção
+
+Branch `arena/08e0931c-prime-store`, [PR #12](https://github.com/gabielrtxofc-coder/Prime-Store/pull/12), entrada limpa em `6d5061c` (todos os três checks passaram). **Candidato de código: `047317bfa2cb09d0ff8a03426d2f6c06ff492e95`**; alterações seguintes de relatório não mudam o runtime. A versão publicada não foi alterada. [Roteiro do proprietário](prime-store-owner-actions.md).
+
+| Frente | Evidência nova e decisão |
+|---|---|
+| A — continuidade | PASS: PR aberta para main, sem duplicação ou merge. Consulta agregada ao projeto de produção: 44 entradas no histórico; zero entradas para a versão da 0045. Lista de funções: oito ACTIVE v5, incluindo `wyvi-worker` e `admin-api` com `verify_jwt=true`. Não é prova de equivalência de código. |
+| B — worker | PASS em laboratório / BLOCKED na produção: zero jobs ativos com o nome esperado e zero entradas no Vault para `wyvi_worker_jwt`. Sem nova migration: 0045 existente agenda pelo nome e dono; o teste 27 reaplicou o bloco duas vezes com semântica de upsert e inspecionou um único comando. O simulador não prova execução real de pg_net. |
+| C — admin | PASS local / BLOCKED operacional: zero admins ativos na produção e zero tabelas ordinárias públicas sem RLS. DB 08, 20, 22 e UI admin testam não autenticado, usuário comum, AAL1 e admin autorizado com AAL2. Não criar rota de bootstrap, conta ou papel real. |
+| D — catálogo | PASS funcional / BLOCKED comercial: leitura direta agregada em produção deu 0 produtos e 0 unidades, portanto não é apenas uma lista vazia por erro de tela. DB 20/21/25, regressão 14 e UI admin/catálogo cobrem CRUD, preço, arquivamento, mudança na vitrine, estoque, vazio e concorrência. Checklist de cadastro no roteiro, sem seed comercial. |
+| E — publicação | PASS para build candidato; BLOCKED para promoção. Vercel `list_deployments` retornou production READY/PROMOTED `8a9afbc`. `git diff --name-only 8a9afbc 047317b` reproduz as diferenças (incluem HomePage/ProductPage, pagamento, painel de produtos/estoque/pedidos, estilos, cron e handlers). As variáveis compiladas no bundle servido não foram verificadas; preview não comprova produção. |
+| F — WyviPay | PASS local: DB 03/24/26, unitários e Chromium. Assinatura, reconsulta, valor/referência, idempotência, eventos atrasados, expiração e falhas exercitados sem tocar na API live. Homologação externa **NOT VERIFIED**, dependência **BLOCKED** até evidência independente via ambiente de testes. Nenhuma nova chave/API/webhook live solicitada. |
+
+**O que mudou:** `handlers/wyviWorker.ts` e `_shared/wyviEvents.ts` reivindicam eventos individualmente, evitando que um lote sequencial gaste a lease de 60 s antes de chegar ao último item. O worker limita dez itens e para de iniciar novas tentativas após 30 s; PostgreSQL usa `FOR UPDATE SKIP LOCKED`. O contador reflete a gravação do resultado (inclusive última tentativa terminal); falha ao gravar gera 500 genérico, lease recuperável e log sem a mensagem bruta. Retry respeita o maior entre backoff local e Retry-After limitado. A autenticação de plataforma permanece obrigatória. `tests/db/26*` verifica falha de persistência; `tests/db/27*` verifica repetição do agendamento. Não se promete exclusão indefinida se uma chamada exceder a lease: a aplicação financeira continua idempotente.
+
+**Rodada final local:** `npm ci`, `npm run typecheck`, `npm run build`, `npm run bundle:functions` (10), `npm test` **162/162**, `npm run test:db` **429/429** e `npm run test:e2e` com Chromium **1/1**; `npm audit` zero advisories. Sem script de lint (**NOT APPLICABLE** ao conjunto de comandos existentes; não equivale a lint aprovado). Primeira execução DB teve 4 falhas: a nova fixture de falha de persistência consultava o fake e alterava contadores compartilhados; corrigida a fixture para isolar a gravação, sem remover assertions. Rerun completo verde. Sem operação financeira ou escrita remota. Checks finais por SHA na PR; o relatório histórico abaixo não é o resultado desta rodada.
+
+**Decisão:** candidato apto à homologação isolada. Não aprovar publicação comercial: faltam worker ativo e observado, homologação, administrador legítimo, catálogo/estoque, documentos/atendimento, recuperação e aceite de publicação. Nenhuma configuração externa foi considerada resolvida por passar em teste local.
+
+---
+
+## Registro histórico — Missão 08
+
 ## A. Executive Summary
 
 **NOT READY.** O percurso de compra funciona no laboratório: um navegador criou um pedido, recebeu PIX simulado, e só mostrou confirmação depois do webhook, da reconsulta e da atualização no PostgreSQL. Isso não descreve a loja publicada. Na produção identificada pelo conector há **zero produtos, zero unidades de estoque e zero registros de administradores**. O worker financeiro está publicado, mas não há job ativo para chamá-lo. O frontend promovido antecede a configuração de produção hoje visível na Vercel. Não abrir a loja.
