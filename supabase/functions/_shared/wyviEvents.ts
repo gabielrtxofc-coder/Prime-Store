@@ -114,7 +114,7 @@ export async function processWyviEvent(
   // ---------------------------------------------------------------
   let charge;
   try {
-    charge = await getCharge(config, txid);
+    charge = await getCharge(config, txid, reference);
   } catch (error) {
     if (error instanceof WyviPayError) {
       if (error.httpStatus === 404 || error.httpStatus === 400) {

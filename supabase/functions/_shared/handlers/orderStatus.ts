@@ -214,7 +214,7 @@ export async function handleOrderStatus(request: Request, deps: Deps): Promise<R
       });
       if (slot) {
         try {
-          const charge = await getCharge(wyviConfig, providerPaymentId);
+          const charge = await getCharge(wyviConfig, providerPaymentId, orderId);
           const mapped = mapChargeSituacao(charge.situacao);
 
           if (
