@@ -11,12 +11,15 @@ it('agenda para o projeto do token sem gravar o bearer no cron', async () => {
       create table cron.job(jobname text primary key, command text);
       create table net.http_request_queue(url text);
       create table vault.decrypted_secrets(name text, decrypted_secret text);
-      create function cron.schedule(text,text,text) returns void language sql as $$insert into cron.job values ($1,$3)$$;
+      create function cron.schedule(text,text,text) returns void language sql as $$insert into cron.job values ($1,$3) on conflict(jobname) do update set command=excluded.command$$;
       create function net.http_post(url text,headers jsonb,body jsonb) returns void language sql as $$insert into net.http_request_queue values ($1)$$;`);
     const ref = 'abcdefghijklmnopqrst';
     const jwt = 'fixture.' + Buffer.from(JSON.stringify({ref,role:'service_role'})).toString('base64url') + '.fixture';
     await db.query("insert into vault.decrypted_secrets values ('wyvi_worker_jwt',$1)",[jwt]);
-    await db.query(readFileSync(`${MIGRATIONS_DIR}/20261120160000_0045_worker_destino_por_projeto.sql`,'utf8'));
+    const install = readFileSync(`${MIGRATIONS_DIR}/20261120160000_0045_worker_destino_por_projeto.sql`,'utf8');
+    await db.query(install);
+    await db.query(install);
+    expect((await db.query('select count(*)::int as n from cron.job')).rows[0].n).toBe(1);
     const {rows:[job]} = await db.query('select command from cron.job');
     expect(job.command).not.toContain(jwt);
     await db.query(job.command);
