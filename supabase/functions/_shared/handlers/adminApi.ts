@@ -209,7 +209,9 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
       // Estoque
       // ---------------------------------------------------------------------
       case 'stock.summary':
-        return json(await rpc('admin_stock_summary'));
+        // Missão 13: resumo individual por produto (admin_stock_summary_by_product),
+        // incluindo produtos sem estoque e os totais gerais.
+        return json(await rpc('admin_stock_summary_by_product'));
 
       case 'stock.list': {
         const includeCredentials = Boolean(payload.includeCredentials);

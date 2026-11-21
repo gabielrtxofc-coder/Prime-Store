@@ -75,7 +75,7 @@ beforeEach(() => {
   api.listOrders.mockResolvedValue({ items: [], total: 0, limit: 10, offset: 0 });
   api.listProducts.mockResolvedValue({ products: [] });
   api.listStock.mockResolvedValue({ items: [], total: 0, limit: 100, offset: 0 });
-  api.stockSummary.mockResolvedValue({ total: 0, available: 0, reserved: 0, sold: 0, disabled: 0 });
+  api.stockSummary.mockResolvedValue({ products: [], totals: { total_units: 0, available_units: 0, reserved_units: 0, sold_units: 0, disabled_units: 0 } });
 });
 
 afterEach(() => {

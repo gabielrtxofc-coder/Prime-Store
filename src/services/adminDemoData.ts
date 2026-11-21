@@ -349,13 +349,35 @@ function indicators(): AdminIndicators {
 }
 
 function stockSummary(): AdminStockSummary {
-  const count = (status: AdminStockUnit['status']) => stockUnits.filter((unit) => unit.status === status).length;
+  const perProduct = products.map((product) => {
+    const units = stockUnits.filter((unit) => unit.product_id === product.id);
+    const count = (status: AdminStockUnit['status']) => units.filter((unit) => unit.status === status).length;
+    const available = count('available');
+    return {
+      product_id: product.id,
+      product_name: product.name,
+      slug: product.slug,
+      is_active: product.is_active,
+      archived_at: null,
+      total_units: units.length,
+      available_units: available,
+      reserved_units: count('reserved'),
+      sold_units: count('sold'),
+      disabled_units: count('disabled'),
+      last_restocked_at: units.length > 0 ? units[0].created_at : null,
+      stock_health: (available === 0 ? 'empty' : available <= 2 ? 'low' : 'ok') as AdminStockSummary['products'][number]['stock_health'],
+    };
+  });
+  const sum = (status: AdminStockUnit['status']) => stockUnits.filter((unit) => unit.status === status).length;
   return {
-    total: stockUnits.length,
-    available: count('available'),
-    reserved: count('reserved'),
-    sold: count('sold'),
-    disabled: count('disabled'),
+    products: perProduct,
+    totals: {
+      total_units: stockUnits.length,
+      available_units: sum('available'),
+      reserved_units: sum('reserved'),
+      sold_units: sum('sold'),
+      disabled_units: sum('disabled'),
+    },
   };
 }
 
