@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { adminApi, STOCK_ADJUSTMENT_REASONS, type AdminProduct, type AdminStockList, type AdminStockSummary, type ImportPreview, type ImportReport, type StockAdjustmentReason } from '../../services/adminApi';
+import { adminApi, STOCK_ADJUSTMENT_REASONS, type AdminProduct, type AdminStockList, type AdminStockSummary, type ImportPreview, type ImportReport, type StockAdjustmentReason, type StockHealth } from '../../services/adminApi';
 import { ConfirmActionDialog } from '../../components/admin/ConfirmActionDialog';
 import { describeBackendError } from '../../services/backend/http';
 
@@ -12,9 +12,28 @@ const STATUS_LABEL: Record<string, string> = {
   disabled: 'desativada',
 };
 
+const HEALTH_LABEL: Record<StockHealth, string> = {
+  empty: 'sem estoque',
+  low: 'estoque baixo',
+  ok: 'ok',
+};
+
+const HEALTH_BADGE: Record<StockHealth, string> = {
+  empty: 'admin-badge is-off',
+  low: 'admin-badge is-warn',
+  ok: 'admin-badge is-on',
+};
+
 export function AdminStock() {
   const [products, setProducts] = useState<AdminProduct[]>([]);
-  const [productId, setProductId] = useState('');
+  // Missão 13: três seleções independentes — filtrar a lista, cadastrar
+  // unidade e importar CSV não compartilham mais o mesmo estado.
+  const [stockFilterProductId, setStockFilterProductId] = useState('');
+  const [addProductId, setAddProductId] = useState('');
+  const [importProductId, setImportProductId] = useState('');
+  // Produto para o qual a prévia de importação foi preparada. Só confirma
+  // quando previewProductId === importProductId.
+  const [previewProductId, setPreviewProductId] = useState('');
   const [status, setStatus] = useState<string>('');
   const [stock, setStock] = useState<AdminStockList | null>(null);
   const [summary, setSummary] = useState<AdminStockSummary | null>(null);
@@ -43,7 +62,7 @@ export function AdminStock() {
     try {
       const [list, summaryResult] = await Promise.all([
         adminApi.listStock({
-          productId: productId || null,
+          productId: stockFilterProductId || null,
           status: status || null,
           includeCredentials: showCredentials,
           limit: 100,
@@ -56,7 +75,7 @@ export function AdminStock() {
     } catch (loadError) {
       setError(describeBackendError(loadError));
     }
-  }, [productId, status, showCredentials]);
+  }, [stockFilterProductId, status, showCredentials]);
 
   useEffect(() => {
     void adminApi.listProducts('', true)
@@ -72,7 +91,7 @@ export function AdminStock() {
 
   const addUnit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!productId) {
+    if (!addProductId) {
       setError('Selecione o produto antes de cadastrar uma unidade.');
       return;
     }
@@ -91,7 +110,9 @@ export function AdminStock() {
     }
     setAddBusy(true);
     try {
-      await adminApi.addStock({ productId, email: trimmedEmail, password, notes: notes.trim() });
+      // Sempre envia o produto do formulário de cadastro (addProductId),
+      // nunca o filtro da listagem.
+      await adminApi.addStock({ productId: addProductId, email: trimmedEmail, password, notes: notes.trim() });
       setNotice('Unidade cadastrada. E-mail e senha foram cifrados antes de gravar.');
       setEmail('');
       setPassword('');
@@ -137,6 +158,13 @@ export function AdminStock() {
     pendingUnit?.next !== 'disabled' ||
     (disableReason !== '' && (disableReason !== 'other' || disableNote.trim().length >= 5));
 
+  // A prévia é sempre descartada quando o arquivo ou o produto da importação
+  // mudam — ela nunca pode ser reutilizada para outro produto.
+  const invalidatePreview = () => {
+    setPreview(null);
+    setPreviewProductId('');
+  };
+
   const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -146,35 +174,59 @@ export function AdminStock() {
     }
     setFileName(file.name);
     setCsv(await file.text());
-    setPreview(null);
+    invalidatePreview();
     setReport(null);
   };
 
+  const onCsvChange = (value: string) => {
+    setCsv(value);
+    invalidatePreview();
+  };
+
+  const onImportProductChange = (value: string) => {
+    setImportProductId(value);
+    invalidatePreview();
+  };
+
   const runPreview = async () => {
-    if (!productId) {
+    if (!importProductId) {
       setError('Selecione o produto da importação.');
       return;
     }
     setImportBusy(true);
     setError(null);
     try {
-      setPreview(await adminApi.previewImport(productId, csv));
+      const result = await adminApi.previewImport(importProductId, csv);
+      setPreview(result);
+      setPreviewProductId(importProductId);
       setReport(null);
     } catch (previewError) {
       setError(describeBackendError(previewError));
+      invalidatePreview();
     } finally {
       setImportBusy(false);
     }
   };
 
+  // A confirmação só é permitida quando a prévia foi preparada exatamente
+  // para o produto selecionado para importar.
+  const canConfirmImport = Boolean(
+    preview && preview.valid_rows > 0 && previewProductId && previewProductId === importProductId,
+  );
+
   const runImport = async () => {
-    if (!productId) return;
+    if (!importProductId) return;
+    if (!preview || previewProductId !== importProductId) {
+      setError('A prévia de importação não corresponde ao produto selecionado. Gere a prévia novamente.');
+      invalidatePreview();
+      return;
+    }
     setImportBusy(true);
     setError(null);
     try {
-      const result = await adminApi.commitImport(productId, csv, fileName);
+      const result = await adminApi.commitImport(importProductId, csv, fileName);
       setReport(result.report);
-      setPreview(null);
+      invalidatePreview();
       setCsv('');
       if (fileRef.current) fileRef.current.value = '';
       setNotice('Importação concluída. Confira o relatório abaixo.');
@@ -193,36 +245,48 @@ export function AdminStock() {
 
       {summary && (
         <div className="admin-metrics admin-metrics--compact">
-          <div className="admin-metric"><span>Total</span><strong>{summary.total}</strong></div>
-          <div className="admin-metric"><span>Disponíveis</span><strong>{summary.available}</strong></div>
-          <div className="admin-metric"><span>Reservadas</span><strong>{summary.reserved}</strong></div>
-          <div className="admin-metric"><span>Vendidas</span><strong>{summary.sold}</strong></div>
-          <div className="admin-metric"><span>Desativadas</span><strong>{summary.disabled}</strong></div>
+          <div className="admin-metric"><span>Total</span><strong>{summary.totals.total_units}</strong></div>
+          <div className="admin-metric"><span>Disponíveis</span><strong>{summary.totals.available_units}</strong></div>
+          <div className="admin-metric"><span>Reservadas</span><strong>{summary.totals.reserved_units}</strong></div>
+          <div className="admin-metric"><span>Vendidas</span><strong>{summary.totals.sold_units}</strong></div>
+          <div className="admin-metric"><span>Desativadas</span><strong>{summary.totals.disabled_units}</strong></div>
         </div>
       )}
 
-      {products.length > 0 && (
+      {summary && summary.products.length > 0 && (
         <div className="admin-panel">
           <div className="admin-panel__header">
             <h2>Estoque por produto</h2>
-            <span className="field-hint">Alerta de baixo estoque usa a regra existente do painel (≤ 2 disponíveis)</span>
+            <span className="field-hint">Resumo individual do banco (admin_stock_summary_by_product): vazio = 0 disponíveis, baixo = ≤ 2</span>
           </div>
           <div className="admin-table-wrapper">
             <table className="admin-table">
               <thead>
-                <tr><th>Produto</th><th>Disponível</th><th>Situação</th></tr>
+                <tr>
+                  <th>Produto</th>
+                  <th>Disponível</th>
+                  <th>Reservada</th>
+                  <th>Vendida</th>
+                  <th>Desativada</th>
+                  <th>Última reposição</th>
+                  <th>Situação</th>
+                </tr>
               </thead>
               <tbody>
-                {[...products]
+                {[...summary.products]
                   .sort((a, b) => a.available_units - b.available_units)
                   .map((product) => (
-                    <tr key={product.id}>
-                      <td>{product.name}</td>
+                    <tr key={product.product_id}>
+                      <td>{product.product_name}</td>
                       <td>{product.available_units}</td>
+                      <td>{product.reserved_units}</td>
+                      <td>{product.sold_units}</td>
+                      <td>{product.disabled_units}</td>
+                      <td className="field-hint">
+                        {product.last_restocked_at ? new Date(product.last_restocked_at).toLocaleString('pt-BR') : '—'}
+                      </td>
                       <td>
-                        {product.available_units === 0 && <span className="admin-badge is-off">sem estoque</span>}
-                        {product.available_units >= 1 && product.available_units <= 2 && <span className="admin-badge is-warn">estoque baixo</span>}
-                        {product.available_units > 2 && <span className="admin-badge is-on">ok</span>}
+                        <span className={HEALTH_BADGE[product.stock_health]}>{HEALTH_LABEL[product.stock_health]}</span>
                       </td>
                     </tr>
                   ))}
@@ -237,8 +301,8 @@ export function AdminStock() {
           <span className="admin-filter-label" aria-hidden="true">Produto</span>
           <select
             className="form-control"
-            value={productId}
-            onChange={(event) => setProductId(event.target.value)}
+            value={stockFilterProductId}
+            onChange={(event) => setStockFilterProductId(event.target.value)}
             aria-label="Filtrar por produto"
           >
             <option value="">Todos os produtos</option>
@@ -339,13 +403,13 @@ export function AdminStock() {
           <div className="form-grid">
             <div className="form-field form-field--full">
               <label className="is-required" htmlFor="stock-product">Produto</label>
-              <select id="stock-product" className="form-control" value={productId} onChange={(event) => setProductId(event.target.value)} required aria-describedby="stock-product-hint">
+              <select id="stock-product" className="form-control" value={addProductId} onChange={(event) => setAddProductId(event.target.value)} required aria-describedby="stock-product-hint">
                 <option value="">Selecione…</option>
                 {products.map((product) => (
                   <option key={product.id} value={product.id}>{product.name}</option>
                 ))}
               </select>
-              <p className="field-hint" id="stock-product-hint">Escolha o produto ao qual esta credencial pertence. O filtro acima também altera esta seleção.</p>
+              <p className="field-hint" id="stock-product-hint">Escolha o produto ao qual esta credencial pertence. Independente do filtro e da importação acima.</p>
             </div>
             <div className="form-field">
               <label className="is-required" htmlFor="stock-email">E-mail / login da conta</label>
@@ -373,25 +437,35 @@ export function AdminStock() {
           <p className="field-hint">
             Formato: uma credencial por linha, <code>email,senha,observação</code>. Cabeçalho opcional. Nada é gravado antes da prévia.
           </p>
+          <div className="form-field">
+            <label className="is-required" htmlFor="stock-import-product">Produto da importação</label>
+            <select id="stock-import-product" className="form-control" value={importProductId} onChange={(event) => onImportProductChange(event.target.value)} required aria-describedby="stock-import-product-hint">
+              <option value="">Selecione…</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>{product.name}</option>
+              ))}
+            </select>
+            <p className="field-hint" id="stock-import-product-hint">Todas as linhas do arquivo serão vinculadas a este produto. Trocar o produto invalida a prévia.</p>
+          </div>
           <input ref={fileRef} type="file" accept=".csv,text/csv,text/plain" onChange={onFile} />
           <textarea
             className="admin-csv"
             rows={6}
             placeholder={'conta1@exemplo.com,senha-forte-1\nconta2@exemplo.com,senha-forte-2'}
             value={csv}
-            onChange={(event) => setCsv(event.target.value)}
+            onChange={(event) => onCsvChange(event.target.value)}
             aria-label="Conteúdo CSV"
           />
           <div className="admin-row-actions">
-            <button className="button button--secondary" type="button" onClick={runPreview} disabled={importBusy || csv.trim().length < 3}>
+            <button className="button button--secondary" type="button" onClick={runPreview} disabled={importBusy || !importProductId || csv.trim().length < 3}>
               Pré-visualizar
             </button>
-            <button className="button button--primary" type="button" onClick={() => setConfirmImport(true)} disabled={importBusy || !preview || preview.valid_rows === 0}>
+            <button className="button button--primary" type="button" onClick={() => setConfirmImport(true)} disabled={importBusy || !canConfirmImport}>
               Importar {preview ? `${preview.valid_rows} válidas` : ''}
             </button>
           </div>
 
-          {preview && (
+          {preview && previewProductId === importProductId && (
             <div className="admin-import-preview">
               <p>
                 <strong>{preview.total_rows}</strong> linhas · <strong>{preview.valid_rows}</strong> válidas ·{' '}
@@ -404,7 +478,7 @@ export function AdminStock() {
                   ))}
                 </ul>
               )}
-              <p className="field-hint">Prévia com dados mascarados. A importação é parcial: linhas válidas entram, inválidas são reportadas.</p>
+              <p className="field-hint">Prévia com dados mascarados para o produto selecionado. A importação é parcial: linhas válidas entram, inválidas são reportadas.</p>
             </div>
           )}
 
@@ -476,10 +550,15 @@ export function AdminStock() {
       <ConfirmActionDialog
         open={confirmImport}
         title="Importar unidades para o estoque?"
-        description="As linhas válidas da prévia serão gravadas como unidades cifradas no produto selecionado. A importação não pode ser desfeita em lote — unidades podem ser desativadas uma a uma depois."
+        description={
+          canConfirmImport
+            ? 'As linhas válidas da prévia serão gravadas como unidades cifradas no produto selecionado. A importação não pode ser desfeita em lote — unidades podem ser desativadas uma a uma depois.'
+            : 'A prévia não corresponde ao produto selecionado para importação. Gere a prévia novamente para o produto atual.'
+        }
         confirmLabel="Importar"
         danger
         busy={importBusy}
+        confirmDisabled={!canConfirmImport}
         onConfirm={() => { setConfirmImport(false); void runImport(); }}
         onCancel={() => setConfirmImport(false)}
       />

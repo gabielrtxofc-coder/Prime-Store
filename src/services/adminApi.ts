@@ -78,12 +78,32 @@ export interface AdminStockList {
   offset: number;
 }
 
+export type StockHealth = 'empty' | 'low' | 'ok';
+
+export interface AdminStockProductSummary {
+  product_id: string;
+  product_name: string;
+  slug: string;
+  is_active: boolean;
+  archived_at: string | null;
+  total_units: number;
+  available_units: number;
+  reserved_units: number;
+  sold_units: number;
+  disabled_units: number;
+  last_restocked_at: string | null;
+  stock_health: StockHealth;
+}
+
 export interface AdminStockSummary {
-  total: number;
-  available: number;
-  reserved: number;
-  sold: number;
-  disabled: number;
+  products: AdminStockProductSummary[];
+  totals: {
+    total_units: number;
+    available_units: number;
+    reserved_units: number;
+    sold_units: number;
+    disabled_units: number;
+  };
 }
 
 export interface AdminOrderRow {

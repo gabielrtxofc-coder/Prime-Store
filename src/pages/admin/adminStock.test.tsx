@@ -5,12 +5,14 @@ import { AdminStock } from './AdminStock';
 import type { AdminProduct, AdminStockList, AdminStockSummary, AdminStockUnit } from '../../services/adminApi';
 
 /**
- * Missão 03.2D — estoque com fontes reais do painel.
+ * Missão 13 — estoque individual por produto no painel.
  *
- * Garante: badges de sem/baixo estoque apenas com a regra existente (≤ 2),
- * validações de entrada (e-mail, senha mínima, observações), auditoria de
- * visualização de credenciais explícita e o fluxo de importação CSV com
- * prévia preservado.
+ * Garante: resumo por produto vindo de admin_stock_summary_by_product (com
+ * situações empty/low/ok e totais gerais), regra ≤ 2 para baixo estoque,
+ * validações de entrada, auditoria de credenciais e — o ponto central desta
+ * missão — a separação real entre filtro de estoque, cadastro manual e
+ * importação CSV (stockFilterProductId / addProductId / importProductId /
+ * previewProductId), com a prévia sempre vinculada ao produto preparado.
  */
 
 const api = vi.hoisted(() => ({
@@ -81,7 +83,53 @@ const UNIT: AdminStockUnit = {
   password: null,
 };
 
-const SUMMARY: AdminStockSummary = { total: 10, available: 9, reserved: 0, sold: 1, disabled: 0 };
+const SUMMARY: AdminStockSummary = {
+  products: [
+    {
+      product_id: 'prod-zero',
+      product_name: 'Conta Esgotada',
+      slug: 'sem-estoque',
+      is_active: true,
+      archived_at: null,
+      total_units: 9,
+      available_units: 0,
+      reserved_units: 0,
+      sold_units: 9,
+      disabled_units: 0,
+      last_restocked_at: '2026-11-05T10:00:00.000Z',
+      stock_health: 'empty',
+    },
+    {
+      product_id: 'prod-low',
+      product_name: 'Conta Limitada',
+      slug: 'baixo',
+      is_active: true,
+      archived_at: null,
+      total_units: 5,
+      available_units: 2,
+      reserved_units: 0,
+      sold_units: 3,
+      disabled_units: 0,
+      last_restocked_at: '2026-11-05T10:00:00.000Z',
+      stock_health: 'low',
+    },
+    {
+      product_id: 'prod-ok',
+      product_name: 'Conta Abundante',
+      slug: 'ok',
+      is_active: true,
+      archived_at: null,
+      total_units: 10,
+      available_units: 9,
+      reserved_units: 0,
+      sold_units: 1,
+      disabled_units: 0,
+      last_restocked_at: '2026-11-06T10:00:00.000Z',
+      stock_health: 'ok',
+    },
+  ],
+  totals: { total_units: 24, available_units: 11, reserved_units: 0, sold_units: 13, disabled_units: 0 },
+};
 const STOCK_LIST: AdminStockList = { items: [UNIT], total: 1, limit: 100, offset: 0 };
 
 beforeEach(() => {
@@ -107,8 +155,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('AdminStock (missão 03.2D)', () => {
-  it('resume o estoque real e sinaliza zero/baixo apenas pela regra ≤ 2', async () => {
+describe('AdminStock (missão 13 — estoque individual por produto)', () => {
+  it('mostra o resumo por produto com situações empty/low/ok e os totais gerais', async () => {
     render(<AdminStock />);
     expect((await screen.findAllByText('Conta Esgotada')).length).toBeGreaterThan(0);
 
@@ -120,9 +168,50 @@ describe('AdminStock (missão 03.2D)', () => {
     expect(rowOf('Conta Limitada')).toHaveTextContent('estoque baixo');
     expect(rowOf('Conta Abundante')).toHaveTextContent('ok');
 
-    // Resumo agregado vindo do backend
+    // Totais gerais vindos do backend (soma dos produtos).
     const summaryPanel = screen.getByText('Disponíveis').closest('.admin-metrics')!;
-    expect(summaryPanel).toHaveTextContent('9');
+    expect(summaryPanel).toHaveTextContent('11');
+    expect(screen.getByText('Total').closest('.admin-metrics')!).toHaveTextContent('24');
+  });
+
+  it('separa filtro, cadastro e importação: trocar o filtro não altera as outras seleções', async () => {
+    const user = userEvent.setup();
+    render(<AdminStock />);
+    await screen.findAllByText('Conta Esgotada');
+
+    const filterSelect = screen.getByLabelText('Filtrar por produto') as HTMLSelectElement;
+    const addSelect = screen.getByLabelText('Produto', { selector: '#stock-product' }) as HTMLSelectElement;
+    const importSelect = screen.getByLabelText('Produto da importação') as HTMLSelectElement;
+
+    await user.selectOptions(addSelect, 'prod-low');
+    await user.selectOptions(importSelect, 'prod-ok');
+    await user.selectOptions(filterSelect, 'prod-zero');
+
+    expect(filterSelect.value).toBe('prod-zero');
+    expect(addSelect.value).toBe('prod-low');
+    expect(importSelect.value).toBe('prod-ok');
+    await waitFor(() => {
+      expect(api.listStock).toHaveBeenLastCalledWith(expect.objectContaining({ productId: 'prod-zero' }));
+    });
+  });
+
+  it('cadastro manual usa o produto do formulário (addProductId), não o filtro', async () => {
+    const user = userEvent.setup();
+    render(<AdminStock />);
+    await screen.findAllByText('Conta Esgotada');
+
+    await user.selectOptions(screen.getByLabelText('Filtrar por produto'), 'prod-zero');
+    const form = screen.getByRole('button', { name: 'Cadastrar unidade' }).closest('form')!;
+    fireEvent.change(screen.getByLabelText('Produto', { selector: '#stock-product' }), { target: { value: 'prod-ok' } });
+    fireEvent.change(screen.getByLabelText(/E-mail \/ login/), { target: { value: 'conta@exemplo.com' } });
+    fireEvent.change(screen.getByLabelText(/Senha da conta/), { target: { value: 'senha-forte-123' } });
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(api.addStock).toHaveBeenCalledWith(
+        expect.objectContaining({ productId: 'prod-ok', email: 'conta@exemplo.com' }),
+      );
+    });
   });
 
   it('bloqueia e-mail inválido e senha curta antes de chamar o backend', async () => {
@@ -144,24 +233,6 @@ describe('AdminStock (missão 03.2D)', () => {
     expect(api.addStock).not.toHaveBeenCalled();
   });
 
-  it('cadastra unidade válida e limpa o formulário', async () => {
-    render(<AdminStock />);
-    await screen.findAllByText('Conta Esgotada');
-
-    const form = screen.getByRole('button', { name: 'Cadastrar unidade' }).closest('form')!;
-    fireEvent.change(screen.getByLabelText('Produto'), { target: { value: 'prod-ok' } });
-    fireEvent.change(screen.getByLabelText(/E-mail \/ login/), { target: { value: '  conta@exemplo.com  ' } });
-    fireEvent.change(screen.getByLabelText(/Senha da conta/), { target: { value: 'senha-forte-123' } });
-    fireEvent.submit(form);
-
-    await waitFor(() => {
-      expect(api.addStock).toHaveBeenCalledWith(
-        expect.objectContaining({ productId: 'prod-ok', email: 'conta@exemplo.com' }),
-      );
-    });
-    expect(await screen.findByRole('status')).toHaveTextContent('Unidade cadastrada');
-  });
-
   it('exibe o aviso de auditoria ao mostrar credenciais (stock_credentials_listed)', async () => {
     const user = userEvent.setup();
     render(<AdminStock />);
@@ -174,12 +245,12 @@ describe('AdminStock (missão 03.2D)', () => {
     });
   });
 
-  it('fluxo CSV preservado: prévia obrigatória antes de importar', async () => {
+  it('fluxo CSV preservado: prévia obrigatória antes de importar, vinculada ao produto', async () => {
     const user = userEvent.setup();
     render(<AdminStock />);
     await screen.findAllByText('Conta Esgotada');
 
-    fireEvent.change(screen.getByLabelText('Produto', { selector: '#stock-product' }), { target: { value: 'prod-ok' } });
+    fireEvent.change(screen.getByLabelText('Produto da importação'), { target: { value: 'prod-ok' } });
     fireEvent.change(screen.getByLabelText('Conteúdo CSV'), { target: { value: 'a@b.com,senha1\nlinha-invalida' } });
 
     const importButton = screen.getByRole('button', { name: /Importar/ });
@@ -197,6 +268,44 @@ describe('AdminStock (missão 03.2D)', () => {
       expect(api.commitImport).toHaveBeenCalledWith('prod-ok', expect.stringContaining('a@b.com'), expect.any(String));
     });
     expect(await screen.findByText(/Importadas:/)).toBeInTheDocument();
+  });
+
+  it('invalida a prévia ao trocar o produto da importação e bloqueia a confirmação', async () => {
+    const user = userEvent.setup();
+    render(<AdminStock />);
+    await screen.findAllByText('Conta Esgotada');
+
+    const importSelect = screen.getByLabelText('Produto da importação');
+    fireEvent.change(importSelect, { target: { value: 'prod-ok' } });
+    fireEvent.change(screen.getByLabelText('Conteúdo CSV'), { target: { value: 'a@b.com,senha1' } });
+    await user.click(screen.getByRole('button', { name: 'Pré-visualizar' }));
+    expect(await screen.findByText(/1 válidas/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Importar 1 válidas/ })).toBeEnabled();
+
+    // Trocar o produto da importação invalida a prévia preparada para outro produto.
+    await user.selectOptions(importSelect, 'prod-low');
+    expect(screen.queryByText(/1 válidas/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Importar/ })).toBeDisabled();
+
+    // Nada pode ser confirmado para o produto novo sem nova prévia.
+    expect(api.commitImport).not.toHaveBeenCalled();
+  });
+
+  it('invalida a prévia ao alterar o conteúdo do CSV', async () => {
+    const user = userEvent.setup();
+    render(<AdminStock />);
+    await screen.findAllByText('Conta Esgotada');
+
+    fireEvent.change(screen.getByLabelText('Produto da importação'), { target: { value: 'prod-ok' } });
+    const csvBox = screen.getByLabelText('Conteúdo CSV');
+    fireEvent.change(csvBox, { target: { value: 'a@b.com,senha1' } });
+    await user.click(screen.getByRole('button', { name: 'Pré-visualizar' }));
+    expect(await screen.findByText(/1 válidas/)).toBeInTheDocument();
+
+    fireEvent.change(csvBox, { target: { value: 'a@b.com,senha1\nc@d.com,senha2' } });
+    expect(screen.queryByText(/1 válidas/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Importar/ })).toBeDisabled();
+    expect(api.commitImport).not.toHaveBeenCalled();
   });
 
   it('desativar unidade exige motivo categorizado e envia o motivo ao backend', async () => {

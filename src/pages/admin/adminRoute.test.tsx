@@ -91,7 +91,7 @@ vi.mock('../../services/adminApi', () => ({
     createProduct: vi.fn(),
     updateProduct: vi.fn(),
     setProductActive: vi.fn(),
-    stockSummary: vi.fn(async () => ({ total: 0, available: 0, reserved: 0, sold: 0, disabled: 0 })),
+    stockSummary: vi.fn(async () => ({ products: [], totals: { total_units: 0, available_units: 0, reserved_units: 0, sold_units: 0, disabled_units: 0 } })),
     listStock: vi.fn(async () => ({ items: [], total: 0, limit: 100, offset: 0 })),
     addStock: vi.fn(),
     updateStock: vi.fn(),

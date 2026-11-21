@@ -950,14 +950,16 @@ describe('garantias estruturais da entrega', () => {
         [deliveryA],
       );
 
-      // Tentar entregar a unidade do pedido A no pedido B é recusado pelo banco.
+      // Tentar entregar a unidade do pedido A no pedido B é recusado pelo banco:
+      // desde a migração 20261121225011 o gatilho de isolamento de produto
+      // (trg_delivery_units_product_isolation) dispara antes do índice único.
       await expect(
         runSql(
           `insert into public.delivery_units (delivery_id, stock_unit_id)
            select d.id, $2 from public.deliveries d where d.order_id = $1`,
           [orderB.order.order_id, unitA],
         ),
-      ).rejects.toMatchObject({ code: '23505' });
+      ).rejects.toMatchObject({ code: '23514', message: expect.stringContaining('delivery_unit_product_mismatch') });
 
       const duplicated = await sqlValue<number>(
         `select count(*)::int from (

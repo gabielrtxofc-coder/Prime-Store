@@ -121,8 +121,8 @@ Resultado: **115 testes de banco** + **57 de frontend**. Detalhe em
 ## Como rodar
 
 ```bash
-npm test            # 151 testes de frontend (jsdom, sem banco)
-npm run test:db     # 360 testes de banco + unitários
+npm test            # 165 testes de frontend (jsdom, sem banco)
+npm run test:db     # 433 testes de banco + unitários
 npm run test:all    # tudo (frontend + banco)
 npm run typecheck && npm run build
 ```
@@ -149,6 +149,8 @@ requisição enviada pelo código de produção.
 | `tests/db/05_end_to_end_flow.test.ts` | 6 | Fluxo completo pelos handlers reais (catalog → create-order → webhook → order-status → delivery), liberação de estoque com o provedor indisponível, `503 payment_not_configured`, validação de payload, webhook com assinatura inválida, escada de autorização administrativa |
 | `tests/unit/wyvipay.test.ts` | 25 | Cliente WyviPay v2: POST /cobrancas em centavos com `Idempotency-Key`, replay sem duplicar, conflito `409`, valores/`Idempotency-Key` inválidos recusados antes da rede, falha de comunicação, consulta (sem imagem QR), cancelamento idempotente, reembolso, mapa de situações, assinatura de webhook (válida/errada/adulterada/velha/fora da janela) |
 | `tests/db/24_wyvipay_fluxo.test.ts` | 17 | Fluxo ponta a ponta com a WyviPay simulada: privilégios das funções (service_role/anon), cobrança multi-item sem PII, replay sem cobrança dupla, 409 anti-takeover, 502 com reserva liberada, webhook → 401 sem eventos, segredo ausente → 503, aprovação + dedup + entrega, reconsulta manda (pendente/`amount_mismatch`), expiração/cancelamento liberam estoque, `dados.teste` em produção, reconciliação com throttle de 15 s, fallback/503 sem provedor, formato legado mono |
+| `tests/db/27_stock_product_isolation.test.ts` | 9 | **Missão 13**: isolamento de estoque por produto — `stock_product_matches_order` (multiproduto e formato antigo), gatilhos que rejeitam lote/reserva/entrega de outro produto em INSERT e UPDATE, `admin_stock_summary_by_product` (todos os produtos, saúde empty/low/ok, totais) só para admin (anon e usuário comum recusados) e gateway HTTP `stock.summary` |
+| `src/pages/admin/adminStock.test.tsx` | 11 | **Missão 13 (UI)**: resumo por produto com situações e totais, separação real entre `stockFilterProductId` / `addProductId` / `importProductId`, prévia de importação vinculada ao produto (`previewProductId`) e invalidada ao trocar produto ou CSV |
 | `tests/unit/crypto_csv_mp.test.ts` | 19 | AES-256-GCM (chave errada, adulteração, IV por mensagem), HMAC fingerprint, entropia dos tokens, SHA-256/tempo constante, CSV (cabeçalho, `;`, BOM, aspas, acentos), validação linha a linha, detecção de duplicatas, mascaramento, cliente do Mercado Pago (PIX 30 min, idempotência, sem PII, erros) |
 | `src/services/backend/backend.test.ts` | 10 | Configuração por env, contrato do catálogo (itens inválidos descartados), cliente HTTP (chave anon, sem `service_role`), mapeamento de erros |
 | `src/pages/paymentDelivery.test.tsx` | 5 | Página PIX (QR, copia-e-cola, validade), link de entrega ao aprovar, ausência de pedido na sessão, entrega com credenciais mascaradas, link revogado |
