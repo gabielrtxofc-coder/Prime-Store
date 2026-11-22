@@ -208,7 +208,7 @@ do navegador (D3).
 | --- | --- |
 | `npx tsc -b` | 0 erros |
 | `npm test` (frontend, jsdom) | **168/168** |
-| `npm run test:db` (PostgreSQL 18 real) | **457/457** (era 441; +16 desta missão) |
+| `npm run test:db` (PostgreSQL 18 real) | 457 → **475** (ver **§7-bis** para a reconciliação) |
 | `npm run bundle:functions` | 10/10 funções empacotam |
 | `npm audit` | 0 vulnerabilidades |
 | Produção, `pg_net` antes/depois | CORS negado → liberado; origem estranha → continua negada |
@@ -223,92 +223,263 @@ guarda que falha se aparecer estilo inline no `src/`.
 
 ---
 
+## 7-bis. Reconciliação da contagem de testes (457 → 465 → 475)
+
+A Missão 15.1 encontrou duas contagens diferentes para `test:db` em documentos
+da própria missão (**457** no §7 e `docs/PROGRESSO.md`; **465** na execução real
+sobre `ed4e818`). Nenhuma das duas estava "inventada": a diferença tem causa
+identificada e não indica teste perdido ou desativado.
+
+| Commit | `tests/unit/hardening_borda.test.ts` | `test:db` | Observação |
+|---|---|---|---|
+| `234e14d` (base) | não existia | 441 | ponto de partida |
+| `34b0102` | **17** casos reais | **458** | teto de corpo/CSV/env |
+| `b065c55` | 17 casos | 458 | **§7 e PROGRESSO escritos aqui como "441 + 16 = 457"** |
+| `9b5f378` | **24** casos (+7 guardas de CSP) | **465** | contagem mudou **depois** dos documentos |
+| `ed4e818` | 24 casos | **465** | execução registrada da Missão 15.1 |
+| Missão 15.1 | 24 casos | **475** | +7 (`tests/db/28`) +3 (`tests/db/22`) |
+
+**Causa raiz — dois erros de um caso cada, não um teste perdido.**
+
+O documento afirmava "441 + 16 = 457". O arquivo `hardening_borda.test.ts`
+nunca teve 16 casos: no commit `34b0102` ele define **17** blocos `it(`
+(16 nos quatro `describe` originais + 1 acrescentado em `CORS`), sem
+`it.each`, sem `it.skip`/`todo` e sem `describe` condicional — ou seja,
+17 casos reportados. Os 441 + 17 = **458** já eram a contagem real quando o
+texto foi escrito, e a linha "457" carregou um erro de aritmética de 1.
+
+Depois, `9b5f378` acrescentou 7 guardas de CSP (17 → 24) sobre um documento já
+defasado, produzindo 441 + 24 = **465**. Foi esse número que a execução da
+Missão 15.1 mediu em `ed4e818`.
+
+A cadeia fecha por dois caminhos independentes:
+
+```
+441 + 17 = 458  → +7 = 465  → +10 = 475   (contagem a partir dos 17 reais)
+475 − 10 − 7 = 458                        (retrocedendo a partir da medição)
+```
+
+Ambos chegam a **458** em `b065c55`. O "16" dos documentos era o erro; o
+"457" era o "441 + 16" dele. Não houve teste removido, desativado ou pulado —
+e a base de 441 em `234e14d` está correta. Os números canônicos abaixo são
+todos **medidos**, e a contagem por inspeção estática de `it(` **não** é usada
+como prova: em `tests/db` ela subconta (322 blocos para 475 casos) porque
+vários arquivos geram casos dentro de laços.
+
+**Números canônicos (Missão 15.1, executados nesta rodada):**
+
+| Suíte | Resultado (execução de 2026-11-22, HEAD desta missão) | Como foi obtido |
+|---|---|---|
+| `npx tsc -b` | **0 erros** | execução local, exit 0 |
+| `npm test` (frontend) | **168/168** em 24 arquivos | execução local |
+| `npm run test:db` | **475/475** em **38 arquivos** | execução local, PostgreSQL 18.6 em `127.0.0.1:55432` |
+| `npm run build` | **OK**, 377 ms | execução local |
+| `npm run bundle:functions` | **10/10** | execução local |
+| `npm audit --omit=dev` | **0 vulnerabilidades** | execução local |
+| `npm run test:e2e` | **não executável no sandbox** | `Chromium não encontrado` (`checkout.ts:30`) |
+
+Total de provas automatizadas: **168 + 475 = 643**.
+
+Artefatos do `build` desta execução: `index-D4nn5bjy.js` (324,49 kB / gzip
+98,99 kB), `AdminPage-DYdJJtCo.js` (330,28 kB / gzip 82,94 kB),
+`index-yyjqS_BQ.css` (119,93 kB / gzip 23,87 kB).
+
+**Sobre o E2E:** o comando falha neste sandbox por ausência de Chromium — a
+falha é de **ambiente**, não de produto, e o script não tem fallback que reduza
+asserções (por desenho). A evidência de E2E é o **passo 11 do CI**, "Jornada
+Chromium + PostgreSQL + WyviPay simulada", que executou com Chromium real e
+passou. Não registro o E2E local como aprovado; registro o que ele é.
+
+---
+
+## 7-ter. Achado novo — deriva de schema em produção (`bootstrap_admin_*`)
+
+Descoberto ao escrever os testes de auto-promoção (Tarefa 02). **Produção tem
+duas funções que não existem em nenhuma migração versionada:**
+
+| Função | `SECURITY DEFINER` | ACL | Migration |
+|---|---|---|---|
+| `bootstrap_admin_register(uuid, text, text)` | sim | `postgres`, `service_role` | **nenhuma** |
+| `bootstrap_admin_status()` | sim | `postgres`, `service_role` | **nenhuma** |
+
+`grep -r bootstrap_admin_register supabase/migrations/` → **0 arquivos**.
+Elas foram criadas fora do controle de versão (provavelmente pelo SQL Editor).
+É a mesma classe de problema das Edge Functions presas a commit fixo: o banco
+de produção é a única fonte de verdade desse pedaço.
+
+### O que essas funções fazem
+
+`bootstrap_admin_register` insere em `admin_users` (a allowlist) e incrementa um
+contador em `app_settings`; `bootstrap_admin_status` apenas lê o estado. O
+desenho é **autolimitado e fechado por padrão**:
+
+- exige `app_settings.admin_bootstrap_enabled = true` (ausente → `false`);
+- permite no máximo **2** administradores, depois vira `false` sozinho;
+- a ACL **não inclui** `anon` nem `authenticated` — só `postgres` e
+  `service_role`, que é papel de backend;
+- hoje produção tem **0 administradores**, então o bootstrap nunca foi aberto.
+
+### Impacto classificado
+
+**Não é escalada de privilégio de usuário final.** Sem `EXECUTE` para
+`authenticated`, nenhum JWT comum alcança a função pelo PostgREST — a barreira
+é de privilégio, não de validação de corpo. O risco real é outro:
+
+1. **Reprodutibilidade:** recriar o banco a partir das migrações **não** recria
+   essas funções. Um restore de produção por migração perde o provisionamento.
+2. **Revisão:** funções `SECURITY DEFINER` que escrevem na allowlist existem
+   fora do diff — não passam por revisão de código nem pela suíte local.
+
+### O que foi feito (somente leitura + prova)
+
+- testes travando que **nenhum** `bootstrap_admin%` é executável por
+  `authenticated`, tolerante à ausência da função (o banco local não a tem);
+- teste provando que **0** funções executáveis por `authenticated` escrevem em
+  `public.admin_users`;
+- registro aqui e em `DEPENDENCIAS-HUMANAS.md` para o operador decidir entre
+  versionar o DDL (`pg_dump --schema-only` dessas duas funções) ou removê-las.
+
+**Não foi criada migração para "trazer" essas funções.** Copiar para o repositório
+um DDL obtido por engenharia reversa, sem revisão de origem, seria pior do que
+registrar a divergência. A decisão é do proprietário.
+
+---
+
 ## 8. Pendências que exigem o operador
 
 Ver [`DEPENDENCIAS-HUMANAS.md`](./DEPENDENCIAS-HUMANAS.md). Em resumo: nenhum
 administrador real, nenhuma chave de pagamento, e-mail de Auth sem SMTP,
-primeiro deploy com CSP a conferir no console, tamanho mínimo de senha.
+primeiro deploy com CSP a conferir no console, tamanho mínimo de senha, e a
+deriva de schema `bootstrap_admin_*` (§7-ter).
 
 ---
 
-## 8-bis. Estado de implantação das Edge Functions (proveniência)
+## 8-bis. Reconciliação das oito Edge Functions (Tarefa 01)
 
-O deploy anterior (v8 de `catalog`) era um **eszip que importa os fontes de
-`raw.githubusercontent.com/<repo>/<sha>`** — ou seja, cada versão fica presa a um
-commit do GitHub e só muda com novo deploy. Durante esta missão:
+Cada uma das oito funções foi reconciliada por **oito atributos**: slug,
+`version`, `updated_at` (produção), `verify_jwt` (produção × `config.toml` ×
+esperado), formato do corpo, correspondência de código, smoke real e estado.
+"Não bateu" não é aceito como resposta: onde há divergência, ela está nomeada
+com causa e consequência.
 
-| Função | Versão | Corpo | Origem |
-| --- | --- | --- | --- |
-| `catalog` | **v9** | bundle **inline** e autocontido (0 imports) | esta missão |
-| `order-request` | **v9** | bundle **inline** e autocontido | esta missão |
-| `delivery` | **v9** | bundle **inline** e autocontido | esta missão |
-| `wyvi-webhook` | **v9** | bundle **inline** e autocontido | esta missão |
-| `create-order` | **v9** | bundle **inline** e autocontido | esta missão |
-| `order-status` | **v9** | bundle **inline** e autocontido | esta missão |
-| `admin-api` | v9 (anterior) | bundle anterior à missão — **sem** teto de corpo/linhas | deploy anterior |
-| `wyvi-worker` | v9 (anterior) | bundle anterior à missão | deploy anterior |
+### Tabela de reconciliação
 
-As **seis** funções reimplantadas são as de borda externa: recebem corpo ou URL
-de fora e têm comportamento observável alterado pelo leitor novo (as quatro
-públicas `catalog`/`order-request`/`create-order`/`order-status`, a pública de
-leitura `delivery` e o webhook de pagamento `wyvi-webhook`). Todas continuam
-com `verify_jwt` igual ao que já tinham — o deploy não mudou autorização.
+| # | Função | ver | `updated_at` (UTC) | `verify_jwt` prod | `config.toml` | Coincide? | Smoke em produção |
+|---|--------|-----|--------------------|-------------------|---------------|-----------|-------------------|
+| 1 | `catalog` | 9 | 2026-11-22 01:58:54 | `false` | `false` | **sim** | GET 200 + ACAO exata |
+| 2 | `order-request` | 9 | 2026-11-22 02:23:04 | `false` | `false` | **sim** | 404 `product_unavailable` + ACAO |
+| 3 | `delivery` | 9 | 2026-11-22 02:26:24 | `false` | `false` | **sim** | 404 `not_found` + ACAO |
+| 4 | `wyvi-webhook` | 9 | 2026-11-22 02:20:19 | `false` | `false` | **sim** | 401 `invalid_signature` |
+| 5 | `create-order` | 9 | 2026-11-22 02:28:12 | `false` | `false` | **sim** | 404 `product_unavailable` + ACAO |
+| 6 | `order-status` | 9 | 2026-11-22 02:29:44 | `false` | `false` | **sim** | 404 `not_found` + ACAO |
+| 7 | `admin-api` | 9 | 2026-11-21 23:35:39 | `true` | `true` | **sim** | **não** — bundle anterior |
+| 8 | `wyvi-worker` | 9 | 2026-11-22 00:53:59 | `true` | `true` | **sim** | **não** — bundle anterior |
 
-**O que fica para o deploy por CLI:** `admin-api` e `wyvi-worker` — as duas
-únicas com `verify_jwt=true`. `admin-api` é a de maior risco de deploy manual
-(bundle de ~48 KB e caminho administrativo de importação de credenciais): uma
-meia-aplicação ali é pior do que esperar o `supabase functions deploy`
-versionado, que aplica tudo de uma vez a partir deste commit. `wyvi-worker` é
-chamada por cron interno. Nenhuma das duas perde funcionalidade por esperar.
+Todos os oito slugs estão `ACTIVE`, todos em `version = 9`, e o `verify_jwt`
+de produção coincide com `supabase/config.toml` nos oito casos. **Nenhuma
+divergência de autorização.** As seis de borda externa estão no código desta
+missão; as duas com `verify_jwt = true` estão em bundle **anterior**.
 
-**Por que essas quatro:** são exatamente as funções de **borda externa**
-(públicas ou de webhook) em que o teto de corpo e o leitor de corpo cru mudam
-comportamento observável. Foram implantadas uma a uma, cada uma verificada por
-HTTP real antes da seguinte — `catalog` serviu de canário, `order-request` e
-`delivery` foram checadas com o corpo/URL real, e `wyvi-webhook` com assinatura
-falsa (401) para provar que o caminho criptográfico continua íntegro.
+### Achado A — `version` não prova nada; `updated_at` prova
 
-**O que fica para o deploy por CLI:** `create-order`, `order-status`,
-`admin-api` e `wyvi-worker`. As duas primeiras rodam atrás de `verify_jwt`;
-`admin-api` também e tem bundle de ~48 KB (o limite prático do argumento do
-conector é menor, e uma falha no meio de um deploy administrativo é pior do que
-esperar o deploy versionado); `wyvi-worker` é chamado por cron interno. Nenhuma
-delas perde funcionalidade por esperar — o código novo já está no commit e o
-próximo `supabase functions deploy` as alinha.
+As oito estão em `version = 9`. O número é uniforme porque todo slug nasceu
+junto no provisionamento e foi bumpado em bloco pelos deploys anteriores — ele
+**não distingue** bundle novo de antigo. Quem distingue é `updated_at`:
+`admin-api` (21/11 23:35) e `wyvi-worker` (22/11 00:54) são anteriores a todo o
+hardening; as outras seis foram reimplantadas entre 01:58 e 02:29.
 
-Prova do canário (produção, `pg_net`):
+**Correção de fato registrada:** a versão anterior deste relatório afirmava que
+`create-order` e `order-status` também ficavam para o deploy por CLI, e
+repetia o bloco "o que fica para o deploy" duas vezes com listas diferentes
+(uma dizendo duas funções, outra dizendo quatro). A lista correta é **duas**:
+`admin-api` e `wyvi-worker`. As seis foram implantadas e verificadas.
+
+### Achado B — `ezbr_sha256` não é hash do código
+
+`wyvi-worker` expõe `ezbr_sha256 =
+64e9b63dd0f709e466fab005239188ff2e2f2403aefc093113b722be2b700e6b`, e o bundle
+local tem sha256 `ab553d5bec72…` — hashes diferentes. **Isso não é divergência
+de código**: `ezbr_sha256` é o digest do **eszip** (o arquivo comprimido que
+embala os fontes), não do `.ts` empacotado. Comparar os dois seria comparar
+coisas diferentes. Nenhum juízo de "código diferente" pode ser feito por esse
+campo, e por isso ele não é usado como prova aqui.
+
+### Achado C — commit não é build: a data do commit engana
+
+A primeira leitura sugeria que `catalog` (01:58:54) era anterior ao commit do
+teto (`34b0102`, 02:01:33) e portanto **estaria sem o teto de corpo**. A
+inspeção do corpo implantado desmente a conclusão:
+
+- o corpo implantado **usa** `readJsonOrEmpty`;
+- `readJsonOrEmpty` **não existe** em `234e14d` (base) — ele nasceu em
+  `34b0102`, quando `http.ts` passou a ter `MAX_REQUEST_BODY_BYTES`;
+- logo, o bundle implantado em `catalog` contém código novo.
+
+Explicação: o horário de um commit é o da **criação**, não o do build do
+bundle. O empacotamento usado no deploy foi gerado do working tree já com a
+correção, antes de o commit ser fechado (o commit ficou **17 minutos mais
+novo** que a árvore de onde o bundle saiu). Consequência: "data do deploy <
+data do commit" **não** é evidência de bundle antigo. É preciso inspecionar
+símbolos, e a inspeção mostra que o teto está lá.
+
+### Achado D — `wyvi-worker` implantada é eszip de fontes, não bundle
+
+O corpo de `catalog` é um **JS inline autocontido** (começa em
+`// Edge Function: catalog - bundle gerado por scripts/bundle-functions.mjs`).
+O de `wyvi-worker` começa em `ESZIP2.3` e contém os `.ts` **crus**
+(`import { createDeps } from '../_shared/deps.ts';`).
+
+São **dois caminhos de deploy diferentes** — CLI/eszip para `wyvi-worker`,
+inline para as demais. Isso importa para o operador: o próximo
+`supabase functions deploy` reescreve `wyvi-worker` no formato eszip a partir
+de `supabase/functions/wyvi-worker/index.ts`, e o conteúdo passa a bater com os
+fontes deste commit. Nada no runtime atual depende do bundle inline.
+
+### Correspondência de código nas duas pendentes
+
+Para `admin-api` e `wyvi-worker` a comparação byte a byte é **impossível** com
+os instrumentos disponíveis: `get_edge_function` devolve o corpo **truncado**
+(o resultado do conector é cortado no meio, deterministicamente), e não há
+`supabase` CLI autenticada no sandbox. O que se pode afirmar, e se afirma:
+
+| Função | O que o bundle implantado tem | O que o commit tem | Risco |
+|---|---|---|---|
+| `admin-api` | `readBodyText`, leitor comum, sem teto de linha de CSV | teto de 4 MiB + `MAX_IMPORT_ROWS` + `truncated`/`import_too_large` | corpo grande é lido inteiro antes de falhar |
+| `wyvi-worker` | eszip de fontes anteriores; `withCors` ausente | fontes com o hardening atual | sem CORS (é chamada só por cron/`service_role`) |
+
+Nenhuma das duas perde **funcionalidade** por esperar: ambas têm
+`verify_jwt = true`, então não são alcançáveis por visitante; `wyvi-worker` só
+é chamada pelo cron (job 3, como `postgres`) e pelo `order-status`;
+`admin-api` exige JWT de administrador e `assert_admin` roda **no banco**
+(inalterado). O risco é de **recurso** (corpo grande), não de autorização.
+
+### Smoke real (produção, via `pg_net`, respostas de `net._http_response`)
 
 ```
-GET  catalog  Origin: https://prime-store-gilt.vercel.app
-→ 200, Access-Control-Allow-Origin: https://prime-store-gilt.vercel.app
-
-POST order-request  corpo de 4,2 MB   (função AINDA na v anterior)
-→ 422 invalid_items   ← o corpo INTEIRO foi aceito e parseado: é exatamente
-                        o custo que o teto novo remove
-
--- depois do deploy das v9 --
-POST order-request  corpo normal, Origin do site
-→ 404 product_unavailable + ACAO do site   ← o corpo passou pelo leitor novo
-POST wyvi-webhook   assinatura falsa
-→ 401 invalid_signature                    ← corpo cru lido pelo leitor novo,
-                                             HMAC conferido, sem exceção
-GET  delivery       sem token
-→ 404 not_found + ACAO do site
-POST create-order   produto inexistente, Origin do site
-→ 404 product_unavailable + ACAO do site
-POST order-status   token curto
-→ 404 not_found + ACAO do site
+GET  catalog        Origin do site        → 200 + ACAO = origem exata
+GET  catalog        Origin atacante.example → 200 SEM ACAO  (negado)
+POST order-request  corpo normal           → 404 product_unavailable + ACAO
+POST delivery       sem token              → 404 not_found + ACAO
+POST wyvi-webhook   assinatura falsa       → 401 invalid_signature
+POST create-order   produto inexistente    → 404 product_unavailable + ACAO
+POST order-status   token curto            → 404 not_found + ACAO
+POST catalog        corpo de 4,2 MB        → 413 payload_too_large
 ```
 
-Todas as respostas acima vieram de `net._http_response` (produção, `pg_net`),
-com `status_code` real. Nenhuma função devolveu 5xx: os seis caminhos de erro
-são de domínio, o que mostra que o corpo é lido, validado e respondido — não
-engolido.
+O último prova o teto **em produção**: 4,2 MB é recusado com **413**, não
+processado (o teste unitário confirma o código: `MAX_REQUEST_BODY_BYTES`
+levanta `ApiError(413, 'payload_too_large')`). Antes do deploy, o mesmo corpo
+em `order-request` era aceito por inteiro e respondia 422 `invalid_items` só
+depois de parsear tudo.
 
-O deploy do `catalog` pelo conector usa o bundle inline; o arquivo em
-`supabase/functions/` continua sendo a fonte. O próximo deploy por CLI a partir
-deste commit produz o mesmo comportamento a partir dos fontes — nada depende do
-bundle inline.
+### Estado final
+
+- **6 de 8** no código desta missão, com smoke real.
+- **2 de 8** (`admin-api`, `wyvi-worker`) em bundle anterior, `verify_jwt=true`,
+  sem exposição nova; alinhamento no próximo `supabase functions deploy` (ação
+  do operador, proibida nesta missão).
+- **0** divergências de `verify_jwt`.
+- **0** funções em estado não-`ACTIVE`.
 
 ## 9. Arquivos alterados nesta missão
 
@@ -322,8 +493,21 @@ src/lib/publicEnv.ts                               (allowlist VITE_*)
 vercel.json                                        (cabeçalhos + CSP)
 index.html                                         (descrição + no-referrer)
 vite.config.ts                                     (allowedHosts explícito)
-tests/unit/hardening_borda.test.ts                 (novo, 16 testes)
+tests/unit/hardening_borda.test.ts                 (novo, 24 casos)
 docs/auditoria/missao-15/*                         (este relatório)
+```
+
+### Adicionado pela Missão 15.1 (fechamento)
+
+```
+supabase/migrations/20261122120000_0046_reduzir_superficie_rpc.sql
+    (revoga EXECUTE da órfã admin_stock_summary; fecha net.http_* de
+     PUBLIC/anon/authenticated sob condição de pg_net existir)
+tests/db/28_reducao_superficie_rpc.test.ts         (novo, 7 casos)
+tests/db/22_admin_guardia_aal2.test.ts             (+3 casos: is_admin,
+                                                    gatilho em auth.users,
+                                                    escrita na allowlist)
+docs/auditoria/missao-15/ADVISORS.md               (novo — Tarefa 03)
 ```
 
 Configuração de plataforma (não versionada): secrets `STORE_URL`,

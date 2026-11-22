@@ -110,3 +110,21 @@ pedido original.
   nome/agenda de jobs que o próprio projeto criou.
 - Toda a defesa de banco acima é **verificação por consulta**, não substitui os
   Advisors do painel (que exigem o painel logado).
+
+---
+
+## 7. Correspondência com os Advisors do painel
+
+A classificação dos três grupos de avisos (21 tabelas com RLS sem política,
+`pg_net` em `public`, 24 funções `SECURITY DEFINER`) está em
+[`ADVISORS.md`](./ADVISORS.md). Em resumo, para este mapa:
+
+| Superfície (§) | Aviso correspondente | Situação |
+|---|---|---|
+| §2 camada de tabelas | `rls_enabled_no_policy` (21) | sem GRANT + RLS sem política = dupla negação |
+| §6 `net`/`cron` | `extension_in_public` | não alcançável; fecha por migração 0046 |
+| §2 camada de funções | `*_security_definer_function_executable` (24) | 23 são o mecanismo de autorização; 1 revogada |
+
+A migração `0046` está versionada e provada localmente, **não aplicada em
+produção** — o efeito em produção descrito em `ADVISORS.md` depende do
+`supabase db push` do operador (P6 em `DEPENDENCIAS-HUMANAS.md`).

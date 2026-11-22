@@ -31,9 +31,12 @@
   reexecução sem duplicar destino, `--recreate`, chave inválida, escopo
   ausente, falha remota + recuperação, sem `whsec_` → instrução.
 
-Estado atual (Missão 15): `npm run typecheck` limpo · `npm test` **168/168**
-(24 arquivos) · `npm run test:db` **441/441** (36 arquivos, PostgreSQL 18.6
-real local) · `npm run build` OK · `npm run bundle:functions` **10 bundles**.
+Estado atual (Missão 15.1, branch `arena/8411465f-prime-store`):
+`npm run typecheck` limpo · `npm test` **168/168** (24 arquivos) ·
+`npm run test:db` **475/475** (38 arquivos, PostgreSQL 18.6 real local) ·
+`npm run build` OK · `npm run bundle:functions` **10 bundles** ·
+`npm audit --omit=dev` 0 vulnerabilidades. O E2E não roda neste sandbox
+(sem Chromium); a evidência é o passo 11 do CI, verde.
 
 O E2E `npm run test:e2e` executa o navegador Chromium real, compila 129
 módulos e exercita catálogo → checkout → webhook assinado → worker com JWT
@@ -128,7 +131,7 @@ Resultado: **115 testes de banco** + **57 de frontend**. Detalhe em
 
 ```bash
 npm test            # 168 testes de frontend (jsdom, sem banco)
-npm run test:db     # 441 testes de banco + unitários
+npm run test:db     # 475 testes de banco + unitários (ver docs/testes.md)
 npm run test:all    # tudo (frontend + banco)
 npm run typecheck && npm run build
 ```

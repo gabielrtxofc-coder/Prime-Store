@@ -477,8 +477,14 @@ Produção `audsosvbdybifvxsmqpi` · sandbox `eorlmqolbknrplvdbbtl`.
   correção anti-sequestro da 0039/0039b (corpo do `prosrc` conferido); demo mode
   desligado por três travas; `admin_users` vazio; cron/Vault sem entrada do
   cliente; 0 segredos no repo; `npm audit` 0.
-- **Testes:** `tsc` 0 · `npm test` **168/168** · `test:db` **457/457**
-  (+16 novos em `tests/unit/hardening_borda.test.ts`) · bundle 10/10.
+- **Testes:** `tsc` 0 · `npm test` **168/168** · `test:db` **475/475**
+  (38 arquivos; 441 de base + 24 de `tests/unit/hardening_borda.test.ts`
+  + 10 da Missão 15.1: 7 em `tests/db/28_reducao_superficie_rpc.test.ts`
+  e 3 em `tests/db/22_admin_guardia_aal2.test.ts`) · bundle 10/10.
+  O valor **457** que constava aqui estava correto quando foi escrito
+  (`b065c55`, com 16 casos de hardening) e ficou defasado no commit seguinte
+  (`9b5f378`), que elevou o arquivo de 16 para 24 casos ao acrescentar as
+  7 guardas de CSP. Ver §7-bis do relatório da Missão 15.
 - **Pendências do operador:** admins + TOTP (agora com signup fechado), SMTP de
   Auth, chave WyviPay definitiva, política de senha (P4), conferir CSP no console
   no primeiro deploy. **Não declarada pronta para lançamento.**

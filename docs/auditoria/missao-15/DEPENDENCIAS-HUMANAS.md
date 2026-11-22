@@ -23,6 +23,22 @@
       sem CAPTCHA e sem verificação HIBP. A API do conector não expõe esses
       campos. Recomendado: mínimo 12, HIBP ligado, CAPTCHA só se houver sinal de
       abuso. Não alterei por não ter caminho suportado — não inventei valor.
+- [ ] **P5 — Decidir o destino de `bootstrap_admin_register` /
+      `bootstrap_admin_status`.** As duas existem em **produção** e em
+      **nenhuma migração** (deriva de schema). São `SECURITY DEFINER`
+      executáveis só por `postgres`/`service_role`, limitadas a 2 admins e
+      fechadas por padrão (`admin_bootstrap_enabled` ausente = `false`), então
+      **não** são caminho de escalada para usuário final. Escolha uma:
+      (a) versionar o DDL das duas numa migração nova, revisado por você;
+      (b) remover as duas de produção e provisionar por `scripts/provision-admin.sql`;
+      (c) manter como estão, aceitando que recriar o banco pelas migrações não
+      as reproduz. Detalhes em `RELATORIO.md` §7-ter.
+- [ ] **P6 — Aplicar a migração `0046`.** Ela está versionada e provada
+      localmente (475/475) mas **não** foi aplicada em produção, porque esta
+      missão é somente leitura. Ela revoga `EXECUTE` da órfã
+      `admin_stock_summary()` e fecha `net.http_*` para
+      `PUBLIC`/`anon`/`authenticated`. Só vale depois de `supabase db push`.
+      Ver `ADVISORS.md` §Grupo 2 e §Limitações.
 
 ## Conferências de uma vez só (primeiro deploy com as mudanças)
 
