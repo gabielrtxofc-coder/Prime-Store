@@ -1,6 +1,6 @@
 import { encryptText, loadSecretMaterial, randomToken, sha256Hex, toBase64 } from '../crypto.ts';
 import type { Deps } from '../deps.ts';
-import { errorResponse, json, methodGuard, preflight } from '../http.ts';
+import { errorResponse, json, methodGuard, preflight, readBodyText } from '../http.ts';
 import {
   getPayment,
   isSignatureTimestampFresh,
@@ -33,7 +33,9 @@ export async function handleMpWebhook(request: Request, deps: Deps): Promise<Res
   try {
     methodGuard(request, ['POST']);
 
-    const rawBody = await request.text();
+    // Teto de corpo também no webhook: a assinatura é conferida sobre estes
+    // bytes, e nenhuma notificação legítima do provedor chega perto do limite.
+    const rawBody = await readBodyText(request);
     let body: WebhookBody = {};
     try {
       body = rawBody ? (JSON.parse(rawBody) as WebhookBody) : {};

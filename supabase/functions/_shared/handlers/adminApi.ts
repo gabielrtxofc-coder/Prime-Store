@@ -8,7 +8,7 @@ import {
   sha256Hex,
   toBase64,
 } from '../crypto.ts';
-import { extractStockRows, maskEmail, maskSecret, parseCsv, validateStockRows } from '../csv.ts';
+import { MAX_IMPORT_ROWS, extractStockRows, maskEmail, maskSecret, parseCsv, validateStockRows } from '../csv.ts';
 import type { Deps } from '../deps.ts';
 import { ApiError, errorResponse, json, methodGuard, preflight, readJson } from '../http.ts';
 import { enforceRateLimit } from '../rateLimit.ts';
@@ -345,12 +345,24 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
           `${email.trim().toLowerCase()}\u0000${password}`,
         );
 
+        // Arquivo maior que o teto: o excedente NÃO é importado em silêncio.
+        // O commit recusa; a prévia avisa para o operador dividir o arquivo.
+        if (validated.truncated && action === 'stock.import.commit') {
+          throw new ApiError(
+            413,
+            'import_too_large',
+            `O arquivo passou de ${MAX_IMPORT_ROWS} linhas. Divida em arquivos menores e importe de novo.`,
+          );
+        }
+
         if (action === 'stock.import.preview') {
           return json({
             total_rows: rows.length,
             valid_rows: validated.valid.length,
             rejected_rows: validated.rejected.length,
             duplicated_in_file: validated.duplicatedInFile,
+            truncated: validated.truncated,
+            max_rows: MAX_IMPORT_ROWS,
             preview: validated.valid.slice(0, 50).map((row) => ({
               row_number: row.rowNumber,
               email: maskEmail(row.email),

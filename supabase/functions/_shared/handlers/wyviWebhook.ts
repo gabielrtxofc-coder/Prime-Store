@@ -1,7 +1,7 @@
 import { sha256Hex } from '../crypto.ts';
 import { isWyviProduction } from '../config.ts';
 import type { Deps } from '../deps.ts';
-import { errorResponse, json, methodGuard, preflight } from '../http.ts';
+import { errorResponse, json, methodGuard, preflight, readBodyText } from '../http.ts';
 import { verifyWebhookSignature } from '../wyvipay.ts';
 import { isUuid } from '../validation.ts';
 
@@ -58,7 +58,8 @@ export async function handleWyviWebhook(request: Request, deps: Deps): Promise<R
 
     // Corpo CRU primeiro: a assinatura cobre os bytes recebidos, não um
     // objeto re-serializado (a ordem das chaves mudaria a conta).
-    const rawBody = await request.text();
+    // Teto de corpo: os bytes crus assinados nunca são lidos sem limite.
+    const rawBody = await readBodyText(request);
 
     const secret = deps.config.wyviWebhookSecret;
     if (!secret) {

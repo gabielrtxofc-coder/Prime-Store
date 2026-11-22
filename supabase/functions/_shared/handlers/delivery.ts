@@ -1,6 +1,6 @@
 import { decryptText, fromBase64, loadSecretMaterial, sha256Hex } from '../crypto.ts';
 import type { Deps } from '../deps.ts';
-import { ApiError, errorResponse, json, methodGuard, preflight } from '../http.ts';
+import { ApiError, errorResponse, json, methodGuard, preflight, readJsonOrEmpty } from '../http.ts';
 import { enforceRateLimit } from '../rateLimit.ts';
 import { requirePrivateToken } from '../validation.ts';
 
@@ -70,7 +70,9 @@ export async function handleDelivery(request: Request, deps: Deps): Promise<Resp
 
     let token: string | null = new URL(request.url).searchParams.get('token');
     if (request.method === 'POST') {
-      const body = (await request.json().catch(() => ({}))) as { token?: unknown };
+      // Corpo é opcional (o token também pode vir na query). Leitor com teto:
+      // antes um corpo enorme era consumido inteiro antes de virar `{}`.
+      const body = await readJsonOrEmpty<{ token?: unknown }>(request);
       if (typeof body.token === 'string') token = body.token;
     }
 

@@ -184,11 +184,85 @@ export function methodGuard(request: Request, methods: string[]): void {
   }
 }
 
-export async function readJson<T>(request: Request): Promise<T> {
+/**
+ * Teto de corpo aceito por requisição, em bytes.
+ *
+ * Antes: `await request.json()` consumia o corpo inteiro e só depois a
+ * validação de campo reclamava. Um cliente conseguia fazer a função alocar
+ * centenas de MB antes de qualquer recusa. O maior corpo legítimo é a
+ * importação de CSV do painel (o handler limita `csv` a 2 MB); o teto aqui é
+ * 4 MB para caber esse caso com folga, JSON de itens e margem de encapsulamento.
+ */
+export const MAX_REQUEST_BODY_BYTES = 4 * 1024 * 1024;
+
+function bodyTooLarge(): ApiError {
+  return new ApiError(413, 'payload_too_large', 'Corpo da requisição acima do limite.');
+}
+
+/**
+ * Lê o corpo como texto com teto de bytes (usado pelo JSON e pelos webhooks).
+ * O corte acontece durante a leitura, não depois: um `Content-Length` mentiroso
+ * ou um stream sem fim param no limite em vez de esgotar a memória.
+ */
+export async function readBodyText(
+  request: Request,
+  maxBytes: number = MAX_REQUEST_BODY_BYTES,
+): Promise<string> {
+  const header = request.headers.get('content-length');
+  if (header) {
+    const declared = Number(header);
+    if (Number.isFinite(declared) && declared > maxBytes) throw bodyTooLarge();
+  }
+  if (!request.body) return '';
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw bodyTooLarge();
+    }
+    chunks.push(value);
+  }
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
   try {
-    return (await request.json()) as T;
+    return new TextDecoder('utf-8', { fatal: true }).decode(merged);
   } catch {
     throw new ApiError(400, 'invalid_json', 'Corpo da requisição inválido.');
+  }
+}
+
+/** Corpo JSON com o mesmo teto; texto inválido é `400 invalid_json`. */
+export async function readJson<T>(request: Request): Promise<T> {
+  const text = await readBodyText(request);
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError(400, 'invalid_json', 'Corpo da requisição inválido.');
+  }
+}
+
+/**
+ * Igual a `readJson`, mas corpo ausente/ilegível vira `{}` (filtros opcionais).
+ * O teto de bytes continua valendo: um corpo gigante é recusado, não ignorado.
+ */
+export async function readJsonOrEmpty<T extends object>(request: Request): Promise<Partial<T>> {
+  try {
+    const value = await readJson<Partial<T>>(request);
+    return value && typeof value === 'object' ? value : {};
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 413) throw error;
+    return {};
   }
 }
 
