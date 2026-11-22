@@ -6,15 +6,15 @@ export interface LegalSection {
 export const termsSections: LegalSection[] = [
   {
     heading: 'Identificação do vendedor',
-    body: 'PENDENTE DE DEFINIÇÃO: incluir a identificação e os dados comerciais do responsável pela operação antes de publicar estes termos. Este protótipo não identifica um vendedor nem realiza vendas.',
+    body: 'PENDENTE DE DEFINIÇÃO: incluir a identificação e os dados comerciais do responsável pela operação antes de publicar estes termos.',
   },
   {
     heading: 'Funcionamento da compra',
-    body: 'RASCUNHO: definir como pedidos, confirmação, cobrança e suporte funcionarão em uma operação real. Na versão atual, o checkout cria apenas um registro demonstrativo em memória e não envia dados a um servidor.',
+    body: 'RASCUNHO: definir como pedidos, confirmação, cobrança e suporte funcionarão em uma operação real.',
   },
   {
     heading: 'Produtos digitais',
-    body: 'RASCUNHO: descrever cada produto efetivamente oferecido, sua modalidade, vigência, requisitos e eventuais limitações. O catálogo presente nesta demonstração contém apenas dados fictícios e não concede acesso a serviços de terceiros.',
+    body: 'RASCUNHO: descrever cada produto efetivamente oferecido, sua modalidade, vigência, requisitos e eventuais limitações.',
   },
   {
     heading: 'Condições de utilização e limitações',
@@ -22,7 +22,7 @@ export const termsSections: LegalSection[] = [
   },
   {
     heading: 'Entrega',
-    body: 'PENDENTE DE DEFINIÇÃO: estabelecer o processo e eventuais prazos de entrega antes de iniciar a operação. Não há entrega automatizada, liberação de credenciais ou download implementado.',
+    body: 'PENDENTE DE DEFINIÇÃO: estabelecer o processo e eventuais prazos de entrega antes de iniciar a operação.',
   },
   {
     heading: 'Atendimento',
@@ -41,19 +41,19 @@ export const termsSections: LegalSection[] = [
 export const privacySections: LegalSection[] = [
   {
     heading: 'Dados tratados nesta versão',
-    body: 'O carrinho pode guardar no armazenamento local do navegador apenas identificadores de produtos e quantidades. O formulário de contato não envia nem persiste dados. Os dados de nome e e-mail do checkout ficam no estado em memória para a tela de confirmação demonstrativa e não são enviados a um servidor.',
+    body: 'O carrinho pode guardar no armazenamento local do navegador apenas identificadores de produtos e quantidades. O formulário de contato não envia nem persiste dados. No checkout conectado, o nome e o e-mail são enviados ao backend para registrar o pedido.',
   },
   {
     heading: 'Finalidades',
-    body: 'Os dados locais são utilizados somente para demonstrar a navegação do carrinho e a confirmação de um pedido fictício. Nenhum processamento comercial ou pagamento acontece nesta versão.',
+    body: 'O carrinho auxilia a compra. No checkout conectado, os dados informados identificam o pedido e permitem seu acompanhamento.',
   },
   {
     heading: 'Compartilhamento',
-    body: 'O frontend atual não implementa integração com serviços externos nem compartilha dados com processadores de pagamento. Qualquer compartilhamento futuro depende de decisões e implementação do backend.',
+    body: 'O backend usa Supabase e, no fluxo de cobrança PIX, comunica a referência e o valor do pedido à WyviPay. O responsável deve revisar os destinatários e as finalidades antes do lançamento.',
   },
   {
     heading: 'Armazenamento e retenção',
-    body: 'Os itens do carrinho permanecem no armazenamento local até serem removidos ou apagados pelo usuário. Os dados do checkout existem apenas enquanto o estado da aplicação estiver ativo; não são gravados junto ao carrinho. A política de retenção de uma operação real ainda precisa ser definida.',
+    body: 'Os itens do carrinho permanecem no armazenamento local até serem removidos ou apagados pelo usuário. O servidor registra o pedido e o navegador pode guardar seu comprovante e código privado de consulta. A política de retenção de uma operação real ainda precisa ser definida.',
   },
   {
     heading: 'Direitos do titular',
@@ -72,7 +72,7 @@ export const refundSections: LegalSection[] = [
   },
   {
     heading: 'Análise e acompanhamento',
-    body: 'O procedimento de análise, as informações necessárias e a forma de acompanhamento devem ser definidos pela operação. Esta demonstração não cria solicitações reais nem processa cobranças.',
+    body: 'O procedimento de análise, as informações necessárias e a forma de acompanhamento devem ser definidos pela operação.',
   },
   {
     heading: 'Regras aplicáveis',

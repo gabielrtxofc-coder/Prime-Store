@@ -114,7 +114,7 @@ export async function processWyviEvent(
   // ---------------------------------------------------------------
   let charge;
   try {
-    charge = await getCharge(config, txid);
+    charge = await getCharge(config, txid, reference);
   } catch (error) {
     if (error instanceof WyviPayError) {
       if (error.httpStatus === 404 || error.httpStatus === 400) {
@@ -157,9 +157,9 @@ export async function processWyviEvent(
     const message = error instanceof Error ? error.message : 'apply_failed';
     // `amount_mismatch`/`order_not_found` não se resolvem reprocessando.
     if (/amount_mismatch|order_not_found|unknown_payment_provider/.test(message)) {
-      return { disposition: 'failed', reason: message.slice(0, 200) };
+      return { disposition: 'failed', reason: message.match(/amount_mismatch|order_not_found|unknown_payment_provider/)![0] };
     }
-    return { disposition: 'retry', reason: message.slice(0, 200) };
+    return { disposition: 'retry', reason: 'apply_failed' };
   }
 
   deps.log('wyvi_event.applied', {
@@ -187,7 +187,7 @@ export async function processWyviQueueForOrder(
   for (let round = 0; round < 20; round += 1) {
     const events = await deps.rpc<ClaimedWyviEvent[]>('claim_wyvi_events', {
       p_order_id: orderId,
-      p_limit: 5,
+      p_limit: 1,
     });
     if (!Array.isArray(events) || events.length === 0) return touched;
 
@@ -205,7 +205,7 @@ export async function settleEvent(
   deps: Deps,
   event: ClaimedWyviEvent,
   outcome: EventOutcome,
-): Promise<void> {
+): Promise<EventOutcome['disposition'] | 'unsettled'> {
   try {
     if (outcome.disposition === 'processed') {
       await deps.rpc('finish_payment_event', {
@@ -213,7 +213,7 @@ export async function settleEvent(
         p_status: 'processed',
         p_error: null,
       });
-      return;
+      return outcome.disposition;
     }
     if (outcome.disposition === 'ignored') {
       await deps.rpc('finish_payment_event', {
@@ -221,7 +221,7 @@ export async function settleEvent(
         p_status: 'ignored',
         p_error: outcome.reason.slice(0, 300),
       });
-      return;
+      return outcome.disposition;
     }
     if (outcome.disposition === 'failed') {
       await deps.rpc('finish_payment_event', {
@@ -230,10 +230,11 @@ export async function settleEvent(
         p_error: outcome.reason.slice(0, 300),
       });
       deps.log('wyvi_event.failed', { event_id: event.event_id, reason: outcome.reason });
-      return;
+      return outcome.disposition;
     }
     // retry → backoff; quando as tentativas acabam, `failed` terminal.
-    const backoff = eventBackoffSeconds(event.attempts);
+    const base = eventBackoffSeconds(event.attempts);
+    const backoff = base === 0 ? 0 : Math.max(base, Math.min(outcome.retryAfterSeconds ?? 0, 86400));
     await deps.rpc('reschedule_payment_event', {
       p_event_id: event.event_id,
       p_error: outcome.reason.slice(0, 300),
@@ -248,13 +249,14 @@ export async function settleEvent(
         backoff_seconds: backoff,
       });
     }
-  } catch (error) {
+    return backoff === 0 ? 'failed' : 'retry';
+  } catch {
     // A trava de 60s do claim se expira sozinha e o evento volta para a
     // fila — nunca perder o registro por falha ao gravar o desfecho.
     deps.log('wyvi_event.settle_failed', {
       event_id: event.event_id,
-      detail: error instanceof Error ? error.message.slice(0, 120) : 'unknown',
     });
+    return 'unsettled';
   }
 }
 
