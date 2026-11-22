@@ -363,7 +363,7 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
       } catch (error) {
         deps.log('create_order.buyer_attach_failed', {
           order_id: order.order_id,
-          reason: error instanceof Error ? error.message.slice(0, 120) : 'unknown',
+          reason: error instanceof Error ? error.name : 'unknown',
         });
       }
     }
@@ -443,7 +443,7 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
         deps.log('create_order.mark_attempt_failed', {
           order_id: order.order_id,
           reason,
-          detail: markError instanceof Error ? markError.message.slice(0, 120) : 'unknown',
+          detail: markError instanceof Error ? markError.name : 'unknown',
         });
       }
     };
@@ -535,7 +535,7 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
         // liberada aqui. Este é o cenário "criada mas não vinculada".
         deps.log('create_order.bind_failed', {
           order_id: order.order_id,
-          detail: error instanceof Error ? error.message.slice(0, 120) : 'unknown',
+          detail: error instanceof Error ? error.name : 'unknown',
         });
 
         interface CurrentStatus {
@@ -604,7 +604,7 @@ export async function handleCreateOrder(request: Request, deps: Deps): Promise<R
           } catch (cancelError) {
             deps.log('create_order.bind_cancel_failed', {
               order_id: order.order_id,
-              detail: cancelError instanceof Error ? cancelError.message.slice(0, 120) : 'unknown',
+              detail: cancelError instanceof Error ? cancelError.name : 'unknown',
             });
           }
           throw new ApiError(

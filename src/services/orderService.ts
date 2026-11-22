@@ -333,12 +333,9 @@ export function newIdempotencyKey(): string {
   return `idem-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-/** Estados que liberam a tela de entrega. */
+/** Só um pedido efetivamente pago e ativo libera a tela de entrega. */
 export function isPaid(orderStatus: string, paymentStatus: string): boolean {
-  return (
-    paymentStatus === 'approved' &&
-    ['paid', 'refund_pending', 'refunded'].includes(orderStatus)
-  );
+  return orderStatus === 'paid' && paymentStatus === 'approved';
 }
 
 export function isTerminalFailure(orderStatus: string): boolean {

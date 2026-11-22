@@ -2,7 +2,7 @@
 
 ## Missão 3 — preparação operacional (estado atual)
 
-- `tests/db/26_wyvi_worker_handler.test.ts` (**6**) — handler do worker
+- `tests/db/26_wyvi_worker_handler.test.ts` (**9**) — handler do worker
   extraído para `_shared/handlers/wyviWorker.ts`: sem cabeçalho/anon/garbage
   → 401 sem ler a fila; `service_role` + fila vazia → 200 `claimed:0`; sem
   `WYVI_API_KEY` → 503 `payment_not_configured` com a fila intacta; evento
@@ -31,9 +31,15 @@
   reexecução sem duplicar destino, `--recreate`, chave inválida, escopo
   ausente, falha remota + recuperação, sem `whsec_` → instrução.
 
-Estado atual (Missão 3): `npm run typecheck` limpo · `npm test` **151/151**
-(21 arquivos) · `npm run test:db` **405/405** (33 arquivos, PostgreSQL 18
+Estado atual (Missão 15): `npm run typecheck` limpo · `npm test` **168/168**
+(24 arquivos) · `npm run test:db` **441/441** (36 arquivos, PostgreSQL 18.6
 real local) · `npm run build` OK · `npm run bundle:functions` **10 bundles**.
+
+O E2E `npm run test:e2e` executa o navegador Chromium real, compila 129
+módulos e exercita catálogo → checkout → webhook assinado → worker com JWT
+`service_role` → confirmação. Em ambientes sem Chromium ou dependências do
+sistema, o comando deve falhar explicitamente; não há fallback que reduza as
+asserções.
 
 ## Missão 06 (revisão independente)
 
@@ -121,8 +127,8 @@ Resultado: **115 testes de banco** + **57 de frontend**. Detalhe em
 ## Como rodar
 
 ```bash
-npm test            # 165 testes de frontend (jsdom, sem banco)
-npm run test:db     # 433 testes de banco + unitários
+npm test            # 168 testes de frontend (jsdom, sem banco)
+npm run test:db     # 441 testes de banco + unitários
 npm run test:all    # tudo (frontend + banco)
 npm run typecheck && npm run build
 ```

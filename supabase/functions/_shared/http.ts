@@ -163,7 +163,9 @@ export function errorResponse(error: unknown): Response {
     return json({ error: 'duplicate_credential', message: 'Credencial duplicada.' }, { status: 409 });
   }
 
-  console.error('[prime-store] erro não tratado:', message);
+  // O texto original pode conter SQL, headers ou detalhes do provedor.
+  // Registre apenas uma classe estável; a resposta pública já é genérica.
+  console.error('[prime-store] erro não tratado:', error instanceof Error ? error.name : 'unknown_error');
   return json({ error: 'internal_error', message: 'Não foi possível concluir a operação.' }, { status: 500 });
 }
 

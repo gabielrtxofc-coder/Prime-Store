@@ -194,6 +194,18 @@ describe('26 — wyvi-worker: autenticação, fila e recuperação', () => {
     await runSql('delete from public.payment_events where notification_id=$1', [ntf]);
   });
 
+  it('falha ao reivindicar a fila → 500 estável sem expor o banco', async () => {
+    const unavailable: Deps = {
+      ...deps,
+      rpc: (name, args) => {
+        if (name === 'claim_wyvi_events') throw new Error('private claim fixture detail');
+        return deps.rpc(name, args);
+      },
+    };
+    const res = await callWorker('service_role', unavailable);
+    expect(res).toEqual({ status: 500, body: { error: 'worker_failed' } });
+  });
+
   it('service_role + fila vazia → 200 {claimed: 0}', async () => {
     const ok = await callWorker('service_role');
     expect(ok.status).toBe(200);
@@ -316,6 +328,87 @@ describe('26 — wyvi-worker: autenticação, fila e recuperação', () => {
       `select count(*)::int from public.payment_events where status = 'received'`,
     );
     expect(Number(restantes)).toBe(0);
+  });
+
+  it('duas execuções concorrentes reivindicam eventos distintos sem duplicar', async () => {
+    const firstNotification = `ntf_concurrent_a_${randomToken(8)}`;
+    const secondNotification = `ntf_concurrent_b_${randomToken(8)}`;
+    await insertEvent(FIXED_TXID, firstNotification, orderId);
+    await insertEvent(FIXED_TXID, secondNotification, orderId);
+
+    const clientA = await connect();
+    const clientB = await connect();
+    const delayedFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (methodGet(init) && String(input).includes(`/cobrancas/${FIXED_TXID}`)) {
+        await new Promise((resolve) => setTimeout(resolve, 80));
+      }
+      return fake.fetchImpl(input, init);
+    }) as typeof fetch;
+    const depsA = createDeps({
+      config: deps.config,
+      rpc: createPgRpc(clientA),
+      fetchImpl: delayedFetch,
+      resolveEncryptionKey: async () => MASTER_KEY,
+      log: () => undefined,
+    });
+    const depsB = createDeps({
+      config: deps.config,
+      rpc: createPgRpc(clientB),
+      fetchImpl: delayedFetch,
+      resolveEncryptionKey: async () => MASTER_KEY,
+      log: () => undefined,
+    });
+
+    try {
+      const [responseA, responseB] = await Promise.all([
+        handleWyviWorker(workerRequest('service_role'), depsA),
+        handleWyviWorker(workerRequest('service_role'), depsB),
+      ]);
+      const summaryA = (await responseA.json()) as { claimed: number; processed: number };
+      const summaryB = (await responseB.json()) as { claimed: number; processed: number };
+      expect(responseA.status).toBe(200);
+      expect(responseB.status).toBe(200);
+      expect(summaryA.claimed + summaryB.claimed).toBe(2);
+      expect(summaryA.processed + summaryB.processed).toBe(2);
+      const rows = await runSql<{ status: string; attempts: number }>(
+        `select status, attempts from public.payment_events
+          where notification_id in ($1, $2) order by notification_id`,
+        [firstNotification, secondNotification],
+      );
+      expect(rows).toEqual([
+        { status: 'processed', attempts: 1 },
+        { status: 'processed', attempts: 1 },
+      ]);
+    } finally {
+      await clientA.end();
+      await clientB.end();
+      await runSql(
+        `delete from public.payment_events where notification_id in ($1, $2)`,
+        [firstNotification, secondNotification],
+      );
+    }
+  });
+
+  it('não inicia um décimo primeiro evento na mesma execução', async () => {
+    const notifications = Array.from({ length: 11 }, (_, index) => `ntf_limit_${index}_${randomToken(6)}`);
+    for (const notification of notifications) await insertEvent(FIXED_TXID, notification, orderId);
+
+    try {
+      const first = await callWorker('service_role');
+      expect(first.status).toBe(200);
+      expect(first.body).toMatchObject({ claimed: 10, processed: 10 });
+      const remainingAfterFirst = await sqlValue<number>(
+        `select count(*) from public.payment_events where notification_id = any($1::text[]) and status = 'received'`,
+        [notifications],
+      );
+      expect(Number(remainingAfterFirst)).toBe(1);
+
+      await runSql(`update public.payment_events set available_at = now() where notification_id = $1`, [notifications[10]]);
+      const second = await callWorker('service_role');
+      expect(second.body).toMatchObject({ claimed: 1, processed: 1 });
+    } finally {
+      await runSql(`delete from public.payment_events where notification_id = any($1::text[])`, [notifications]);
+    }
   });
 });
 

@@ -59,5 +59,10 @@ jobs:
       - name: Bundle das Edge Functions
         run: npm run bundle:functions
 
+      - name: Disponibilizar Chromium
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y chromium
+
       - name: Jornada Chromium + PostgreSQL + WyviPay simulada
-        run: CHROMIUM_PATH="$(command -v google-chrome)" npm run test:e2e
+        run: CHROMIUM_PATH="$(command -v chromium || command -v google-chrome)" npm run test:e2e
