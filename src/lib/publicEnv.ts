@@ -14,8 +14,26 @@
  *    congelado no build mascararia o valor do teste.
  *
  * No navegador `process` não existe, então vale só o objeto do build.
+ *
+ * SOMENTE `VITE_*`: antes o objeto de `process.env` era espalhado inteiro no
+ * resultado. Em qualquer runtime que exponha `process.env` (por exemplo, um
+ * empacotador próprio que faça shim de `process`), uma flag pública como
+ * `VITE_ADMIN_DEMO` podia ser respondida por variável de ambiente do servidor,
+ * e chaves não-`VITE_` ficavam legíveis por este helper. A lista de permissão
+ * fecha os dois casos: valor público só entra por nome público.
  */
 export type PublicEnv = Record<string, string | undefined>;
+
+const PUBLIC_PREFIX = 'VITE_';
+
+function publicEntries(source: PublicEnv | undefined): PublicEnv {
+  const result: PublicEnv = {};
+  if (!source) return result;
+  for (const [key, value] of Object.entries(source)) {
+    if (key.startsWith(PUBLIC_PREFIX)) result[key] = value;
+  }
+  return result;
+}
 
 export function readPublicEnv(): PublicEnv {
   const buildEnv = (import.meta as unknown as { env?: PublicEnv }).env ?? {};
@@ -23,7 +41,7 @@ export function readPublicEnv(): PublicEnv {
     typeof globalThis !== 'undefined' && 'process' in globalThis
       ? (globalThis as { process?: { env?: PublicEnv } }).process?.env
       : undefined;
-  return nodeEnv ? { ...buildEnv, ...nodeEnv } : buildEnv;
+  return nodeEnv ? { ...publicEntries(buildEnv), ...publicEntries(nodeEnv) } : buildEnv;
 }
 
 /** Valor textual normalizado (vazio quando ausente). */
