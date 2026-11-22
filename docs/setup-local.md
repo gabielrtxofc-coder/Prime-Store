@@ -15,10 +15,8 @@ npm ci
 O repositório não depende de Docker para testar: qualquer PostgreSQL 15+ serve.
 
 ```bash
-# exemplo com binários do PostgreSQL no PATH
-initdb -D /tmp/pgdata
-postgres -D /tmp/pgdata -k /tmp/pgdata -p 5432 -c listen_addresses='' &
-export DATABASE_URL='postgresql://postgres@/postgres?host=/tmp/pgdata'
+npm run db:local # em um terminal separado
+export DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:55432/postgres'
 ```
 
 O harness de testes (`tests/db/helpers.ts`) executa, nesta ordem:

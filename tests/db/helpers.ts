@@ -6,8 +6,11 @@ import { Client, type QueryResultRow } from 'pg';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-export const DEFAULT_DATABASE_URL =
-  process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:55432/postgres';
+// O reset apaga schemas inteiros. Nunca use uma URL herdada de produção.
+export const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:55432/postgres';
+if (process.env.DATABASE_URL && process.env.DATABASE_URL !== DEFAULT_DATABASE_URL) {
+  throw new Error('Suíte destrutiva: use somente o PostgreSQL descartável de npm run db:local.');
+}
 
 export const MIGRATIONS_DIR = path.join(ROOT, 'supabase', 'migrations');
 export const BOOTSTRAP_FILE = path.join(ROOT, 'supabase', 'local', 'bootstrap_local.sql');

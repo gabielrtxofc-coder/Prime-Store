@@ -253,11 +253,11 @@ WyviPay ──POST──▶ wyvi-webhook ──registra──▶ payment_events 
   15s·2ⁿ (máx ~8h, 10ª tentativa → `failed` visível na fila). O poll de
   `order-status` processa a fila do pedido consultado — recuperação mesmo
   sem worker vivo.
-- **Agendamento persistente (migração `0044`):** o job
+- **Agendamento persistente (migrações `0044` e `0045`):** o job
   `prime-store-wyvi-worker` no pg_cron dispara `* * * * *` chamando
   `https://<REF>.supabase.co/functions/v1/wyvi-worker` com
   `Authorization: Bearer <jwt lido do Vault em runtime>` (segredo
-  `wyvi_worker_jwt`, criado pela migração com o service_role atual).
+  `wyvi_worker_jwt`, provisionado pelo operador; a 0045 deriva o destino da claim ref do JWT do projeto).
   Autenticação em DUAS camadas — nada desligado: `verify_jwt = true` na
   plataforma (plano oficial de agendamento exige o Bearer) + validação do
   claim `role=service_role` dentro do handler. O modo `auth:'secret'`
