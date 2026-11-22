@@ -198,3 +198,94 @@ describe('CORS: sem lista configurada, fecha (defeito que derrubou a produção)
     expect(corsHeaders(request, config)['Access-Control-Allow-Origin']).toBe('https://prime-store-gilt.vercel.app');
   });
 });
+
+describe('política de segurança do site (vercel.json + index.html)', () => {
+  // Estes testes não substituem um navegador: eles travam a CONFIGURAÇÃO para
+  // que ela não regrida em silêncio. A conferência visual (console sem
+  // violações de CSP) segue sendo um passo humano (D3).
+  const { readFileSync } = require('node:fs') as typeof import('node:fs');
+  const { resolve } = require('node:path') as typeof import('node:path');
+
+  const vercel = JSON.parse(readFileSync(resolve(process.cwd(), 'vercel.json'), 'utf8')) as {
+    headers: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
+    rewrites: Array<{ source: string; destination: string }>;
+  };
+  const globalHeaders = vercel.headers.find((entry) => entry.source === '/(.*)')!;
+  const header = (key: string) =>
+    globalHeaders.headers.find((entry) => entry.key.toLowerCase() === key.toLowerCase())?.value ?? '';
+
+  it('envia CSP, HSTS, XFO, nosniff, Referrer e Permissions em todas as rotas', () => {
+    for (const key of [
+      'Content-Security-Policy',
+      'Strict-Transport-Security',
+      'X-Content-Type-Options',
+      'X-Frame-Options',
+      'Referrer-Policy',
+      'Permissions-Policy',
+      'Cross-Origin-Opener-Policy',
+    ]) {
+      expect(header(key), key).not.toBe('');
+    }
+    expect(header('X-Frame-Options')).toBe('DENY');
+    expect(header('X-Content-Type-Options')).toBe('nosniff');
+    expect(header('Strict-Transport-Security')).toMatch(/max-age=\d{8,}/);
+  });
+
+  it('CSP não libera script inline nem eval', () => {
+    const csp = header('Content-Security-Policy');
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).not.toContain("'unsafe-eval'");
+    expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("base-uri 'self'");
+  });
+
+  it('CSP permite estilo só de arquivo próprio (o app não usa style inline)', () => {
+    const csp = header('Content-Security-Policy');
+    expect(csp).toContain("style-src 'self'");
+    expect(csp).not.toMatch(/style-src[^;]*'unsafe-inline'/);
+  });
+
+  it('conexão de rede só para o próprio site e o Supabase', () => {
+    const csp = header('Content-Security-Policy');
+    const connect = /connect-src ([^;]+);/.exec(csp)?.[1] ?? '';
+    expect(connect).toContain("'self'");
+    expect(connect).toContain('https://*.supabase.co');
+    expect(connect).not.toMatch(/(^|\s)\*(\s|$)/);
+    expect(connect).not.toContain('http://');
+  });
+
+  it('rotas sensíveis não são cacheadas; assets são imutáveis', () => {
+    const cacheFor = (source: string) =>
+      vercel.headers.find((entry) => entry.source === source)?.headers.find((h) => h.key === 'Cache-Control')?.value;
+    expect(cacheFor('/entrega/(.*)')).toBe('no-store');
+    expect(cacheFor('/pedido/(.*)')).toBe('no-store');
+    expect(cacheFor('/admin/(.*)')).toBe('no-store');
+    expect(cacheFor('/assets/(.*)')).toContain('immutable');
+  });
+
+  it('HTML declara no-referrer e o SPA continua com fallback de rota', () => {
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+    expect(html).toContain('content="no-referrer"');
+    expect(vercel.rewrites.some((rule) => rule.destination === '/index.html')).toBe(true);
+  });
+
+  it('nenhum estilo inline no código (senão a CSP sem unsafe-inline quebra a UI)', () => {
+    const { readdirSync, statSync } = require('node:fs') as typeof import('node:fs');
+    const srcDir = resolve(process.cwd(), 'src');
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir)) {
+        const full = resolve(dir, entry);
+        if (statSync(full).isDirectory()) walk(full);
+        else if (/\.tsx?$/.test(entry) && !/\.test\./.test(entry)) {
+          const text = readFileSync(full, 'utf8');
+          if (/\bstyle=\{/.test(text) || /dangerouslySetInnerHTML/.test(text)) offenders.push(full);
+        }
+      }
+    };
+    walk(srcDir);
+    expect(offenders).toEqual([]);
+  });
+});

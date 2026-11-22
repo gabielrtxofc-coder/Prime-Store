@@ -138,14 +138,14 @@ Resumo:
 | 2 | `_shared/handlers/mpWebhook.ts`, `wyviWebhook.ts` | `await request.text()` sem teto | mesmo leitor com teto; a assinatura continua sobre os bytes crus | idem |
 | 3 | `_shared/csv.ts` | limites por campo, **sem teto de linhas**: CSV de 2 MB ≈ 60 mil linhas, todas cifradas e enviadas num RPC | `MAX_IMPORT_ROWS = 5000`; excedente marca `truncated` e a prévia informa; o commit **recusa** com `413 import_too_large` em vez de importar parte em silêncio | idem |
 | 4 | `src/lib/publicEnv.ts` | `{...buildEnv, ...process.env}`: qualquer nome de `process.env` legível pelo bundle | lista de permissão **`VITE_*`** nos dois lados | idem |
-| 5 | `vercel.json` | **nenhum** cabeçalho de segurança | CSP, HSTS (2 anos, preload), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP; `no-store` em `/entrega`, `/pedido`, `/admin`; cache imutável em `/assets` | §7 |
+| 5 | `vercel.json` | **nenhum** cabeçalho de segurança | CSP (sem inline em script nem estilo), HSTS (2 anos, preload), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP; `no-store` em `/entrega`, `/pedido`, `/admin`; cache imutável em `/assets` | 7 testes de configuração |
 | 6 | `index.html` | descrição dizia "sem processamento de pagamentos reais" (falso: há WyviPay) | texto correto + `meta referrer=no-referrer` (defesa em profundidade) | — |
 | 7 | `vite.config.ts` | `allowedHosts: true` (qualquer `Host`) | lista explícita (`localhost`, `.localhost`, `.e2b.app`, `.e2b.dev`) + `PRIME_DEV_ALLOWED_HOSTS` | — |
 
 **Sobre a CSP escolhida:**
 
 ```
-default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline';
+default-src 'self'; script-src 'self'; style-src 'self';
 img-src 'self' data: https:; font-src 'self';
 connect-src 'self' https://*.supabase.co wss://*.supabase.co;
 object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';
@@ -155,9 +155,11 @@ upgrade-insecure-requests
 - `script-src 'self'` **sem** `'unsafe-inline'`/`'unsafe-eval'`: o build não tem
   script inline, e o Vite gera um único módulo estático. É a diretiva que mais
   importa contra XSS.
-- `style-src-attr 'unsafe-inline'` é o mínimo necessário para os `style=` do
-  React (nenhum bloco `<style>` inline existe no projeto; `style-src` fica sem
-  `unsafe-inline`).
+- `style-src 'self'` **sem** `'unsafe-inline'`: varredura do `src/` mostra
+  **zero** `style={...}`, zero `.style.` e zero `dangerouslySetInnerHTML` — o
+  projeto estiliza só por classe CSS. Um teste de regressão
+  (`hardening_borda.test.ts`) falha se um estilo inline aparecer, porque nesse
+  dia a política precisaria de `style-src-attr` de novo.
 - `img-src ... https:` é intencional: `AdminProducts` aceita URL de imagem
   externa, decisão funcional pré-existente. Imagem não executa script.
 - `connect-src` só para `*.supabase.co` (REST + Auth). Não há Realtime no
@@ -211,9 +213,13 @@ do navegador (D3).
 | `npm audit` | 0 vulnerabilidades |
 | Produção, `pg_net` antes/depois | CORS negado → liberado; origem estranha → continua negada |
 
-Novo arquivo de teste: `tests/unit/hardening_borda.test.ts` (16 casos) — teto de
-corpo (incluindo `Content-Length` mentiroso e stream sem fim), teto de linhas de
-CSV, lista de permissão de `VITE_*`, e a rede de segurança de CORS.
+Novo arquivo de teste: `tests/unit/hardening_borda.test.ts` (**24 casos**) —
+teto de corpo (incluindo `Content-Length` mentiroso e stream sem fim), teto de
+linhas de CSV, lista de permissão de `VITE_*`, a rede de segurança de CORS e a
+**configuração de segurança do site** (`vercel.json`/`index.html`): HSTS/XFO/
+nosniff/Referrer/Permissions presentes, CSP sem `unsafe-inline`/`unsafe-eval`,
+`connect-src` restrito a `self` + Supabase, `no-store` nas rotas sensíveis e um
+guarda que falha se aparecer estilo inline no `src/`.
 
 ---
 

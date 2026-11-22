@@ -140,10 +140,13 @@ allowlist (admin_users.is_active) + claim aal = 'aal2'  →  assert_admin()
 
 ## Cabeçalhos de segurança do site (missão 15)
 
-- Enviados por `vercel.json`: CSP estrita (`script-src 'self'`, sem inline),
-  HSTS 2 anos com preload, `X-Frame-Options: DENY`, `nosniff`,
+- Enviados por `vercel.json`: CSP estrita (`script-src 'self'` e
+  `style-src 'self'`, **sem** `unsafe-inline`/`unsafe-eval`), HSTS 2 anos com
+  preload, `X-Frame-Options: DENY`, `nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` e
   `Cross-Origin-Opener-Policy`.
+- A UI não usa estilo inline (só classes CSS); há teste que falha se um
+  `style={...}` aparecer, porque nesse dia a CSP precisa de `style-src-attr`.
 - `no-store` em `/entrega`, `/pedido` e `/admin`; `/assets` com cache imutável.
 - `index.html` também declara `referrer=no-referrer` para o token de entrega não
   vazar por `Referer` quando o HTML for servido fora da Vercel.
