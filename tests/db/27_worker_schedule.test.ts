@@ -6,8 +6,14 @@ it('agenda para o projeto do token sem gravar o bearer no cron', async () => {
   const db = await connect();
   try {
     await db.query('begin');
-    // Substitutos transacionais: nenhuma extensão envia tráfego no teste.
-    await db.query(`create schema cron; create schema net; create schema if not exists vault;
+    // Este teste monta substitutos TRANSACIONAIS de `cron`, `net` e `vault`
+    // (nenhuma extensão envia tráfego). O schema `net` é recriado dentro da
+    // transação para que os substitutos tenham as formas que ESTE teste
+    // controla — o arquivo 29 pode ter deixado `pg_net` registrada, com
+    // `net.http_post` de assinatura real e `http_request_queue` com `id`.
+    // Tudo é desfeito pelo rollback.
+    await db.query(`drop schema if exists net cascade; drop schema if exists cron cascade;
+      create schema cron; create schema net; create schema if not exists vault;
       create table cron.job(jobname text primary key, schedule text, command text, active boolean not null default true, username text not null default 'postgres');
       create table net.http_request_queue(url text);
       create table vault.decrypted_secrets(name text, decrypted_secret text);
