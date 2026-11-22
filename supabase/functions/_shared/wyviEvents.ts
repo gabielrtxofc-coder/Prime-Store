@@ -93,7 +93,8 @@ export async function processWyviEvent(
 
   const data = (event.provider_data ?? {}) as Record<string, unknown>;
   const txid = typeof data.txid === 'string' ? data.txid : null;
-  const reference = typeof data.referencia === 'string' ? data.referencia : event.reference;
+  const payloadReference = typeof data.referencia === 'string' ? data.referencia : null;
+  const reference = event.reference ?? payloadReference;
 
   if (!txid) {
     return { disposition: 'ignored', reason: 'evento_sem_txid' };
@@ -101,6 +102,11 @@ export async function processWyviEvent(
   if (!reference || !isUuid(reference)) {
     // Sem `referencia` (= order_id) não há como casar com segurança.
     return { disposition: 'ignored', reason: 'evento_sem_referencia_de_pedido' };
+  }
+  if (payloadReference && event.reference && payloadReference !== event.reference) {
+    // O registro possui duas cópias da referência: uma divergência indica
+    // evento malformado/tampering e nunca deve escolher um pedido por acaso.
+    return { disposition: 'ignored', reason: 'referencia_de_pedido_divergente' };
   }
 
   // Evento do ambiente errado nunca é aplicado (teste → produção e vice-versa).
@@ -136,9 +142,17 @@ export async function processWyviEvent(
   const mapped = mapChargeSituacao(charge.situacao);
 
   // Token de entrega novo quando o pagamento APROVA (mesma regra do
-  // reconciliador): hash persistido, token cifrado só em memória.
+  // reconciliador): hash persistido, token cifrado só em memória. Se o
+  // material criptográfico estiver indisponível, não confirmar o evento:
+  // reenfileirar é seguro e não libera credenciais.
   let token: { hash: string; enc: string } | null = null;
-  if (mapped.providerStatus === 'approved') token = await newDeliveryToken(deps);
+  if (mapped.providerStatus === 'approved') {
+    try {
+      token = await newDeliveryToken(deps);
+    } catch {
+      return { disposition: 'retry', reason: 'delivery_token_unavailable' };
+    }
+  }
 
   try {
     await deps.rpc('apply_payment_status', {
@@ -192,9 +206,15 @@ export async function processWyviQueueForOrder(
     if (!Array.isArray(events) || events.length === 0) return touched;
 
     for (const event of events) {
-      const outcome = await processWyviEvent(deps, config, event);
+      let outcome: EventOutcome;
+      try {
+        outcome = await processWyviEvent(deps, config, event);
+      } catch {
+        outcome = { disposition: 'retry', reason: 'event_processing_failed' };
+      }
+      const settled = await settleEvent(deps, event, outcome);
+      if (settled === 'unsettled') throw new Error('settle_failed');
       touched = true;
-      await settleEvent(deps, event, outcome);
     }
   }
   return touched;

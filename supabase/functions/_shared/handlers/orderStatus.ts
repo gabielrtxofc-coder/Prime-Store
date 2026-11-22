@@ -243,7 +243,7 @@ export async function handleOrderStatus(request: Request, deps: Deps): Promise<R
           // Indisponibilidade do provedor não deve quebrar a consulta do pedido.
           deps.log('order_status.wyvi_reconcile_failed', {
             order_id: orderId,
-            reason: error instanceof Error ? error.message.slice(0, 120) : 'unknown',
+            reason: error instanceof Error ? error.name : 'unknown',
           });
           if (error instanceof WyviPayError && error.retryAfterSeconds !== null) {
             try {

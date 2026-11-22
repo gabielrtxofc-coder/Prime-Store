@@ -1,5 +1,6 @@
 /** Chromium + build Vite + handlers reais + PG descartável. Sem servidor externo. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { chromium } from 'playwright-core';
@@ -12,9 +13,25 @@ import { handleCatalog } from '../../supabase/functions/_shared/handlers/catalog
 import { handleCreateOrder } from '../../supabase/functions/_shared/handlers/createOrder';
 import { handleOrderStatus } from '../../supabase/functions/_shared/handlers/orderStatus';
 import { handleWyviWebhook } from '../../supabase/functions/_shared/handlers/wyviWebhook';
-import { processWyviQueueForOrder } from '../../supabase/functions/_shared/wyviEvents';
+import { handleWyviWorker, makeRoleJwt } from '../../supabase/functions/_shared/handlers/wyviWorker';
 
 const origin = 'https://store.test';
+
+function chromiumExecutable(): string {
+  const candidates = [
+    process.env.CHROMIUM_PATH,
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+  ].filter((candidate): candidate is string => Boolean(candidate));
+  const executable = candidates.find((candidate) => existsSync(candidate));
+  if (!executable) {
+    throw new Error('Chromium não encontrado; instale Chromium ou defina CHROMIUM_PATH.');
+  }
+  return executable;
+}
+
 Object.assign(process.env, { VITE_BACKEND_ENABLED: 'true', VITE_SUPABASE_URL: origin,
   VITE_BACKEND_URL: `${origin}/functions/v1`, VITE_SUPABASE_ANON_KEY: 'fixture', VITE_ADMIN_DEMO: 'false' });
 const outDir = 'node_modules/.cache/store-e2e';
@@ -31,7 +48,7 @@ const rpc = createPgRpc(db);
 const deps = createDeps({config:{supabaseUrl:origin, serviceRoleKey:'fixture', anonKey:'fixture', storeUrl:origin,
   wyviEnvironment:'test', wyviApiKey:config.apiKey, wyviApiBase:config.baseUrl, wyviWebhookSecret:secret, encryptionKey:key},
   rpc, serviceRpc:rpc, fetchImpl:fake.fetchImpl, resolveEncryptionKey:async()=>key});
-const browser = await chromium.launch({executablePath:process.env.CHROMIUM_PATH});
+const browser = await chromium.launch({ executablePath: chromiumExecutable() });
 try {
   const page = await browser.newPage();
   page.setDefaultTimeout(8000);
@@ -41,7 +58,15 @@ try {
     const u = new URL(req.url());
     if (u.origin !== origin) return route.abort();
     if (u.pathname.startsWith('/functions/')) {
-      const handler = handlers.get(u.pathname.split('/').pop()!);
+      const functionName = u.pathname.split('/').pop()!;
+      if (functionName === 'wyvi-worker') {
+        const res = await handleWyviWorker(
+          new Request(u, { method: req.method(), headers: req.headers(), body: req.postData() ?? undefined }),
+          deps,
+        );
+        return route.fulfill({ status: res.status, contentType: 'application/json', body: await res.text() });
+      }
+      const handler = handlers.get(functionName);
       if (!handler) return route.abort();
       const res = await handler(new Request(u,{method:req.method(),headers:req.headers(),body:req.postData() ?? undefined}),deps);
       return route.fulfill({status:res.status,contentType:'application/json',body:await res.text()});
@@ -66,8 +91,21 @@ try {
   assert(payment.provider_payment_id);
   fake.setSituacao(payment.provider_payment_id,'concluida');
   const event = signWyviEvent({secret,evento:'cobranca.paga',deliveryId:randomUUID(),dados:{txid:payment.provider_payment_id, referencia:payment.order_id,valor_centavos:10000}});
-  assert.equal((await handleWyviWebhook(signedWyviRequest(event),deps)).status,200);
-  await processWyviQueueForOrder(deps,config,payment.order_id);
+  assert.equal((await handleWyviWebhook(signedWyviRequest(event), deps)).status, 200);
+  const workerResponse = await handleWyviWorker(
+    new Request(`${origin}/functions/v1/wyvi-worker`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${makeRoleJwt('service_role')}`,
+      },
+      body: '{}',
+    }),
+    deps,
+  );
+  assert.equal(workerResponse.status, 200);
+  const workerSummary = (await workerResponse.json()) as { processed: number };
+  assert.equal(workerSummary.processed, 1);
   await page.reload();
   await page.getByText('Pagamento confirmado',{exact:true}).first().waitFor();
   assert.equal(Number(await sqlValue("select count(*) from public.stock_units where status='sold'")),2);

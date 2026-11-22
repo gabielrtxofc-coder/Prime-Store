@@ -244,7 +244,7 @@ export function PaymentPage() {
 
             {paid ? (
               <div className="payment-success">
-                <p><strong>Pagamento confirmado.</strong> Suas credenciais já estão liberadas.</p>
+                <p><strong>Pagamento confirmado.</strong> A entrega privada só fica disponível após a preparação pelo backend.</p>
                 {status.delivery?.url ? (
                   <Link className="button button--primary button--large" to={deliveryPath(status.delivery.url)}>
                     Abrir entrega privada <Icon name="arrow-right" size={18} />

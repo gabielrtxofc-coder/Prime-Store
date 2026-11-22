@@ -34,9 +34,9 @@ npm run build && npm run preview     # produção
 ## Verificações
 
 ```bash
-npm test             # 151 testes de frontend (jsdom)
-npm run test:db      # 405 testes de banco/back-end + unitários
-npm run test:all     # tudo (556)
+npm test             # 168 testes de frontend (jsdom)
+npm run test:db      # 441 testes de banco/back-end + unitários
+npm run test:all     # tudo (609)
 npm run typecheck
 npm run build
 ```

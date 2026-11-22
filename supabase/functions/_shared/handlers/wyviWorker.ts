@@ -1,6 +1,14 @@
 import { type Deps } from '../deps.ts';
 import { json } from '../http.ts';
-import { processWyviEvent, settleEvent, type ClaimedWyviEvent } from '../wyviEvents.ts';
+import {
+  processWyviEvent,
+  settleEvent,
+  type ClaimedWyviEvent,
+  type EventOutcome,
+} from '../wyviEvents.ts';
+
+const MAX_EVENTS_PER_RUN = 10;
+const MAX_RUN_DURATION_MS = 30_000;
 
 /**
  * Lógica da Edge Function `wyvi-worker` isolada do `Deno.serve` para ser
@@ -20,11 +28,15 @@ import { processWyviEvent, settleEvent, type ClaimedWyviEvent } from '../wyviEve
 /** Só o service role (chave do servidor) pode acionar o processador. */
 export function isServiceRole(request: Request): boolean {
   const header = request.headers.get('authorization') ?? '';
-  const part = /^Bearer +[\w-]+\.([\w-]+)\.[\w-]+$/i.exec(header)?.[1];
+  const part = /^Bearer\s+([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/i.exec(header)?.[2];
   if (!part) return false;
   try {
-    const json = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
-    return json?.role === 'service_role';
+    // JWTs commonly omit base64 padding. Restore it before `atob` so the
+    // same check works with both legacy Supabase tokens and test fixtures.
+    const base64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const claims = JSON.parse(atob(padded)) as { role?: unknown };
+    return claims?.role === 'service_role';
   } catch {
     return false;
   }
@@ -43,6 +55,8 @@ export async function handleWyviWorker(request: Request, deps: Deps): Promise<Re
   if (!isServiceRole(request)) {
     return json({ error: 'unauthorized' }, { status: 401 });
   }
+  if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, { status: 405 });
+
   try {
     const config = deps.config;
     if (!config.wyviApiKey) {
@@ -55,17 +69,32 @@ export async function handleWyviWorker(request: Request, deps: Deps): Promise<Re
       fetchImpl: deps.fetchImpl,
     };
 
-    if (request.method !== 'POST') return json({error: 'method_not_allowed'}, {status: 405});
     const summary = { claimed: 0, processed: 0, ignored: 0, retried: 0, failed: 0 };
     // Não travar os últimos itens de um lote enquanto os primeiros aguardam a API.
-    const deadline = Date.now() + 30_000;
-    while (summary.claimed < 10 && Date.now() < deadline) {
-      const events = await deps.rpc<ClaimedWyviEvent[]>('claim_wyvi_events', {p_order_id: null, p_limit: 1});
+    const deadline = Date.now() + MAX_RUN_DURATION_MS;
+    while (summary.claimed < MAX_EVENTS_PER_RUN && Date.now() < deadline) {
+      const events = await deps.rpc<ClaimedWyviEvent[]>('claim_wyvi_events', {
+        p_order_id: null,
+        p_limit: 1,
+      });
       if (!Array.isArray(events)) throw new Error('invalid_claim');
       if (!events.length) break;
       const [event] = events;
       summary.claimed++;
-      const result = await settleEvent(deps, event, await processWyviEvent(deps, wyviConfig, event));
+
+      let outcome: EventOutcome;
+      try {
+        outcome = await processWyviEvent(deps, wyviConfig, event);
+      } catch {
+        // Uma falha inesperada por evento não pode transformar um claim em
+        // sucesso silencioso. Reenfileira com o mesmo mecanismo de backoff;
+        // a resposta HTTP continua estável e sem detalhes internos.
+        outcome = { disposition: 'retry', reason: 'event_processing_failed' };
+      }
+
+      const result = await settleEvent(deps, event, outcome);
+      // Sem confirmação da RPC de desfecho, o evento continua recuperável
+      // quando a lease expirar — nunca contabilizar como processado.
       if (result === 'unsettled') throw new Error('settle_failed');
       if (result === 'retry') summary.retried++;
       else summary[result]++;

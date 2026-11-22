@@ -1,6 +1,26 @@
 # Prime Store — decisão de lançamento | 20/11/2026 UTC
 
-## Decisão vigente — Missão 09: BLOCKED para produção
+> **Atualização da Missão 15 — 22/11/2026 UTC.** O bloco abaixo registra a decisão
+> histórica da Missão 09; não o use como inventário remoto atual. Nesta rodada,
+> a base local inclui a PR #12 integrada sem conflitos sobre a main que já
+> continha a PR #13. A validação read-only do projeto Supabase `prime-store`
+> confirmou o histórico das migrations 0043, 0044, 0045 e de isolamento de estoque;
+> há um único job ativo `prime-store-wyvi-worker`, a cada minuto, e uma entrada
+> Vault `wyvi_worker_jwt`. O JWT não é gravado neste documento nem no comando
+> persistido; o destino é derivado do claim `ref` e a chamada exige
+> `role=service_role`. As execuções do cron nas últimas 24 horas foram 1.440
+> bem-sucedidas, sem alteração remota nesta rodada.
+>
+> Evidência local atual: `npm test` 168/168, `npm run test:db` 441/441 usando
+> exclusivamente `postgresql://postgres:postgres@127.0.0.1:55432/postgres`,
+> typecheck/build/bundle (10 funções) e `npm audit --omit=dev` sem falhas. A
+> jornada E2E foi executada com Chromium real e WyviPay simulada; o CI também
+> instala Chromium antes de executá-la. Nenhum pedido, cobrança, secret ou
+> deployment foi criado/alterado por essa validação. A homologação externa da
+> WyviPay, publicação das funções e promoção Vercel permanecem pendentes até os
+> checks remotos da revisão publicada e as ações do proprietário.
+
+## Decisão histórica — Missão 09: BLOCKED para produção
 
 Branch `arena/08e0931c-prime-store`, [PR #12](https://github.com/gabielrtxofc-coder/Prime-Store/pull/12), entrada limpa em `6d5061c` (todos os três checks passaram). **Candidato de código: `047317bfa2cb09d0ff8a03426d2f6c06ff492e95`**; alterações seguintes de relatório não mudam o runtime. A versão publicada não foi alterada. [Roteiro do proprietário](prime-store-owner-actions.md).
 
@@ -15,7 +35,7 @@ Branch `arena/08e0931c-prime-store`, [PR #12](https://github.com/gabielrtxofc-co
 
 **O que mudou:** `handlers/wyviWorker.ts` e `_shared/wyviEvents.ts` reivindicam eventos individualmente, evitando que um lote sequencial gaste a lease de 60 s antes de chegar ao último item. O worker limita dez itens e para de iniciar novas tentativas após 30 s; PostgreSQL usa `FOR UPDATE SKIP LOCKED`. O contador reflete a gravação do resultado (inclusive última tentativa terminal); falha ao gravar gera 500 genérico, lease recuperável e log sem a mensagem bruta. Retry respeita o maior entre backoff local e Retry-After limitado. A autenticação de plataforma permanece obrigatória. `tests/db/26*` verifica falha de persistência; `tests/db/27*` verifica repetição do agendamento. Não se promete exclusão indefinida se uma chamada exceder a lease: a aplicação financeira continua idempotente.
 
-**Rodada final local:** `npm ci`, `npm run typecheck`, `npm run build`, `npm run bundle:functions` (10), `npm test` **162/162**, `npm run test:db` **429/429** e `npm run test:e2e` com Chromium **1/1**; `npm audit` zero advisories. Sem script de lint (**NOT APPLICABLE** ao conjunto de comandos existentes; não equivale a lint aprovado). Primeira execução DB teve 4 falhas: a nova fixture de falha de persistência consultava o fake e alterava contadores compartilhados; corrigida a fixture para isolar a gravação, sem remover assertions. Rerun completo verde. Sem operação financeira ou escrita remota. Checks finais por SHA na PR; o relatório histórico abaixo não é o resultado desta rodada.
+**Rodada local registrada anteriormente:** `npm ci`, `npm run typecheck`, `npm run build`, `npm run bundle:functions` (10), `npm test` **162/162**, `npm run test:db` **429/429** e `npm run test:e2e` com Chromium **1/1**; `npm audit` zero advisories. Essa contagem é histórica e não representa a rodada atual. Na rodada atual, o E2E também foi executado com Chromium real e os checks devem ser conferidos no CI para a revisão publicada. Sem operação financeira ou escrita remota.
 
 **Decisão:** candidato apto à homologação isolada. Não aprovar publicação comercial: faltam worker ativo e observado, homologação, administrador legítimo, catálogo/estoque, documentos/atendimento, recuperação e aceite de publicação. Nenhuma configuração externa foi considerada resolvida por passar em teste local.
 
@@ -84,7 +104,7 @@ npm run typecheck && npm run build
 npm test
 npm run test:db
 npm run bundle:functions
-CHROMIUM_PATH="$(command -v google-chrome)" npm run test:e2e
+CHROMIUM_PATH="$(command -v chromium || command -v google-chrome)" npm run test:e2e
 npm audit
 ```
 
