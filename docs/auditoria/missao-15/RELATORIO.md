@@ -239,18 +239,42 @@ commit do GitHub e só muda com novo deploy. Durante esta missão:
 
 | Função | Versão | Corpo | Origem |
 | --- | --- | --- | --- |
-| `catalog` | **v9** | bundle **inline** e autocontido (0 imports) gerado por `scripts/bundle-functions.mjs` + `update_edge_function` | esta missão |
-| demais 7 | inalteradas | eszip preso ao commit `cc421f8` | deploys anteriores |
+| `catalog` | **v9** | bundle **inline** e autocontido (0 imports) | esta missão |
+| `order-request` | **v9** | bundle **inline** e autocontido | esta missão |
+| `delivery` | **v9** | bundle **inline** e autocontido | esta missão |
+| `wyvi-webhook` | **v9** | bundle **inline** e autocontido | esta missão |
+| `create-order` | **v9** | bundle **inline** e autocontido | esta missão |
+| `order-status` | **v9** | bundle **inline** e autocontido | esta missão |
+| `admin-api` | v9 (anterior) | bundle anterior à missão — **sem** teto de corpo/linhas | deploy anterior |
+| `wyvi-worker` | v9 (anterior) | bundle anterior à missão | deploy anterior |
 
-**Por que só o `catalog` foi reimplantado:** é a única função cujo
-comportamento visível mudou de forma verificável sem risco (GET + corpo com
-teto) e serve de canário do novo leitor. As demais correções (teto no CSV do
-`admin-api`, corpo cru dos webhooks, `order-request`) só passam a valer no
-próximo `supabase functions deploy` feito a partir deste commit — que é o
-caminho normal do projeto (CI + CLI). **Não reimplantei o `admin-api` pelo
-conector**: o bundle tem ~48 KB, o limite prático de argumento da ferramenta é
-bem menor, e uma falha no meio de um deploy administrativo é pior do que
-esperar o deploy versionado.
+As **seis** funções reimplantadas são as de borda externa: recebem corpo ou URL
+de fora e têm comportamento observável alterado pelo leitor novo (as quatro
+públicas `catalog`/`order-request`/`create-order`/`order-status`, a pública de
+leitura `delivery` e o webhook de pagamento `wyvi-webhook`). Todas continuam
+com `verify_jwt` igual ao que já tinham — o deploy não mudou autorização.
+
+**O que fica para o deploy por CLI:** `admin-api` e `wyvi-worker` — as duas
+únicas com `verify_jwt=true`. `admin-api` é a de maior risco de deploy manual
+(bundle de ~48 KB e caminho administrativo de importação de credenciais): uma
+meia-aplicação ali é pior do que esperar o `supabase functions deploy`
+versionado, que aplica tudo de uma vez a partir deste commit. `wyvi-worker` é
+chamada por cron interno. Nenhuma das duas perde funcionalidade por esperar.
+
+**Por que essas quatro:** são exatamente as funções de **borda externa**
+(públicas ou de webhook) em que o teto de corpo e o leitor de corpo cru mudam
+comportamento observável. Foram implantadas uma a uma, cada uma verificada por
+HTTP real antes da seguinte — `catalog` serviu de canário, `order-request` e
+`delivery` foram checadas com o corpo/URL real, e `wyvi-webhook` com assinatura
+falsa (401) para provar que o caminho criptográfico continua íntegro.
+
+**O que fica para o deploy por CLI:** `create-order`, `order-status`,
+`admin-api` e `wyvi-worker`. As duas primeiras rodam atrás de `verify_jwt`;
+`admin-api` também e tem bundle de ~48 KB (o limite prático do argumento do
+conector é menor, e uma falha no meio de um deploy administrativo é pior do que
+esperar o deploy versionado); `wyvi-worker` é chamado por cron interno. Nenhuma
+delas perde funcionalidade por esperar — o código novo já está no commit e o
+próximo `supabase functions deploy` as alinha.
 
 Prova do canário (produção, `pg_net`):
 
@@ -258,10 +282,28 @@ Prova do canário (produção, `pg_net`):
 GET  catalog  Origin: https://prime-store-gilt.vercel.app
 → 200, Access-Control-Allow-Origin: https://prime-store-gilt.vercel.app
 
-POST order-request  corpo de 4,2 MB   (função ainda na v anterior)
+POST order-request  corpo de 4,2 MB   (função AINDA na v anterior)
 → 422 invalid_items   ← o corpo INTEIRO foi aceito e parseado: é exatamente
                         o custo que o teto novo remove
+
+-- depois do deploy das v9 --
+POST order-request  corpo normal, Origin do site
+→ 404 product_unavailable + ACAO do site   ← o corpo passou pelo leitor novo
+POST wyvi-webhook   assinatura falsa
+→ 401 invalid_signature                    ← corpo cru lido pelo leitor novo,
+                                             HMAC conferido, sem exceção
+GET  delivery       sem token
+→ 404 not_found + ACAO do site
+POST create-order   produto inexistente, Origin do site
+→ 404 product_unavailable + ACAO do site
+POST order-status   token curto
+→ 404 not_found + ACAO do site
 ```
+
+Todas as respostas acima vieram de `net._http_response` (produção, `pg_net`),
+com `status_code` real. Nenhuma função devolveu 5xx: os seis caminhos de erro
+são de domínio, o que mostra que o corpo é lido, validado e respondido — não
+engolido.
 
 O deploy do `catalog` pelo conector usa o bundle inline; o arquivo em
 `supabase/functions/` continua sendo a fonte. O próximo deploy por CLI a partir
