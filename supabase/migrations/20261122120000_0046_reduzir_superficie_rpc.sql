@@ -51,9 +51,11 @@
 -- `pg_net` são descobertos em `pg_proc`/`pg_namespace` por nome, e a
 -- assinatura aplicada é a do próprio catálogo (`p.oid::regprocedure`).
 --
--- Compatibilidade: em ambiente sem `pg_net` (local/CI, onde
--- `bootstrap_local.sql` não instala a extensão) os blocos de descoberta são
--- vazios e a migração conclui sem erro.
+-- Compatibilidade: em ambiente sem os objetos de `pg_net` (local e CI, onde a
+-- extensão não está instalada) a descoberta vem vazia e a migração conclui sem
+-- erro. O gate é a existência das FUNÇÕES em `pg_proc`, nunca a linha em
+-- `pg_extension`: um PostgreSQL sem o binário da extensão simplesmente não tem
+-- o que revogar, e fingir que tem foi o que produziu o verde falso da 15.1.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -69,7 +71,7 @@ revoke execute on function public.admin_stock_summary() from public, anon, authe
 -- ----------------------------------------------------------------------------
 do $$
 declare
-  v_ext_instalada  boolean;
+  v_existe_net     boolean;
   v_schema_dono    text;
   v_posso_revogar  boolean;
   v_nomes          text[] := array['http_post', 'http_get', 'http_delete'];
@@ -79,11 +81,28 @@ declare
   v_reg            record;
   v_acl            text;
 begin
-  select exists (select 1 from pg_extension where extname = 'pg_net')
-    into v_ext_instalada;
+  -- O GATE É O OBJETO, NÃO O REGISTRO DA EXTENSÃO.
+  --
+  -- A versão anterior testava `pg_extension.pg_net` e, com isso, só funcionava
+  -- em bases onde a extensão estivesse registrada. Duas consequências ruins:
+  --   * num PostgreSQL sem o binário (CI, serviço `postgres:18`) o bloco era
+  --     sempre pulado, e a suíte nunca exercitava a revogação;
+  --   * a tentação de "simular" a extensão escrevendo um arquivo de controle
+  --     em `node_modules` produziu um verde que não se reproduzia fora da
+  --     máquina de quem escreveu o teste — foi exatamente o furo da 15.1.
+  --
+  -- O que a migração precisa saber é se as funções EXISTEM. `pg_proc` é a
+  -- fonte de verdade, e ela existe em qualquer PostgreSQL.
+  v_existe_net := exists (
+    select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'net'
+       and p.proname = any (v_nomes)
+  );
 
-  if not v_ext_instalada then
-    raise notice 'pg_net ausente neste ambiente — nada a revogar (esperado em local/CI).';
+  if not v_existe_net then
+    raise notice 'nenhuma função net.http_* neste ambiente — nada a revogar (esperado em local/CI).';
     return;
   end if;
 
@@ -112,14 +131,14 @@ begin
     -- Extensão instalada mas nenhuma das três funções públicas: é uma
     -- anomalia real e precisa ser investigada, não ignorada.
     raise exception
-      'pg_net instalada, mas nenhuma de % foi encontrada no schema net. '
-      'Investigação necessária: a versão da extensão pode ter renomeado as funções.',
+      'schema net existe, mas nenhuma de % foi encontrada. '
+      'Investigação necessária: a versão do pg_net pode ter renomeado as funções.',
       v_nomes;
   end if;
 
   if cardinality(v_alvos) <> v_esperadas then
     raise warning
-      'pg_net: esperava % funções (%), encontrei %: %. Prosseguindo com as encontradas.',
+      'net.*: esperava % funções (%), encontrei %: %. Prosseguindo com as encontradas.',
       v_esperadas, v_nomes, cardinality(v_alvos), v_alvos;
   end if;
 
@@ -133,13 +152,13 @@ begin
      where n.nspname = 'net'
   );
 
-  raise notice 'pg_net: dono do schema = %, sessão = %, pode revogar = %, alvos = %',
+  raise notice 'net.*: dono do schema = %, sessão = %, pode revogar = %, alvos = %',
     v_schema_dono, current_user, v_posso_revogar, v_alvos;
 
   if not v_posso_revogar then
     -- NÃO finge sucesso. Registra a limitação e a consulta que comprova.
     raise warning
-      'pg_net é de % e esta sessão (%) não é dona nem superusuária: '
+      'net.* pertence a % e esta sessão (%) não é dona nem superusuária: '
       'REVOKE seria um no-op silencioso (ACL inalterada). Nenhuma revogação aplicada. '
       'A superfície exige ação do proprietário (supabase_admin).',
       v_schema_dono, current_user;

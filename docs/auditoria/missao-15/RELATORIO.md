@@ -395,10 +395,9 @@ suíte anterior:
 
 **Correção estrutural (não apenas de SQL):**
 
-1. `tests/db/29_pg_net_permissoes.test.ts` **registra** `pg_net` de verdade
-   (arquivo de controle em `sharedir/extension` + `CREATE EXTENSION`), com as
-   **assinaturas reais** lidas do catálogo de produção, e entrega a posse a um
-   papel separado — a topologia que expõe os defeitos 2 e 3.
+1. `tests/db/29_pg_net_permissoes.test.ts` recria `net.http_post`/`http_get`/
+   `http_delete` com as **assinaturas reais** lidas do catálogo de produção e
+   entrega a posse a um papel separado — a topologia que expõe os defeitos 2 e 3.
 2. A migração passou a **descobrir** os alvos em `pg_proc` (nunca assinatura
    digitada), a **checar se pode revogar** e a **verificar o resultado**
    (`has_function_privilege` + `aclexplode`, `grantee = 0`), levantando exceção
@@ -407,6 +406,30 @@ suíte anterior:
    ação necessária — a limitação fica no log, não debaixo do tapete.
 4. Não há `WHEN OTHERS THEN NULL`: se `pg_net` existe e as funções não são
    encontradas, é **exceção**, não silêncio.
+
+**Segundo erro de método, encontrado no CI (e mais grave que o primeiro).** A
+primeira versão desta suíte registrava a extensão escrevendo
+`pg_net.control` + `pg_net--0.20.4.sql` em
+`node_modules/@embedded-postgres/.../sharedir/extension` e chamando
+`CREATE EXTENSION`. Funcionava na máquina onde os arquivos foram escritos — e
+**nunca** no CI, onde o PostgreSQL é o serviço `postgres:18` do Docker e o
+`node_modules` é recém-instalado a cada execução. No runner, o
+`CREATE EXTENSION` falhava, o erro estava engolido por
+`.catch(() => undefined)` (**proibido nesta missão**), e as asserções falhavam
+em cascata com `function net.http_post(...) does not exist` — o mesmo `42883`
+que a 0046 corrigida existe para evitar.
+
+A correção foi remover a dependência falsa nas duas pontas:
+
+| Antes | Depois |
+|---|---|
+| migração age se `pg_extension` tem `pg_net` | migração age se as **funções** existem em `pg_proc` |
+| teste inventa um arquivo de controle para "instalar" a extensão | teste cria os objetos reais, com as assinaturas reais |
+| extensão "simulada" só existe na máquina de quem escreveu | roda em qualquer PostgreSQL, inclusive `postgres:18` |
+
+Essa mudança é melhor para a migração também: um PostgreSQL com os objetos de
+`net` mas sem a linha em `pg_extension` é justamente o caso que a versão antiga
+ignorava. O gate agora é o objeto, não o registro.
 
 Um efeito colateral instrutivo: a primeira versão da verificação usava
 `p.proacl like '%X/%'`, que **toda** concessão nominal satisfaz

@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { connect, MIGRATIONS_DIR, resetDatabase, runSql } from './helpers';
 
 /**
@@ -18,20 +17,23 @@ import { connect, MIGRATIONS_DIR, resetDatabase, runSql } from './helpers';
  *   3. `REVOKE ... FROM PUBLIC` removeria a única via pela qual o `postgres`
  *      executa `net.http_post`, ou seja, quebraria o cron do worker.
  *
- * Aqui o `pg_net` é REPRODUZIDO com as assinaturas reais lidas do catálogo de
- * produção (pg_net 0.20.4) e com dono separado (`pg_net_owner`), que é a
- * condição que expõe os defeitos 2 e 3. Usar a extensão de verdade não é
- * possível no sandbox (não há binário para a versão do PostgreSQL local), por
- * isso as funções são recriadas com a MESMA assinatura e a MESMA topologia de
- * privilégios — não com assinaturas conveniente simplificadas.
+ * Aqui a topologia é REPRODUZIDA com os objetos que a migração de fato
+ * manipula: `net.http_post`/`http_get`/`http_delete` com as assinaturas reais
+ * lidas do catálogo de produção (pg_net 0.20.4), schema `net` e posse em um
+ * papel separado (`net_ext_owner`) — a condição que expõe os defeitos 2 e 3.
+ *
+ * A migração age sobre `pg_proc`, não sobre a linha de `pg_extension`. Isso é
+ * deliberado: é a única forma de esta suíte rodar em qualquer PostgreSQL real,
+ * inclusive o serviço `postgres:18` do CI, que nunca terá o binário da
+ * extensão. Foi um `CREATE EXTENSION` "simulado" (arquivo de controle escrito
+ * em `node_modules`) que produziu o verde falso da 15.1 — ele não existe no
+ * runner. Ver o cabeçalho da 0046.
  */
 
 const MIGRACAO = readFileSync(
   `${MIGRATIONS_DIR}/20261122120000_0046_reduzir_superficie_rpc.sql`,
   'utf8',
 );
-
-let caminhoSharedir: string | null = null;
 
 const DONO = 'net_ext_owner';
 const SESSION_ROLE = 'net_ext_session';
@@ -46,11 +48,6 @@ const ASSINATURAS = [
 async function limpar() {
   // Devolve a posse da função pública antes de apagar os papéis de teste.
   await runSql('alter function public.admin_stock_summary() owner to postgres').catch(() => undefined);
-  // ORDEM IMPORTA: a extensão de teste não possui objetos, então
-  // `drop schema net cascade` NÃO remove a linha de `pg_extension`. Sem o
-  // `drop extension` primeiro, a migração seguinte encontraria `pg_net`
-  // registrada sem funções e falharia — corretamente, mas por resíduo de teste.
-  await runSql('drop extension if exists pg_net').catch(() => undefined);
   await runSql('drop schema if exists net cascade').catch(() => undefined);
   for (const role of [SESSION_ROLE, DONO]) {
     // `drop role` falha se o papel ainda possuir objetos; revogar memberships
@@ -61,89 +58,22 @@ async function limpar() {
 }
 
 /**
- * Reproduz a topologia de produção **incluindo o registro da extensão**.
- *
- * A migração decide se age consultando `pg_extension` (é assim que se sabe se
- * `pg_net` existe). Recriar apenas o schema `net` e as funções NÃO é
- * suficiente: sem a linha em `pg_extension`, a migração corretamente conclui
- * que a extensão não está instalada. Foi por isso que a primeira tentativa
- * desta suíte passou por cenários falsos.
- *
- * A extensão é registrada pelo caminho oficial do PostgreSQL (arquivo de
- * controle em `sharedir/extension` + `CREATE EXTENSION`), com a versão real
- * do projeto (0.20.4). O SQL de instalação é vazio de propósito: as funções
- * são criadas em seguida **com as assinaturas lidas do catálogo de produção**,
- * porque o binário da extensão não existe para a versão do PostgreSQL local.
- */
-function escreverArquivosDeControle(sharedir: string): void {
-  // O SQL de instalação precisa conter os objetos que as migrações do projeto
-  // esperam encontrar, senão a `0044` criaria a extensão e falharia em seguida
-  // em `to_regclass('net.http_request_queue')`. As assinaturas abaixo são as
-  // de pg_net 0.20.4, lidas do catálogo de produção — não versões inventadas.
-  const sqlInstalacao = `
-create table if not exists net.http_request_queue (
-  id bigint generated always as identity primary key,
-  method text not null,
-  url text not null,
-  headers jsonb not null,
-  body bytea,
-  timeout_milliseconds int not null default 5000,
-  created timestamptz not null default now()
-);
-create table if not exists net._http_response (
-  id bigint,
-  status_code int,
-  content_type text,
-  headers jsonb,
-  content text,
-  timed_out bool,
-  error_msg text,
-  created timestamptz not null default now()
-);
-create or replace function net.http_post(
-  url text,
-  body jsonb default '{}'::jsonb,
-  params jsonb default '{}'::jsonb,
-  headers jsonb default '{"Content-Type": "application/json"}'::jsonb,
-  timeout_milliseconds integer default 5000
-) returns bigint language sql as 'select 1::bigint';
-create or replace function net.http_get(
-  url text,
-  params jsonb default '{}'::jsonb,
-  headers jsonb default '{}'::jsonb,
-  timeout_milliseconds integer default 5000
-) returns bigint language sql as 'select 2::bigint';
-create or replace function net.http_delete(
-  url text,
-  params jsonb default '{}'::jsonb,
-  headers jsonb default '{}'::jsonb,
-  timeout_milliseconds integer default 5000,
-  body jsonb default null
-) returns bigint language sql as 'select 3::bigint';
-`;
-  writeFileSync(
-    path.join(sharedir, 'pg_net.control'),
-    [
-      // Arquivo de controle do PostgreSQL usa aspas SIMPLES.
-      "comment = 'test-only pg_net (real 0.20.4 signatures, no C library)'",
-      "default_version = '0.20.4'",
-      'relocatable = false',
-      'schema = net',
-      '',
-    ].join('\n'),
-  );
-  writeFileSync(path.join(sharedir, 'pg_net--0.20.4.sql'), sqlInstalacao);
-}
-
-/**
  * Recria os objetos de `net` com as assinaturas reais e os entrega ao papel
  * `DONO`, reproduzindo produção (onde `net.*` pertence a `supabase_admin` e
  * quem executa a migração é o `postgres`, que NÃO é dono).
  *
- * O schema `net` é criado aqui porque `DROP EXTENSION` o remove junto: a
- * extensão é dona dos objetos do seu script de instalação.
+ * A montagem é autossuficiente: (re)cria os dois papéis, recria o schema
+ * `net`, cria as três funções com as assinaturas do catálogo e só então
+ * transfere a posse. Cada cenário chama esta função justamente para não herdar
+ * ACL de um cenário anterior.
  */
 async function instalarObjetosNetComDonoSeparado() {
+  await limpar();
+  await runSql(`create role ${DONO} nologin`);
+  await runSql(`create role ${SESSION_ROLE} nologin`);
+  // Em produção a función órfã pertence ao `postgres`, que é quem executa a
+  // migração. Aqui a sessão é `SESSION_ROLE`, então a posse acompanha.
+  await runSql(`alter function public.admin_stock_summary() owner to ${SESSION_ROLE}`);
   await runSql('drop schema if exists net cascade');
   await runSql(`create schema net authorization ${DONO}`);
   // A função pública cuja posse é transferida mora em `public`. Quem executa a
@@ -180,30 +110,6 @@ create function net.http_delete(url text, params jsonb, headers jsonb,
   await transferirPosseParaDono();
 }
 
-async function instalarPgNetSimulado() {
-  // Ordem obrigatória: apagar extensão → apagar schema → recriar schema →
-  // registrar extensão → recriar objetos → transferir posse.
-  await limpar();
-  await runSql(`create role ${DONO} nologin`);
-  await runSql(`create role ${SESSION_ROLE} nologin`);
-  await runSql(`grant usage on schema public to ${DONO}, ${SESSION_ROLE}`);
-  await runSql(`alter function public.admin_stock_summary() owner to ${SESSION_ROLE}`);
-
-  // Registra a extensão (é o que a migração consulta) já sobre o schema `net`,
-  // que precisa existir antes por causa de `schema = net` no control file.
-  await runSql(`create schema net authorization ${DONO}`);
-  await runSql('grant usage on schema net to public, anon, authenticated');
-  await runSql('create extension pg_net').catch(() => undefined);
-
-  // `CREATE EXTENSION` executa o script de instalação e JÁ cria as três
-  // funções com as assinaturas reais (pertencem ao executor). Basta então
-  // transferir a posse ao papel separado — recriar o schema aqui apagaria
-  // exatamente o que a extensão acabou de criar.
-  await runSql(`grant usage on schema net to ${SESSION_ROLE}`);
-  await transferirPosseParaDono();
-}
-
-/** Diretório `extension` do servidor, descoberto sem presumir um caminho só. */
 /**
  * Reatribui a posse das funções ao papel separado, como em produção.
  *
@@ -211,31 +117,12 @@ async function instalarPgNetSimulado() {
  * as funções do `pg_net` têm `proacl = NULL`, ou seja, usam os privilégios
  * PADRÃO do PostgreSQL — que já incluem EXECUTE para PUBLIC. `ALTER OWNER`
  * preserva `proacl = NULL`; forçar uma ACL explícita com GRANT apenas
- * duplicaria (e mascararia) o mesmo privilégio.
+ * duplicaria o mesmo privilégio e quebraria a comparação com produção.
  */
 async function transferirPosseParaDono() {
   for (const assinatura of ASSINATURAS) {
     await runSql(`alter function net.${assinatura} owner to ${DONO}`);
   }
-}
-
-async function sharedirDoServidor(): Promise<string> {
-  if (caminhoSharedir) return caminhoSharedir;
-  // `pg_config --sharedir` não é exposto pelo SQL; o pacote do embedded-postgres
-  // distribui o diretório `extension` junto com o servidor.
-  const candidatos = [
-    'node_modules/@embedded-postgres/linux-x64/native/share/postgresql/extension',
-    'node_modules/@embedded-postgres/linux-arm64/native/share/postgresql/extension',
-    'node_modules/@embedded-postgres/darwin-arm64/native/share/postgresql/extension',
-    'node_modules/@embedded-postgres/darwin-x64/native/share/postgresql/extension',
-  ].map((rel) => path.join(process.cwd(), rel));
-  for (const dir of candidatos) {
-    if (existsSync(dir)) {
-      caminhoSharedir = dir;
-      return dir;
-    }
-  }
-  throw new Error('sharedir do PostgreSQL não encontrado — não é seguro criar a extensão de teste');
 }
 
 async function aclDe(proname: string): Promise<string> {
@@ -286,28 +173,19 @@ async function executa(role: string, proname: string): Promise<boolean> {
 describe('29 — migração 0046 sobre pg_net com topologia real', () => {
   beforeAll(async () => {
     // A 0046 roda no meio de `resetDatabase()`. Se uma execução anterior deixou
-    // a extensão registrada (execução interrompida), a migração falharia
-    // legitimamente com "pg_net instalada, mas nenhuma função encontrada".
-    // Por isso a limpeza vem ANTES do reset.
+    // objetos de `net` para trás (execução interrompida), a migração agiria
+    // sobre eles durante o reset — estado de teste vazando para o teste. A
+    // limpeza vem antes para que o reset comece do zero, como em CI.
     await limpar().catch(() => undefined);
-    // O arquivo de controle precisa existir ANTES do reset: a migração 0044
-    // cria `pg_net` se ela estiver disponível. Em CI o `node_modules` é novo,
-    // então o teste provisiona o arquivo sozinho em vez de depender do
-    // ambiente — sem isso, a suíte passaria só na máquina onde ele foi criado.
-    escreverArquivosDeControle(await sharedirDoServidor());
     await resetDatabase();
   }, 180000);
 
   afterAll(async () => {
     await limpar();
-    // Deixa o banco como encontrou. `net`/`cron`/`vault` são criados pelas
-    // migrações apenas quando as extensões estão disponíveis; como este
-    // arquivo TORNA `pg_net` disponível (arquivo de controle de teste), ele
-    // precisa remover os resíduos — senão a suíte seguinte encontra um
-    // ambiente mais rico do que o real.
+    // Deixa o banco como encontrou. Os substitutos de `cron`/`vault`/`net`
+    // existem só para este arquivo e não podem sobrar para o próximo.
     await runSql('drop schema if exists cron cascade').catch(() => undefined);
     await runSql('drop schema if exists vault cascade').catch(() => undefined);
-    await runSql('drop extension if exists pg_net').catch(() => undefined);
     await runSql('drop schema if exists net cascade').catch(() => undefined);
   });
 
@@ -336,7 +214,7 @@ describe('29 — migração 0046 sobre pg_net com topologia real', () => {
 
   // ── Cenário B ────────────────────────────────────────────────────────────
   it('B) ambiente COM pg_net e sessão sem posse: não revoga, avisa e FALHA? não — é no-op honesto', async () => {
-    await instalarPgNetSimulado();
+    await instalarObjetosNetComDonoSeparado();
     expect(await publicPodeExecutar('http_post')).toBe(true); // grant a PUBLIC presente
 
     // Precisa rodar como um papel que NÃO é dono de `net` e NÃO é superusuário
@@ -363,7 +241,7 @@ describe('29 — migração 0046 sobre pg_net com topologia real', () => {
 
   // ── Cenário B2: a migração FUNCIONA quando executada pelo dono ───────────
   it('B2) executada por um papel com poder de dono: revoga PUBLIC/anon/authenticated de fato', async () => {
-    await instalarPgNetSimulado();
+    await instalarObjetosNetComDonoSeparado();
     expect(await executa('anon', 'http_post')).toBe(true);
     expect(await executa('authenticated', 'http_delete')).toBe(true);
     expect(await publicPodeExecutar('http_post')).toBe(true);
@@ -395,7 +273,7 @@ describe('29 — migração 0046 sobre pg_net com topologia real', () => {
   // ── Cenário C e D estão cobertos por B2 (anon/authenticated) ─────────────
   it('C/D) anon e authenticated não executam nenhuma operação HTTP após a revogação', async () => {
     // Cenário próprio: monta e revoga, sem depender da ordem dos testes.
-    await instalarPgNetSimulado();
+    await instalarObjetosNetComDonoSeparado();
     await runSql(`alter function public.admin_stock_summary() owner to ${DONO}`);
     {
       const c0 = await connect();
@@ -433,7 +311,7 @@ describe('29 — migração 0046 sobre pg_net com topologia real', () => {
 
   // ── Cenário F: o worker automático (cron) ────────────────────────────────
   it('F) o papel do cron preserva EXECUTE quando tem concessão própria', async () => {
-    await instalarPgNetSimulado();
+    await instalarObjetosNetComDonoSeparado();
     await runSql(`alter function public.admin_stock_summary() owner to ${DONO}`);
 
     // O worker roda como um papel com GRANT NOMINAL. Em produção esse
@@ -465,7 +343,7 @@ describe('29 — migração 0046 sobre pg_net com topologia real', () => {
 
   // ── Cenário G: repetição ─────────────────────────────────────────────────
   it('G) reaplicar a migração é idempotente e não reconcede nada', async () => {
-    await instalarPgNetSimulado();
+    await instalarObjetosNetComDonoSeparado();
     await runSql(`alter function public.admin_stock_summary() owner to ${DONO}`);
     // Estado de partida: fechado pela migração (o G mede a REPETIÇÃO).
     {
