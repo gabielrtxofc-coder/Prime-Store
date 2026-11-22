@@ -175,7 +175,16 @@ async function main() {
     record('wyvi-webhook sem cabeçalhos X-Wyvi é recusado', [401, 503], status, text);
   }
 
-  // 10. wyvi-worker (processador da fila de eventos): exige JWT de
+  // 10. corpo gigante: o teto de 4 MB recusa ANTES de qualquer parse/RPC.
+  // Prova positiva de que o limite existe em produção; nenhuma escrita é
+  // tentada porque a requisição morre na leitura do corpo.
+  {
+    const gigante = 'x'.repeat(4 * 1024 * 1024 + 1024);
+    const { status, text } = await call('order-request', { body: { items: gigante } });
+    record('corpo acima de 4 MB é recusado (413)', [413, 400, 422], status, text);
+  }
+
+  // 11. wyvi-worker (processador da fila de eventos): exige JWT de
   // service_role. Sem Authorization o gateway responde 401 antes do handler;
   // com JWT de anon o handler também recusa (papel conferido no token).
   {

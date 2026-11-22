@@ -120,6 +120,35 @@ allowlist (admin_users.is_active) + claim aal = 'aal2'  →  assert_admin()
   com `verify_jwt: true`; o preflight `OPTIONS` passa, a chamada real exige JWT).
 - Consequência operacional: ao trocar de domínio (ou de porta/preview local) é
   obrigatório atualizar `ALLOWED_ORIGINS`, senão o navegador bloqueia a resposta.
+- **Sem lista, fecha** — e isso já aconteceu em produção (missão 15): o projeto
+  respondia `200` sem `Access-Control-Allow-Origin` e a loja não abria no
+  domínio real. O smoke test de servidor não pega esse caso porque `fetch` sem
+  `Origin` não precisa de CORS. Hoje a checagem é feita com `Origin` real (ver
+  `docs/auditoria/missao-15/RELATORIO.md` §2).
+
+## Corpo de requisição com teto (missão 15)
+
+- `_shared/http.ts` lê o corpo em pedaços e corta em **4 MB**; `Content-Length`
+  declarado acima do teto é recusado antes de ler, e um valor mentiroso é
+  pego durante a leitura. Resposta: `413 payload_too_large`.
+- Os dois webhooks usam o mesmo leitor (`readBodyText`), com a assinatura ainda
+  conferida sobre os bytes crus.
+- Importação de estoque tem teto de **5.000 linhas** (`MAX_IMPORT_ROWS`): a
+  prévia avisa (`truncated`) e o commit recusa com `413 import_too_large`. Antes,
+  o limite por campo permitia um CSV de 2 MB com ~60 mil linhas cifradas e
+  enviadas num único RPC.
+
+## Cabeçalhos de segurança do site (missão 15)
+
+- Enviados por `vercel.json`: CSP estrita (`script-src 'self'`, sem inline),
+  HSTS 2 anos com preload, `X-Frame-Options: DENY`, `nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` e
+  `Cross-Origin-Opener-Policy`.
+- `no-store` em `/entrega`, `/pedido` e `/admin`; `/assets` com cache imutável.
+- `index.html` também declara `referrer=no-referrer` para o token de entrega não
+  vazar por `Referer` quando o HTML for servido fora da Vercel.
+- `src/lib/publicEnv.ts` só entrega nomes `VITE_*`: nenhuma chave de servidor
+  chega ao bundle, mesmo em runtime que exponha `process.env`.
 
 ## Integridade e concorrência
 
@@ -131,8 +160,11 @@ allowlist (admin_users.is_active) + claim aal = 'aal2'  →  assert_admin()
 
 ## O que ainda pode ser endurecido
 
-- Rate limiting por IP no `create-order` (hoje a validação é por payload e
-  disponibilidade) e CAPTCHA se houver abuso.
+- **Política de senha do Auth (produção):** mínimo 6, CAPTCHA desligado e HIBP
+  desligado. O conector não expõe esses campos — ver
+  `docs/auditoria/missao-15/DEPENDENCIAS-HUMANAS.md` P4.
+- CAPTCHA no checkout se aparecer sinal de abuso (hoje o rate limit por IP +
+  reserva de estoque é o que segura).
 - Rotação periódica de `PRIME_ENCRYPTION_KEY` com re-cifragem (não implementada;
   trocar a chave hoje inviabiliza credenciais existentes — documentado).
 - Alertas sobre falhas de webhook e sobre `refund_pending`.
