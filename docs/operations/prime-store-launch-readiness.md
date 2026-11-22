@@ -11,8 +11,8 @@
 > `role=service_role`. As execuções do cron nas últimas 24 horas foram 1.440
 > bem-sucedidas, sem alteração remota nesta rodada.
 >
-> Evidência local atual (Missão 15.1): `npm test` 168/168,
-> `npm run test:db` 475/475 usando
+> Evidência local atual (Missão 15.2): `npm test` 168/168,
+> `npm run test:db` 496/496 usando
 > exclusivamente `postgresql://postgres:postgres@127.0.0.1:55432/postgres`,
 > typecheck/build/bundle (10 funções) e `npm audit --omit=dev` sem falhas. A
 > jornada E2E foi executada com Chromium real e WyviPay simulada; o CI também

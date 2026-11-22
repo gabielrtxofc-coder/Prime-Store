@@ -477,10 +477,12 @@ Produção `audsosvbdybifvxsmqpi` · sandbox `eorlmqolbknrplvdbbtl`.
   correção anti-sequestro da 0039/0039b (corpo do `prosrc` conferido); demo mode
   desligado por três travas; `admin_users` vazio; cron/Vault sem entrada do
   cliente; 0 segredos no repo; `npm audit` 0.
-- **Testes:** `tsc` 0 · `npm test` **168/168** · `test:db` **475/475**
-  (38 arquivos; 441 de base + 24 de `tests/unit/hardening_borda.test.ts`
-  + 10 da Missão 15.1: 7 em `tests/db/28_reducao_superficie_rpc.test.ts`
-  e 3 em `tests/db/22_admin_guardia_aal2.test.ts`) · bundle 10/10.
+- **Testes:** `tsc` 0 · `npm test` **168/168** · `test:db` **496/496**
+  (40 arquivos; 441 de base + 24 de `tests/unit/hardening_borda.test.ts`
+  + 7 de `tests/db/28` + 3 em `tests/db/22` + 10 de `tests/db/29`
+  (pg_net com topologia real) + 11 de `tests/db/30` (bootstrap versionado))
+  · bundle 10/10 · `npm audit --omit=dev` 0. Rodado duas vezes com o mesmo
+  resultado, a partir de `node_modules` sem `pg_net` (estado de CI).
   O valor **457** que constava aqui estava correto quando foi escrito
   (`b065c55`, com 16 casos de hardening) e ficou defasado no commit seguinte
   (`9b5f378`), que elevou o arquivo de 16 para 24 casos ao acrescentar as

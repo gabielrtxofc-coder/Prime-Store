@@ -23,22 +23,43 @@
       sem CAPTCHA e sem verificação HIBP. A API do conector não expõe esses
       campos. Recomendado: mínimo 12, HIBP ligado, CAPTCHA só se houver sinal de
       abuso. Não alterei por não ter caminho suportado — não inventei valor.
-- [ ] **P5 — Decidir o destino de `bootstrap_admin_register` /
-      `bootstrap_admin_status`.** As duas existem em **produção** e em
-      **nenhuma migração** (deriva de schema). São `SECURITY DEFINER`
-      executáveis só por `postgres`/`service_role`, limitadas a 2 admins e
-      fechadas por padrão (`admin_bootstrap_enabled` ausente = `false`), então
-      **não** são caminho de escalada para usuário final. Escolha uma:
-      (a) versionar o DDL das duas numa migração nova, revisado por você;
-      (b) remover as duas de produção e provisionar por `scripts/provision-admin.sql`;
-      (c) manter como estão, aceitando que recriar o banco pelas migrações não
-      as reproduz. Detalhes em `RELATORIO.md` §7-ter.
-- [ ] **P6 — Aplicar a migração `0046`.** Ela está versionada e provada
-      localmente (475/475) mas **não** foi aplicada em produção, porque esta
-      missão é somente leitura. Ela revoga `EXECUTE` da órfã
-      `admin_stock_summary()` e fecha `net.http_*` para
-      `PUBLIC`/`anon`/`authenticated`. Só vale depois de `supabase db push`.
-      Ver `ADVISORS.md` §Grupo 2 e §Limitações.
+- [ ] **P5 — RESOLVIDA no repositório; falta só aplicar.** As duas funções de
+      bootstrap existiam em produção e em nenhuma migração. A origem foi
+      investigada: são **bootstrap de operação manual** (os dados em produção
+      têm timestamp único de 2026-11-20 14:44:33 UTC; o repositório disponível
+      só começa em 2026-11-21, então não há como provar autoria pelo git; o
+      `scripts/provision-admin.sql` documenta o fluxo manual no SQL Editor).
+      A **migração 0047** recria as duas a partir do catálogo de produção, com
+      `EXECUTE` só para `service_role` e a janela **fechada por padrão**.
+      11 testes travam o comportamento. O que resta é aplicar a 0047 em
+      produção (junto com a P6). Detalhes em `RELATORIO.md` §7-ter.
+- [ ] **P6 — Aplicar as migrações `0046` e `0047`.** Versionadas e provadas
+      localmente (**496/496**), mas **não** aplicadas em produção: esta missão é
+      somente leitura. A 0046 revoga `EXECUTE` da órfã `admin_stock_summary()`;
+      a 0047 versiona o bootstrap. Ver `ADVISORS.md` §Grupo 2.
+- [ ] **P7 — Fechar `net.http_*` exige `supabase_admin`.** Descoberto e
+      **comprovado** na 15.2: as funções de `pg_net` e o schema `net` pertencem
+      a `supabase_admin`, e o `postgres` **não é superusuário** (`rolsuper =
+      false`) nem membro desse papel. Nessa condição, `REVOKE ... FROM PUBLIC`
+      **não levanta exceção e não altera a ACL** (no-op silencioso, reproduzido
+      no cenário B de `tests/db/29_pg_net_permissoes.test.ts`).
+      Consequência: **aplicar a 0046 não fecha `net.*` em produção.** Para
+      fechar, alguém com `supabase_admin` precisa executar:
+      ```sql
+      revoke execute on function net.http_post(text,jsonb,jsonb,jsonb,integer)
+        from public, anon, authenticated;
+      revoke execute on function net.http_get(text,jsonb,jsonb,integer)
+        from public, anon, authenticated;
+      revoke execute on function net.http_delete(text,jsonb,jsonb,integer,jsonb)
+        from public, anon, authenticated;
+      revoke usage on schema net from public, anon, authenticated;
+      -- ATENÇÃO: sem isto o cron do worker perde a capacidade de enfileirar,
+      -- porque o `postgres` só executa via PUBLIC.
+      grant execute on function net.http_post(text,jsonb,jsonb,jsonb,integer)
+        to postgres;
+      ```
+      O risco hoje é **residual**, não ativo: `db-schemas = public`, então o
+      PostgREST não expõe `net`. Ver `ADVISORS.md` §Grupo 2.
 
 ## Conferências de uma vez só (primeiro deploy com as mudanças)
 

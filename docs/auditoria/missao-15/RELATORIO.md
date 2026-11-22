@@ -208,7 +208,7 @@ do navegador (D3).
 | --- | --- |
 | `npx tsc -b` | 0 erros |
 | `npm test` (frontend, jsdom) | **168/168** |
-| `npm run test:db` (PostgreSQL 18 real) | 457 → **475** (ver **§7-bis** para a reconciliação) |
+| `npm run test:db` (PostgreSQL 18 real) | 457 → 475 → **496** (ver **§7-bis**) |
 | `npm run bundle:functions` | 10/10 funções empacotam |
 | `npm audit` | 0 vulnerabilidades |
 | Produção, `pg_net` antes/depois | CORS negado → liberado; origem estranha → continua negada |
@@ -223,7 +223,7 @@ guarda que falha se aparecer estilo inline no `src/`.
 
 ---
 
-## 7-bis. Reconciliação da contagem de testes (457 → 465 → 475)
+## 7-bis. Reconciliação da contagem de testes (457 → 465 → 475 → 496)
 
 A Missão 15.1 encontrou duas contagens diferentes para `test:db` em documentos
 da própria missão (**457** no §7 e `docs/PROGRESSO.md`; **465** na execução real
@@ -238,6 +238,7 @@ identificada e não indica teste perdido ou desativado.
 | `9b5f378` | **24** casos (+7 guardas de CSP) | **465** | contagem mudou **depois** dos documentos |
 | `ed4e818` | 24 casos | **465** | execução registrada da Missão 15.1 |
 | Missão 15.1 | 24 casos | **475** | +7 (`tests/db/28`) +3 (`tests/db/22`) |
+| Missão 15.2 | 24 casos | **496** | +10 (`tests/db/29`) +11 (`tests/db/30`) |
 
 **Causa raiz — dois erros de um caso cada, não um teste perdido.**
 
@@ -268,17 +269,21 @@ vários arquivos geram casos dentro de laços.
 
 **Números canônicos (Missão 15.1, executados nesta rodada):**
 
-| Suíte | Resultado (execução de 2026-11-22, HEAD desta missão) | Como foi obtido |
+| Suíte | Resultado (Missão 15.2, execução de 2026-11-22) | Como foi obtido |
 |---|---|---|
-| `npx tsc -b` | **0 erros** | execução local, exit 0 |
+| `npm run typecheck` | **0 erros** | execução local, exit 0 |
 | `npm test` (frontend) | **168/168** em 24 arquivos | execução local |
-| `npm run test:db` | **475/475** em **38 arquivos** | execução local, PostgreSQL 18.6 em `127.0.0.1:55432` |
-| `npm run build` | **OK**, 377 ms | execução local |
+| `npm run test:db` | **496/496** em **40 arquivos** | execução local, PostgreSQL 18.6 em `127.0.0.1:55432`, rodado **duas vezes** com o mesmo resultado |
+| `npm run build` | **OK**, 538 ms | execução local |
 | `npm run bundle:functions` | **10/10** | execução local |
 | `npm audit --omit=dev` | **0 vulnerabilidades** | execução local |
 | `npm run test:e2e` | **não executável no sandbox** | `Chromium não encontrado` (`checkout.ts:30`) |
 
-Total de provas automatizadas: **168 + 475 = 643**.
+Total de provas automatizadas: **168 + 496 = 664**.
+
+A suíte cresceu de 475 para **496** nesta missão (+21): 10 em
+`tests/db/29_pg_net_permissoes.test.ts` (migração 0046 sobre topologia real) e
+11 em `tests/db/30_bootstrap_admin.test.ts` (migração 0047).
 
 Artefatos do `build` desta execução: `index-D4nn5bjy.js` (324,49 kB / gzip
 98,99 kB), `AdminPage-DYdJJtCo.js` (330,28 kB / gzip 82,94 kB),
@@ -339,9 +344,74 @@ desenho é **autolimitado e fechado por padrão**:
 - registro aqui e em `DEPENDENCIAS-HUMANAS.md` para o operador decidir entre
   versionar o DDL (`pg_dump --schema-only` dessas duas funções) ou removê-las.
 
-**Não foi criada migração para "trazer" essas funções.** Copiar para o repositório
-um DDL obtido por engenharia reversa, sem revisão de origem, seria pior do que
-registrar a divergência. A decisão é do proprietário.
+### Resolvido na Missão 15.2 — migração `0047`
+
+A pendência deixou de ser aberta. A investigação de origem concluiu:
+
+| Verificação | Resultado |
+|---|---|
+| `git log -S 'bootstrap_admin_register' --all` | só commits desta missão (documentação); histórico disponível começa em 2026-11-21 |
+| `supabase/migrations/` | **0 arquivos** mencionam `admin_bootstrap` |
+| `scripts/provision-admin.sql` | documenta o fluxo manual (SQL Editor) em `app_settings`/`admin_users` |
+| Timestamp em produção | **um só**: 2026-11-20 14:44:33 UTC para as duas chaves |
+
+**Conclusão:** bootstrap de **operação manual documentada**, não componente de
+plataforma nem artefato gerenciado. A migração
+`20261122130000_0047_versionar_bootstrap_admin.sql` recria as duas funções com a
+definição lida do catálogo de produção (via `pg_proc.prosrc`, somente leitura),
+mais os dois registros de `app_settings`, com:
+
+- `SECURITY DEFINER` + `search_path = public, pg_temp` (mesmo padrão do projeto);
+- `EXECUTE` **apenas** para `postgres` e `service_role` — nunca `anon`/`authenticated`;
+- janela **fechada por padrão** (`admin_bootstrap_enabled = false`);
+- autolimite de 2 administradores + auditoria em `admin_audit_log`.
+
+Provado por `tests/db/30_bootstrap_admin.test.ts` (**11 casos**), incluindo que o
+banco recriado por migrações passa a conter as duas funções e que um usuário
+comum continua recebendo `permission denied`.
+
+> Nota de método: a definição foi **copiada**, não reinventada. O corpo é
+> idêntico ao que produção executa; o que a migração acrescenta é versionamento,
+> `search_path` explícito e a garantia de que a janela nasce fechada.
+
+---
+
+## 7-quater. O defeito da 0046 que a 15.1 não viu (e por que os testes passaram)
+
+A versão da 0046 entregue na 15.1 passou em todos os testes e **não teria
+funcionado em produção**. Três erros independentes, todos fora do alcance da
+suíte anterior:
+
+| # | Defeito | Como se manifestaria em produção |
+|---|---|---|
+| 1 | Assinaturas escritas à mão e **erradas**: `net.http_post(text,jsonb,jsonb,**text**,integer)` e `net.http_delete(text,jsonb,jsonb,integer)` | `ERROR: function does not exist` no `db push` |
+| 2 | `REVOKE` executado por `postgres`, que **não é dono** de `net.*` nem superusuário (`rolsuper = false`) | **no-op silencioso**: ACL idêntica antes/depois, sem exceção |
+| 3 | `REVOKE ... FROM PUBLIC` removeria a única via pela qual o `postgres` executa `net.http_post` | o cron `prime-store-wyvi-worker` perderia a capacidade de enfileirar |
+
+**Por que a suíte não pegou:** o banco local não instala `pg_net`
+(`bootstrap_local.sql` não a cria), então o bloco inteiro era pulado pelo
+`if exists (select 1 from pg_extension …)`. O único caminho testado era
+"ambiente sem a extensão" — que é justamente o caminho onde nada acontece.
+
+**Correção estrutural (não apenas de SQL):**
+
+1. `tests/db/29_pg_net_permissoes.test.ts` **registra** `pg_net` de verdade
+   (arquivo de controle em `sharedir/extension` + `CREATE EXTENSION`), com as
+   **assinaturas reais** lidas do catálogo de produção, e entrega a posse a um
+   papel separado — a topologia que expõe os defeitos 2 e 3.
+2. A migração passou a **descobrir** os alvos em `pg_proc` (nunca assinatura
+   digitada), a **checar se pode revogar** e a **verificar o resultado**
+   (`has_function_privilege` + `aclexplode`, `grantee = 0`), levantando exceção
+   se a ACL continuar aberta.
+3. Quando a sessão não pode revogar, a migração **avisa** com o dono real e a
+   ação necessária — a limitação fica no log, não debaixo do tapete.
+4. Não há `WHEN OTHERS THEN NULL`: se `pg_net` existe e as funções não são
+   encontradas, é **exceção**, não silêncio.
+
+Um efeito colateral instrutivo: a primeira versão da verificação usava
+`p.proacl like '%X/%'`, que **toda** concessão nominal satisfaz
+(`postgres=X/postgres` contém `=X/`). O teste pegou o falso positivo; a
+checagem passou a usar `aclexplode` com `grantee = 0`.
 
 ---
 

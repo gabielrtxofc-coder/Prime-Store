@@ -15,7 +15,7 @@ concessão genérica, política pública artificial ou revogação indiscriminad
 | # | Grupo | Avisos | Risco real? | Ação | Estado |
 |---|-------|--------|-------------|------|--------|
 | 1 | Tabelas com RLS sem política | 21 | **Não** (negado por padrão) | Nenhuma política criada | Aceito |
-| 2 | `pg_net` instalada em `public` | 1 | **Residual, não alcançável** | Revogação condicional (0046) | Mitigado |
+| 2 | `pg_net` instalada em `public` | 1 | **Residual, não alcançável** | Descoberta dinâmica + verificação (0046); fecha só com posse | **Aberto (P7)** |
 | 3 | Funções `SECURITY DEFINER` executáveis | 24 | **1 de 24** | `REVOKE` de 1 órfã (0046) | Reduzido a 23 |
 
 ---
@@ -141,39 +141,88 @@ Quem **usa** `pg_net` legitimamente: o **pg_cron**, job `prime-store-wyvi-worker
 `wyvi-worker`. Superusuário mantém EXECUTE independentemente de `REVOKE` de
 `PUBLIC`/`anon`/`authenticated` — por isso a revogação é segura.
 
-### Proteção aplicada (local, versionada)
+### Proteção aplicada — e a limitação que a Missão 15.1 escondeu
 
-A migração **`20261122120000_0046_reduzir_superficie_rpc.sql`** revoga
-`EXECUTE` de `PUBLIC`, `anon` e `authenticated` em `net.http_post`,
-`net.http_get` e `net.http_delete`, dentro de um bloco **condicional**:
+**Primeiro, o que a 15.1 errou.** A versão anterior revogava usando
+assinaturas **escritas à mão**:
 
 ```sql
-if exists (select 1 from pg_extension where extname = 'pg_net') then …
+-- ERRADO (15.1)
+revoke execute on function net.http_post(text, jsonb, jsonb, text, integer) ...
+revoke execute on function net.http_delete(text, jsonb, jsonb, integer) ...
 ```
 
-A condição não é cosmética: **o banco local e o do CI não instalam `pg_net`**
-(`bootstrap_local.sql` não a cria). Um `REVOKE` incondicional em função
-inexistente abortaria `resetDatabase()` e derrubaria as **475** provas de banco.
-A migração é idempotente e tolera versões da extensão com assinatura diferente
-de `http_delete` (captura `undefined_function`).
+O catálogo real (pg_net 0.20.4) diz outra coisa:
 
-### O que esta migração NÃO faz, e por quê
+| Função | Assinatura real | O que a 15.1 usou |
+|---|---|---|
+| `http_post` | `(text, jsonb, jsonb, **jsonb**, integer)` | 4º arg `text` ❌ |
+| `http_get` | `(text, jsonb, jsonb, integer)` | correto |
+| `http_delete` | `(text, jsonb, jsonb, integer, **jsonb**)` | 4 args ❌ |
 
-- **Não move `pg_net` para outro schema.** O schema é gerenciado pela
-  plataforma; mover extensão não é operação suportada e o objeto pode ser
-  recriado pelo Supabase. O Advisor continuaria apontando, e um `DROP`/`CREATE`
-  arriscaria o cron de pagamentos — proibido nesta missão.
-- **Não revoga das tabelas `net.*`.** `net._http_response` e
-  `net.http_request_queue` são internas da extensão, sem RLS, e o acesso é o
-  mesmo caminho não alcançável descrito acima. Revogar ali quebraria a leitura
-  de respostas pelo `pg_cron` sem ganho de superfície.
+**Segundo, o erro maior — que assinatura certa não teria consertado.** Em
+produção, `net.*` e o schema `net` pertencem a **`supabase_admin`**, e o
+`postgres` **não é superusuário** (`rolsuper = false`) nem membro daquele papel.
+Nessa condição, `REVOKE ... FROM PUBLIC` **não levanta exceção e não altera a
+ACL** — é um no-op silencioso. Comprovado em laboratório
+(`tests/db/29_pg_net_permissoes.test.ts`, cenário B):
+
+```
+ACL antes  = {=X/net_ext_owner, net_ext_owner=X/net_ext_owner}
+ACL depois = {=X/net_ext_owner, net_ext_owner=X/net_ext_owner}   (idêntica)
+```
+
+Ou seja: **mesmo com as assinaturas corretas, a versão anterior não teria
+revogado nada em produção.** Foi a suíte que a 15.2 acrescentou que revelou
+isso — a suíte anterior só cobria "ambiente sem `pg_net`".
+
+**Terceiro — revogar de `PUBLIC` quebraria o worker.** O `postgres` só executa
+`net.http_post` **porque `PUBLIC` pode** (`proacl = NULL` ⇒ privilégios padrão).
+Ele não é dono e não tem `GRANT` nominal. Fechar `PUBLIC` sem conceder
+explicitamente a `postgres` derrubaria o cron job `prime-store-wyvi-worker`.
+
+### O que a migração 0046 faz agora
+
+1. **Descobre os alvos no catálogo**, nunca por assinatura digitada
+   (`pg_proc` + `pg_namespace` + `oid::regprocedure`).
+2. **Só executa `REVOKE` se a sessão realmente puder** (dono do schema ou
+   superusuário). Não finge sucesso.
+3. **Verifica o resultado** com `has_function_privilege` e `aclexplode`
+   (`grantee = 0` = PUBLIC) e **lança exceção** se a ACL continuar aberta.
+4. **Quando não pode revogar**, emite `RAISE WARNING` nomeando o dono e a ação
+   necessária — a pendência fica visível no log do `db push`, não silenciosa.
+5. **Nunca engole erro**: não há `WHEN OTHERS THEN NULL`. Se `pg_net` existe e
+   nenhuma das três funções é encontrada, **levanta exceção** pedindo
+   investigação — exatamente o caso que um `exception when undefined_function`
+   esconderia.
+6. **Bloco condicional** para ambiente sem a extensão (local/CI não a instalam).
+
+**Efeito real hoje:**
+
+| Ambiente | Resultado da 0046 |
+|---|---|
+| local/CI (sem `pg_net`) | conclui; aplica só a revogação da órfã |
+| Supabase (dono `supabase_admin`, sessão `postgres`) | conclui **com WARNING**; `net.*` permanece aberto |
+
+O fechamento de `net.*` **exige o proprietário** (`supabase_admin`) — é a
+pendência **P7** de `DEPENDENCIAS-HUMANAS.md`. A migração entrega o
+diagnóstico comprovado e o caminho, e passa a **falhar alto** em vez de
+registrar sucesso falso.
+
+### Schema `net` — USAGE
+
+`pg_namespace.nspacl` mostra `anon` e `authenticated` com `USAGE` no schema
+`net` (`=U/supabase_admin` para PUBLIC + concessões explícitas). Pelo mesmo
+motivo (posse), não é revogável pela migração. Não é alcançável hoje porque
+`db-schemas = public`; entra na **P7**.
 
 ### Classificação
 
-**Risco residual, não alcançável na configuração atual.** O aviso permanecerá
-visível no Advisor (o schema não muda) — e isso é aceitável e documentado. O
-que mudou foi a superfície: papéis de usuário final não conseguem mais
-disparar `net.http_*` **se** `net` for exposto no futuro.
+**Risco residual, não alcançável na configuração atual — e NÃO corrigido pela
+0046.** O aviso continuará visível. A migração **não** fecha `net.*` em
+produção porque a sessão de migração não é dona (`supabase_admin`). Quando
+executada por um papel com posse, ela fecha e comprova; quando não, **avisa e
+não mente**. Fechar exige ação do proprietário (P7).
 
 ---
 
@@ -184,69 +233,102 @@ disparar `net.http_*` **se** `net` for exposto no futuro.
 > `*_security_definer_function_executable`: *Function `public.X` is
 > `SECURITY DEFINER` and can be executed by the `authenticated` role.*
 
-O aviso está **tecnicamente correto** e, para 23 das 24, é **necessário**:
-`admin-api` chama essas funções com o **JWT do administrador**
-(`adminApi.ts:136`), e o PostgREST troca o papel pelo `sub` do token. Revogar
-`EXECUTE` de `authenticated` **quebraria o painel** — não é hipótese, é o
-mecanismo de autorização.
+### Correção de uma imprecisão da Missão 15.1
 
-### Como cada uma se protege
+A versão anterior deste documento afirmava que **todas as 24** chamam
+`assert_admin()`. Isso estava errado e a diferença importa: **23 não são o mesmo
+tipo de objeto**. Tratar as três classes como uma só esconderia a única que
+realmente era superfície sem função.
 
-Todas as 24 chamam `assert_admin()`, que valida em três camadas e falha em
-códigos distintos (o que permite teste cirúrgico):
+O inventário real (contado no código, não estimado):
+
+| Grupo | Quantidade | O que é | Proteção | Estado após 0046 |
+|---|---|---|---|---|
+| **Administrativas usadas** | **22** | operações de painel, chamadas por `admin-api` | `assert_admin()` completo | **mantidas** (`authenticated` executa) |
+| **Consulta `is_admin`** | **1** | booleano de UI, sem efeito colateral | `auth.uid()` + `admin_users` + AAL | **mantida** |
+| **Administrativa órfã** | **1** | `admin_stock_summary()`, sem chamador | tinha `assert_admin()`, mas ninguém chama | **`EXECUTE` revogado** |
+| **Total** | **24** | | | 23 executáveis |
+
+O número 22 é verificável: `adminApi.ts` faz **22 chamadas `rpc(...)` a
+`admin_*`** + **1 a `is_admin`** (contagem por varredura do arquivo, não
+estimativa). Somando a órfã, fecham as 24 do Advisor.
+
+### Matriz por função
+
+As 22 administrativas usadas, todas com a mesma proteção:
+
+| Função | Chamador | Autorização | Exige MFA | Papel que executa |
+|---|---|---|---|---|
+| `admin_add_stock_unit` | `admin-api` | `assert_admin` | sim (`mfa_required`) | `authenticated` (admin) |
+| `admin_audit_log` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_create_product` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_expire_reservations` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_get_order` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_get_product` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_import_stock_units` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_indicators` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_list_orders` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_list_products` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_list_refund_requests` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_list_stock` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_resolve_dispute` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_resolve_refund` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_revoke_delivery` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_rotate_delivery_token` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_set_product_active` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_set_stock_unit_status` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_stock_fingerprints` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_stock_summary_by_product` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_update_product` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+| `admin_update_stock_unit` | `admin-api` | `assert_admin` | sim | `authenticated` (admin) |
+
+A função de consulta — **não** é operação administrativa:
+
+| Função | Chamador | Autorização | Exige MFA | Papel que executa | Comportamento |
+|---|---|---|---|---|---|
+| `is_admin(p_require_mfa boolean)` | frontend + `admin-api` | `auth.uid()` → `admin_users` (`is_active`, `role`) + comparação `aal` | **não lança**; devolve `false` | `authenticated` | `false` para anon, estranho e AAL1 com MFA exigido; `true` só para admin em AAL2 |
+
+A órfã — **única revogada**:
+
+| Função | Chamador | Autorização | Estado |
+|---|---|---|---|
+| `admin_stock_summary()` | **nenhum** (0 referências em `supabase/functions/`, `src/`, `scripts/`) | tinha `assert_admin`, mas sem chamador é superfície pura | **`EXECUTE` revogado de `public`/`anon`/`authenticated`**; mantido para `postgres`/`service_role` |
+
+### Por que a órfã era o único alvo seguro
+
+`admin-api` chama as 22 com o **JWT do administrador** (`adminApi.ts:136`,
+`rpcForUser`), e o PostgREST troca o papel pelo `sub` do token. Revogar
+`authenticated` nas 22 **quebraria o painel** — o `EXECUTE` de `authenticated`
+*é* o mecanismo de autorização. Na órfã, o raciocínio se inverte: sem chamador,
+o `EXECUTE` não protege nada e só amplia a superfície.
+
+Consequência observável: a recusa dela deixou de ser `mfa_required`/`not_admin`
+(que pressupõem entrar no corpo) e passou a ser `permission denied`, aplicada
+**antes** da função rodar.
+
+### Como as três camadas falham
 
 | Camada | Condição | Erro |
 |---|---|---|
-| Sessão | sem `sub` | `not_authenticated` (28000) |
+| Sessão | sem `sub` no JWT | `not_authenticated` (28000) |
 | Allowlist | não está em `admin_users` ativo | `not_admin` (42501) |
 | MFA | `mfa_required` e `aal <> aal2` | `mfa_required` (42501) |
 
-`is_admin()` é a 24ª e é o **booleano de UI**: não opera nada, devolve
-`false` para quem não é admin, e é o único ponto que o frontend consulta para
-decidir se mostra a tela.
-
-### A única que era superfície sem função
-
-`admin_stock_summary()` (criada na 0012, `GRANT` na 0014) **não tinha
-chamador**: nenhuma referência em `supabase/functions/`, `src/` ou `scripts/`;
-substituída por `admin_stock_summary_by_product()` na 0045. Varredura das 24
-nomes contra todo o código de produção confirmou **1 sem referência** — ela.
-
-A 0046 revoga `EXECUTE` de `public`, `anon` e `authenticated`; mantém
-`postgres` e `service_role` para diagnóstico. Resultado: a recusa dela deixou
-de ser `mfa_required`/`not_admin` (que pressupõe entrar no corpo) e passou a ser
-`permission denied` — barreira **mais forte**, aplicada antes da função rodar.
-
-### Cobertura de prova (4 cenários × 24 funções)
+### Cobertura de prova
 
 | Cenário | Papel | Resultado esperado | Onde está provado |
 |---|---|---|---|
-| A — visitante | `anon` | `permission denied` em todas | teste 08 (anon sem funções) + teste 22 |
-| B — autenticado comum | `authenticated`, AAL2 | `not_admin` em todas | teste 22 (varredura dinâmica) |
-| C — admin sem MFA | `authenticated`, AAL1 | `mfa_required` em 23; `permission denied` em `admin_stock_summary` | teste 22 + teste 28 |
-| D — admin com MFA | `authenticated`, AAL2 | sucesso | teste 22 (controle positivo) + teste 28 |
+| A — visitante | `anon` | `permission denied` em todas | teste 08 + teste 22 |
+| B — autenticado comum | `authenticated`, AAL2 | `not_admin` em 22; `permission denied` na órfã | teste 22 (varredura dinâmica) |
+| C — admin sem MFA | `authenticated`, AAL1 | `mfa_required` em 22; `permission denied` na órfã | testes 22 + 28 |
+| D — admin com MFA | `authenticated`, AAL2 | sucesso | testes 22 + 28 (controle positivo) |
+| E — `is_admin` | anon/estranho/AAL1/AAL2 | `false`/`false`/`false`/`true` | teste 22 |
+| F — auto-promoção | `authenticated` | `permission denied for table`; nenhum gatilho em `auth.users`; 0 RPCs de escrita na allowlist | teste 22 |
 
-Testes relevantes: `tests/db/22_admin_guardia_aal2.test.ts` (varredura
-dinâmica de `admin\_%` + `is_admin` + tentativas de escalada),
-`tests/db/08_privilegios_funcoes.test.ts` (nenhum GRANT a anon; universo de
-`authenticated` = `admin_*`/`is_admin`),
-`tests/db/23_search_path_total.test.ts` (`search_path` fixo em definer e
-invoker), `tests/db/28_reducao_superficie_rpc.test.ts` (as 22 do painel
-continuam executáveis; a órfã não; o conjunto é exatamente `admin_*` +
-`is_admin`).
-
-### Por que as outras 23 não são revogadas
-
-Revogar `EXECUTE` de `authenticated` numa função usada pelo painel faz o painel
-responder `permission denied` ao administrador legítimo. O requisito da missão
-é **provar que não quebra antes de remover** — e a prova aqui aponta o
-contrário: são *load-bearing*. A superfície dessas 23 é o próprio mecanismo de
-autorização, e ele já está provado nos quatro cenários.
-
-### Classificação
-
-**23 necessárias e provadas. 1 eliminada.** O aviso continuará listando 23 no
-Advisor; é o número correto para esta arquitetura.
+Testes: `tests/db/22_admin_guardia_aal2.test.ts`,
+`tests/db/08_privilegios_funcoes.test.ts`,
+`tests/db/23_search_path_total.test.ts`,
+`tests/db/28_reducao_superficie_rpc.test.ts`.
 
 ---
 
@@ -258,18 +340,20 @@ Advisor; é o número correto para esta arquitetura.
 | `pg_net` em `public` | 1 | 1 | Sim (schema gerenciado; superfície fechada) |
 | Funções executáveis | 24 | 23 | Sim (23 são o mecanismo de autorização) |
 
-**Nenhum aviso foi escondido.** A diferença entre esta auditoria e "zerar o
-painel" é que cada linha acima tem uma razão escrita e um teste que a trava.
+**Nenhum aviso foi escondido — e nenhuma correção foi declarada sem prova.**
+A diferença entre esta auditoria e "zerar o painel" é que cada linha tem razão
+escrita e teste que a trava. E a diferença entre esta versão e a anterior é que
+a 15.2 **descobriu que a 15.1 declarava mitigado algo que continuava aberto**.
 
 ### Limitações registradas
 
-1. A migração 0046 está **versionada e provada localmente**, mas **não foi
-   aplicada em produção** — a Missão 15.1 é somente leitura. O bloqueio de
-   `admin_stock_summary` e de `net.*` em produção só vale após
-   `supabase db push` autorizado pelo operador.
-2. Enquanto não for aplicada, produção permanece com 24 funções executáveis e
-   `net.http_*` aberto a `PUBLIC` — o cenário descrito em "Grupo 2" como não
-   alcançável continua sendo a única proteção em produção.
+1. A migração 0046 está **versionada e provada localmente (10 cenários)**, mas
+   **não foi aplicada em produção** — a missão é somente leitura.
+2. **Mesmo após `db push`, `net.*` continuaria aberto**: a sessão de migração
+   (`postgres`) não é dona. O fechamento exige `supabase_admin` (P7). Este é o
+   achado central da 15.2 e o motivo de a migração não declarar sucesso falso.
+3. A revogação da órfã (`admin_stock_summary`) **essa sim** funciona, porque a
+   função pertence a `postgres` em produção (confirmado por consulta).
 3. O Advisor não avalia comportamento: ele não vê que `assert_admin` existe.
    Um aviso classificado aqui como "necessário" precisa desta justificativa
    junto, senão um futuro revisor o tratará como pendência aberta.
