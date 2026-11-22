@@ -277,9 +277,27 @@ vários arquivos geram casos dentro de laços.
 | `npm run build` | **OK**, 538 ms | execução local |
 | `npm run bundle:functions` | **10/10** | execução local |
 | `npm audit --omit=dev` | **0 vulnerabilidades** | execução local |
-| `npm run test:e2e` | **não executável no sandbox** | `Chromium não encontrado` (`checkout.ts:30`) |
+| `npm run test:e2e` | **não executável no sandbox** | `Chromium não encontrado` (`checkout.ts:30`) — **executa no CI** |
 
-Total de provas automatizadas: **168 + 496 = 664**.
+Total local: **168 + 496 = 664** provas.
+
+### CI (a evidência que o sandbox não pode dar)
+
+O `npm run test:e2e` não roda aqui, e o PostgreSQL do CI é o serviço
+`postgres:18` do Docker — não o embutido. Por isso o CI não é redundante: é a
+única execução que prova o pacote inteiro num ambiente diferente do meu.
+
+| Run | Commit | Resultado | Passos |
+|---|---|---|---|
+| `44989979102` (push) | `0e868fd` | **success** | 11/11, incluindo E2E |
+| `44989982504` (pull_request) | `0e868fd` | **success** | 11/11 |
+
+Passos verificados: Typecheck · Suíte frontend · **Suíte de banco (PostgreSQL
+real)** · Bundle · Chromium · **Jornada Chromium + WyviPay simulada**.
+
+> O E2E verde no CI é a prova que faltava: a jornada de checkout com
+> PostgreSQL real e WyviPay simulada passa, então as correções desta missão não
+> tocaram o caminho de compra.
 
 A suíte cresceu de 475 para **496** nesta missão (+21): 10 em
 `tests/db/29_pg_net_permissoes.test.ts` (migração 0046 sobre topologia real) e
