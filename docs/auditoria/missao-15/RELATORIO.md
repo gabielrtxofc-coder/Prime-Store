@@ -1,14 +1,21 @@
 # Missão 15 — Endurecimento de segurança
 
 **Data:** 2026-11-22 · **Branch:** `arena/8411465f-prime-store` (base `234e14d`) ·
-**Commit final:** `c276d5e` · **PR:** #15 ·
-**Projetos:** produção `audsosvbdybifvxsmqpi` · sandbox `eorlmqolbknrplvdbbtl`
+**PR:** #15 · **Projetos:** produção `audsosvbdybifvxsmqpi` · sandbox `eorlmqolbknrplvdbbtl`
+
+> **Commit da implementação: `36fee8f`.** É o último commit que altera
+> **código, testes ou migrações**. Os commits posteriores desta branch
+> (`c276d5e`, `bc0364c`, …) alteram **apenas `docs/`** — o código de runtime é
+> idêntico ao de `36fee8f`. Isso é verificável, não afirmado:
+>
+> ```
+> git diff --name-only 36fee8f..HEAD | grep -v '^docs/'   →   (vazio)
+> ```
 
 > **Estado da entrega:** 664 testes verdes (168 de interface + 496 de banco e
-> unidade) · CI verde em `c276d5e` (push e PR) · Vercel Preview `success` em
-> `c276d5e` · working tree limpo. As migrações **não foram aplicadas em
-> produção**; as pendências de operador estão em `DEPENDENCIAS-HUMANAS.md`
-> (P6 e **P7**).
+> unidade) · CI verde (push e PR) · Vercel Preview `success` · working tree
+> limpo. As migrações **não foram aplicadas em produção**; as pendências de
+> operador estão em `DEPENDENCIAS-HUMANAS.md` (P6 e **P7**).
 
 > **Classificação: ENDURECIMENTO APLICADO, com bloqueios de operador restantes.**
 > Um defeito **crítico de produção** foi encontrado e corrigido durante a
@@ -225,7 +232,7 @@ do navegador (D3).
 
 ## 7. Verificação automatizada
 
-Resultados definitivos, commit final **`c276d5e`**:
+Resultados definitivos — código de `36fee8f`, estado da branch em `bc0364c`:
 
 | Suíte | Resultado |
 | --- | --- |
@@ -235,8 +242,8 @@ Resultados definitivos, commit final **`c276d5e`**:
 | **Total de testes** | **664** (168 + 496) |
 | `npm run bundle:functions` | 10/10 funções empacotam |
 | `npm audit --omit=dev` | 0 vulnerabilidades |
-| CI (push + PR) | **verde** em `c276d5e` |
-| Vercel Preview | **success** em `c276d5e` |
+| CI (push + PR) | **verde** (todos os commits da branch) |
+| Vercel Preview | **success** (todos os commits da branch) |
 | Produção, `pg_net` antes/depois | CORS negado → liberado; origem estranha → continua negada |
 
 Novo arquivo de teste: `tests/unit/hardening_borda.test.ts` (**24 casos**) —
@@ -252,7 +259,7 @@ guarda que falha se aparecer estilo inline no `src/`.
 ## 7-bis. Histórico da contagem de testes (por que existem números antigos)
 
 > **Esta seção é registro histórico, não resultado.** Os números que valem são
-> os do §7: **168 + 496 = 664** no commit `c276d5e`. Tudo abaixo descreve como
+> os do §7: **168 + 496 = 664**. Tudo abaixo descreve como
 > a contagem evoluiu e por que documentos anteriores traziam 457/465/475.
 
 A Missão 15.1 encontrou duas contagens diferentes para `test:db` em documentos
@@ -297,7 +304,7 @@ todos **medidos**, e a contagem por inspeção estática de `it(` **não** é us
 como prova: em `tests/db` ela subconta (322 blocos para 475 casos) porque
 vários arquivos geram casos dentro de laços.
 
-**Números canônicos — Missão 15.2, commit `c276d5e`, execução de 2026-11-22:**
+**Números canônicos — Missão 15.2, execução de 2026-11-22:**
 
 | Suíte | Resultado | Como foi obtido |
 |---|---|---|
@@ -317,14 +324,16 @@ O `npm run test:e2e` não roda aqui, e o PostgreSQL do CI é o serviço
 `postgres:18` do Docker — não o embutido. Por isso o CI não é redundante: é a
 única execução que prova o pacote inteiro num ambiente diferente do meu.
 
-| Run | Commit | Resultado | Passos |
-|---|---|---|---|
-| `45094216403` (push) | **`c276d5e`** | **success** | 11/11, incluindo E2E |
-| `45094220192` (pull_request) | **`c276d5e`** | **success** | 11/11 |
+| Commit | Runs (push / PR) | Resultado |
+|---|---|---|
+| `36fee8f` (implementação) | `44990193925` / `44990197938` | **success** — 11/11, incluindo E2E |
+| `c276d5e` (docs) | `45094216403` / `45094220192` | **success** — 11/11 |
+| `bc0364c` (docs, HEAD) | `45094544731` / `45094549185` | **success** — 11/11 |
 
-Execuções anteriores (`36fee8f`: runs `44990193925` e `44990197938`;
-`0e868fd`: `44989979102` e `44989982504`) também passaram, mas **não são o
-resultado final** — o commit final é `c276d5e`.
+Todos os runs passaram nos 11 passos. A cadeia inteira está listada de
+propósito: os commits de documentação mudam o hash da branch sem mudar o
+código, e eleger um deles como "final" produziria um documento que se
+desatualiza a cada edição.
 
 Passos verificados: Typecheck · Suíte frontend · **Suíte de banco (PostgreSQL
 real)** · Bundle · Chromium · **Jornada Chromium + WyviPay simulada**.
@@ -338,9 +347,9 @@ real)** · Bundle · Chromium · **Jornada Chromium + WyviPay simulada**.
 | Item | Valor |
 |---|---|
 | Check na PR #15 | **pass** (`Vercel` e `Vercel Preview Comments`) |
-| Deployment | `7988152607`, ambiente `Preview`, ref `c276d5e` |
-| Estado | `success` — "Deployment has completed" |
-| URL | `https://prime-store-6w2xg8d64-gabielrtxofc-9229s-projects.vercel.app` |
+| Deployments | `7988152607` (`c276d5e`), `7988195894` (`bc0364c`) |
+| Estado | `success` — "Deployment has completed" em todos |
+| URL (HEAD) | `https://prime-store-6w2xg8d64-gabielrtxofc-9229s-projects.vercel.app` |
 
 O preview está atrás do SSO da Vercel, então **não é possível verificar o
 conteúdo servido** a partir deste sandbox (que também não tem saída de rede
