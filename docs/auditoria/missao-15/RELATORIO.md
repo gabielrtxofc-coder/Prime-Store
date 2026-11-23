@@ -1,7 +1,14 @@
 # Missão 15 — Endurecimento de segurança
 
 **Data:** 2026-11-22 · **Branch:** `arena/8411465f-prime-store` (base `234e14d`) ·
+**Commit final:** `36fee8f` · **PR:** #15 ·
 **Projetos:** produção `audsosvbdybifvxsmqpi` · sandbox `eorlmqolbknrplvdbbtl`
+
+> **Estado da entrega:** 664 testes verdes (168 de interface + 496 de banco e
+> unidade) · CI verde em `36fee8f` (push e PR) · Vercel Preview `success` em
+> `36fee8f` · working tree limpo. As migrações **não foram aplicadas em
+> produção**; as pendências de operador estão em `DEPENDENCIAS-HUMANAS.md`
+> (P6 e **P7**).
 
 > **Classificação: ENDURECIMENTO APLICADO, com bloqueios de operador restantes.**
 > Um defeito **crítico de produção** foi encontrado e corrigido durante a
@@ -108,9 +115,23 @@ Resumo:
 
 - **Tabelas:** RLS habilitado em todas, **zero policies**, `anon`/`authenticated`
   sem nenhum `GRANT` de tabela. Nenhuma leitura direta pelo PostgREST.
-- **Funções:** 32 `public`; `anon` executa **zero**; `authenticated` executa
-  apenas as 22 `admin_*` + `is_admin`, todas passando por
-  `assert_admin()` = usuário em `admin_users` **e** sessão em AAL2.
+- **Funções:** 32 `public`; `anon` executa **zero**. `authenticated` executa
+  **24** antes da 0046, com **três finalidades distintas** — não uma só:
+  - **22 funções administrativas** — chamadas pela Edge Function `admin-api`;
+    cada uma valida o chamador por `assert_admin()` = usuário em `admin_users`
+    **e** sessão em AAL2;
+  - **`is_admin`** — função de **consulta**. Não lança exceção: devolve
+    `false` quando o chamador não é administrador (checagem de `auth.uid()`
+    contra a allowlist, com AAL2). É o que o painel usa para decidir se
+    mostra a interface, e é o que os testes chamam de `anon` para provar que a
+    resposta é `permission denied`;
+  - **`admin_stock_summary()`** — **órfã**: zero chamadas no código de
+    produção. É a **única das 24 cuja permissão foi revogada** (pela 0046).
+    Continua executável por `postgres` (dono) e `service_role` (diagnóstico).
+
+  Afirmar que "as 24 passam por `assert_admin()`" é impreciso: `is_admin` não
+  autoriza nada — só informa — e a órfã sequer tem caminho de chamada.
+  A matriz função a função está em `ADVISORS.md` §Grupo 3.
 - **Schemas de extensão:** `vault` e `cron` sem `USAGE` para `anon`/
   `authenticated`; `vault.decrypted_secrets` e as funções
   `get_secret_material`/`get_delivery_token_enc` inacessíveis a ambos.
@@ -204,13 +225,18 @@ do navegador (D3).
 
 ## 7. Verificação automatizada
 
+Resultados definitivos, commit final **`36fee8f`**:
+
 | Suíte | Resultado |
 | --- | --- |
 | `npx tsc -b` | 0 erros |
-| `npm test` (frontend, jsdom) | **168/168** |
-| `npm run test:db` (PostgreSQL 18 real) | 457 → 475 → **496** (ver **§7-bis**) |
+| `npm test` (frontend, jsdom) | **168/168** em 24 arquivos |
+| `npm run test:db` (PostgreSQL 18.6 real) | **496/496** em 40 arquivos |
+| **Total de testes** | **664** (168 + 496) |
 | `npm run bundle:functions` | 10/10 funções empacotam |
-| `npm audit` | 0 vulnerabilidades |
+| `npm audit --omit=dev` | 0 vulnerabilidades |
+| CI (push + PR) | **verde** em `36fee8f` |
+| Vercel Preview | **success** em `36fee8f` |
 | Produção, `pg_net` antes/depois | CORS negado → liberado; origem estranha → continua negada |
 
 Novo arquivo de teste: `tests/unit/hardening_borda.test.ts` (**24 casos**) —
@@ -223,7 +249,11 @@ guarda que falha se aparecer estilo inline no `src/`.
 
 ---
 
-## 7-bis. Reconciliação da contagem de testes (457 → 465 → 475 → 496)
+## 7-bis. Histórico da contagem de testes (por que existem números antigos)
+
+> **Esta seção é registro histórico, não resultado.** Os números que valem são
+> os do §7: **168 + 496 = 664** no commit `36fee8f`. Tudo abaixo descreve como
+> a contagem evoluiu e por que documentos anteriores traziam 457/465/475.
 
 A Missão 15.1 encontrou duas contagens diferentes para `test:db` em documentos
 da própria missão (**457** no §7 e `docs/PROGRESSO.md`; **465** na execução real
@@ -267,9 +297,9 @@ todos **medidos**, e a contagem por inspeção estática de `it(` **não** é us
 como prova: em `tests/db` ela subconta (322 blocos para 475 casos) porque
 vários arquivos geram casos dentro de laços.
 
-**Números canônicos (Missão 15.1, executados nesta rodada):**
+**Números canônicos — Missão 15.2, commit `36fee8f`, execução de 2026-11-22:**
 
-| Suíte | Resultado (Missão 15.2, execução de 2026-11-22) | Como foi obtido |
+| Suíte | Resultado | Como foi obtido |
 |---|---|---|
 | `npm run typecheck` | **0 erros** | execução local, exit 0 |
 | `npm test` (frontend) | **168/168** em 24 arquivos | execução local |
@@ -289,8 +319,12 @@ O `npm run test:e2e` não roda aqui, e o PostgreSQL do CI é o serviço
 
 | Run | Commit | Resultado | Passos |
 |---|---|---|---|
-| `44989979102` (push) | `0e868fd` | **success** | 11/11, incluindo E2E |
-| `44989982504` (pull_request) | `0e868fd` | **success** | 11/11 |
+| `44990193925` (push) | **`36fee8f`** | **success** | 11/11, incluindo E2E |
+| `44990197938` (pull_request) | **`36fee8f`** | **success** | 11/11 |
+
+Execuções intermediárias (`0e868fd`: runs `44989979102` e `44989982504`)
+também passaram, mas **não são o resultado final** — o commit final é
+`36fee8f`.
 
 Passos verificados: Typecheck · Suíte frontend · **Suíte de banco (PostgreSQL
 real)** · Bundle · Chromium · **Jornada Chromium + WyviPay simulada**.
@@ -299,9 +333,25 @@ real)** · Bundle · Chromium · **Jornada Chromium + WyviPay simulada**.
 > PostgreSQL real e WyviPay simulada passa, então as correções desta missão não
 > tocaram o caminho de compra.
 
-A suíte cresceu de 475 para **496** nesta missão (+21): 10 em
+### Vercel Preview
+
+| Item | Valor |
+|---|---|
+| Check na PR #15 | **pass** (`Vercel` e `Vercel Preview Comments`) |
+| Deployment | `7974500061`, ambiente `Preview`, ref `36fee8f` |
+| Estado | `success` — "Deployment has completed", 2026-11-22 05:37:36 UTC |
+| URL | `https://prime-store-602oyjpmk-gabielrtxofc-9229s-projects.vercel.app` |
+
+O preview está atrás do SSO da Vercel, então **não é possível verificar o
+conteúdo servido** a partir deste sandbox (que também não tem saída de rede
+para o domínio). O que está comprovado é o que a Vercel reporta: o build
+concluiu com sucesso no commit final. Não trato a página de login do SSO como
+resposta da aplicação.
+
+A suíte cresceu em **+21 casos** nesta missão: 10 em
 `tests/db/29_pg_net_permissoes.test.ts` (migração 0046 sobre topologia real) e
-11 em `tests/db/30_bootstrap_admin.test.ts` (migração 0047).
+11 em `tests/db/30_bootstrap_admin.test.ts` (migração 0047). A base anterior
+era 475 (ver §7-bis, registro histórico).
 
 Artefatos do `build` desta execução: `index-D4nn5bjy.js` (324,49 kB / gzip
 98,99 kB), `AdminPage-DYdJJtCo.js` (330,28 kB / gzip 82,94 kB),
@@ -561,8 +611,9 @@ os instrumentos disponíveis: `get_edge_function` devolve o corpo **truncado**
 Nenhuma das duas perde **funcionalidade** por esperar: ambas têm
 `verify_jwt = true`, então não são alcançáveis por visitante; `wyvi-worker` só
 é chamada pelo cron (job 3, como `postgres`) e pelo `order-status`;
-`admin-api` exige JWT de administrador e `assert_admin` roda **no banco**
-(inalterado). O risco é de **recurso** (corpo grande), não de autorização.
+`admin-api` exige JWT de administrador e a checagem (`assert_admin`, ou
+`is_admin` quando a intenção é só consultar) roda **no banco** — inalterada
+pela 15.2. O risco aqui é de **recurso** (corpo grande), não de autorização.
 
 ### Smoke real (produção, via `pg_net`, respostas de `net._http_response`)
 
@@ -612,14 +663,45 @@ docs/auditoria/missao-15/*                         (este relatório)
 
 ```
 supabase/migrations/20261122120000_0046_reduzir_superficie_rpc.sql
-    (revoga EXECUTE da órfã admin_stock_summary; fecha net.http_* de
-     PUBLIC/anon/authenticated sob condição de pg_net existir)
 tests/db/28_reducao_superficie_rpc.test.ts         (novo, 7 casos)
 tests/db/22_admin_guardia_aal2.test.ts             (+3 casos: is_admin,
                                                     gatilho em auth.users,
                                                     escrita na allowlist)
 docs/auditoria/missao-15/ADVISORS.md               (novo — Tarefa 03)
 ```
+
+### Adicionado pela Missão 15.2
+
+```
+supabase/migrations/20261122120000_0046_reduzir_superficie_rpc.sql
+    (REESCRITA — ver abaixo)
+supabase/migrations/20261122130000_0047_versionar_bootstrap_admin.sql
+    (novo — versiona bootstrap_admin_register/status lidos do catálogo)
+tests/db/29_pg_net_permissoes.test.ts              (novo, 10 casos)
+tests/db/30_bootstrap_admin.test.ts                (novo, 11 casos)
+tests/db/helpers.ts                                (limpeza de resíduo de net)
+tests/db/27_worker_schedule.test.ts                (substitutos sem depender
+                                                    da ordem dos arquivos)
+docs/auditoria/missao-15/*                         (ADVISORS, DEPENDENCIAS,
+                                                    RELATORIO)
+```
+
+**O que a migração 0046 faz, definitivamente:**
+
+| # | Comportamento | Como está provado |
+|---|---|---|
+| 1 | **Revoga `EXECUTE` da órfã `admin_stock_summary()`** de `PUBLIC`/`anon`/`authenticated`. Essa parte **funciona em produção**, porque a função pertence ao `postgres`. | `tests/db/29`, caso final; `postgres` e `service_role` preservados |
+| 2 | **Descobre as funções reais de `pg_net`** em `pg_proc` pelo nome (`http_post`, `http_get`, `http_delete`) e aplica a assinatura do próprio catálogo (`oid::regprocedure`) — nunca um literal digitado. | casos B2/C/D; assinatura conferida contra o catálogo de produção |
+| 3 | **Só revoga quando a sessão pode revogar** (dono do schema `net` ou superusuário). | casos B (sem posse) e B2 (com posse) |
+| 4 | **Emite aviso explícito quando não pode revogar**, nomeando o dono real (`supabase_admin`) e a ação necessária — a pendência fica no log do `db push`, não é engolida. | caso B: ACL idêntica antes/depois, com `WARNING` |
+| 5 | **Verifica o resultado** por `has_function_privilege` + `aclexplode` (`grantee = 0` = PUBLIC) e **levanta exceção** se a ACL continuar aberta. | caso B2 |
+| 6 | **Não esconde falha**: sem `WHEN OTHERS THEN NULL`; se `net.*` existe e as três funções não aparecem, é exceção. | revisão do SQL + caso A |
+
+**P7 permanece aberta:** aplicar a 0046 **não fecha `net.*` em produção**,
+porque a sessão de migração (`postgres`) não é dona do schema nem superusuária
+(`rolsuper = false`). O fechamento exige `supabase_admin` e é **ação
+operacional pendente** — com o SQL exato em `DEPENDENCIAS-HUMANAS.md`. Não
+está declarado como resolvido em nenhum lugar desta documentação.
 
 Configuração de plataforma (não versionada): secrets `STORE_URL`,
 `ALLOWED_ORIGINS`, `RATE_LIMIT_SECRET` em produção; `site_url`,
