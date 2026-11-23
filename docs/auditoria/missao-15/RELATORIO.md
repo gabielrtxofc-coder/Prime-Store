@@ -1,12 +1,12 @@
 # Missão 15 — Endurecimento de segurança
 
 **Data:** 2026-11-22 · **Branch:** `arena/8411465f-prime-store` (base `234e14d`) ·
-**Commit final:** `36fee8f` · **PR:** #15 ·
+**Commit final:** `c276d5e` · **PR:** #15 ·
 **Projetos:** produção `audsosvbdybifvxsmqpi` · sandbox `eorlmqolbknrplvdbbtl`
 
 > **Estado da entrega:** 664 testes verdes (168 de interface + 496 de banco e
-> unidade) · CI verde em `36fee8f` (push e PR) · Vercel Preview `success` em
-> `36fee8f` · working tree limpo. As migrações **não foram aplicadas em
+> unidade) · CI verde em `c276d5e` (push e PR) · Vercel Preview `success` em
+> `c276d5e` · working tree limpo. As migrações **não foram aplicadas em
 > produção**; as pendências de operador estão em `DEPENDENCIAS-HUMANAS.md`
 > (P6 e **P7**).
 
@@ -225,7 +225,7 @@ do navegador (D3).
 
 ## 7. Verificação automatizada
 
-Resultados definitivos, commit final **`36fee8f`**:
+Resultados definitivos, commit final **`c276d5e`**:
 
 | Suíte | Resultado |
 | --- | --- |
@@ -235,8 +235,8 @@ Resultados definitivos, commit final **`36fee8f`**:
 | **Total de testes** | **664** (168 + 496) |
 | `npm run bundle:functions` | 10/10 funções empacotam |
 | `npm audit --omit=dev` | 0 vulnerabilidades |
-| CI (push + PR) | **verde** em `36fee8f` |
-| Vercel Preview | **success** em `36fee8f` |
+| CI (push + PR) | **verde** em `c276d5e` |
+| Vercel Preview | **success** em `c276d5e` |
 | Produção, `pg_net` antes/depois | CORS negado → liberado; origem estranha → continua negada |
 
 Novo arquivo de teste: `tests/unit/hardening_borda.test.ts` (**24 casos**) —
@@ -252,7 +252,7 @@ guarda que falha se aparecer estilo inline no `src/`.
 ## 7-bis. Histórico da contagem de testes (por que existem números antigos)
 
 > **Esta seção é registro histórico, não resultado.** Os números que valem são
-> os do §7: **168 + 496 = 664** no commit `36fee8f`. Tudo abaixo descreve como
+> os do §7: **168 + 496 = 664** no commit `c276d5e`. Tudo abaixo descreve como
 > a contagem evoluiu e por que documentos anteriores traziam 457/465/475.
 
 A Missão 15.1 encontrou duas contagens diferentes para `test:db` em documentos
@@ -297,7 +297,7 @@ todos **medidos**, e a contagem por inspeção estática de `it(` **não** é us
 como prova: em `tests/db` ela subconta (322 blocos para 475 casos) porque
 vários arquivos geram casos dentro de laços.
 
-**Números canônicos — Missão 15.2, commit `36fee8f`, execução de 2026-11-22:**
+**Números canônicos — Missão 15.2, commit `c276d5e`, execução de 2026-11-22:**
 
 | Suíte | Resultado | Como foi obtido |
 |---|---|---|
@@ -319,12 +319,12 @@ O `npm run test:e2e` não roda aqui, e o PostgreSQL do CI é o serviço
 
 | Run | Commit | Resultado | Passos |
 |---|---|---|---|
-| `44990193925` (push) | **`36fee8f`** | **success** | 11/11, incluindo E2E |
-| `44990197938` (pull_request) | **`36fee8f`** | **success** | 11/11 |
+| `45094216403` (push) | **`c276d5e`** | **success** | 11/11, incluindo E2E |
+| `45094220192` (pull_request) | **`c276d5e`** | **success** | 11/11 |
 
-Execuções intermediárias (`0e868fd`: runs `44989979102` e `44989982504`)
-também passaram, mas **não são o resultado final** — o commit final é
-`36fee8f`.
+Execuções anteriores (`36fee8f`: runs `44990193925` e `44990197938`;
+`0e868fd`: `44989979102` e `44989982504`) também passaram, mas **não são o
+resultado final** — o commit final é `c276d5e`.
 
 Passos verificados: Typecheck · Suíte frontend · **Suíte de banco (PostgreSQL
 real)** · Bundle · Chromium · **Jornada Chromium + WyviPay simulada**.
@@ -338,9 +338,9 @@ real)** · Bundle · Chromium · **Jornada Chromium + WyviPay simulada**.
 | Item | Valor |
 |---|---|
 | Check na PR #15 | **pass** (`Vercel` e `Vercel Preview Comments`) |
-| Deployment | `7974500061`, ambiente `Preview`, ref `36fee8f` |
-| Estado | `success` — "Deployment has completed", 2026-11-22 05:37:36 UTC |
-| URL | `https://prime-store-602oyjpmk-gabielrtxofc-9229s-projects.vercel.app` |
+| Deployment | `7988152607`, ambiente `Preview`, ref `c276d5e` |
+| Estado | `success` — "Deployment has completed" |
+| URL | `https://prime-store-6w2xg8d64-gabielrtxofc-9229s-projects.vercel.app` |
 
 O preview está atrás do SSO da Vercel, então **não é possível verificar o
 conteúdo servido** a partir deste sandbox (que também não tem saída de rede
