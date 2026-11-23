@@ -32,6 +32,16 @@ export async function resetDatabase(): Promise<void> {
   try {
     await client.query('drop schema if exists public cascade');
     await client.query('drop schema if exists auth cascade');
+    // Extensões/objetos que uma execução interrompida pode deixar para trás.
+    // A ORDEM importa: quando a extensão não possui objetos, `drop schema`
+    // não remove a linha de `pg_extension`, e a migração `0044` passaria a
+    // vê-la como "já instalada" (no-op), deixando `net.*` sem funções e
+    // fazendo a `0046` falhar corretamente — mas por resíduo de teste.
+    await client.query('drop extension if exists pg_net').catch(() => undefined);
+    await client.query("drop extension if exists pg_net_storetest").catch(() => undefined);
+    await client.query('drop schema if exists net cascade').catch(() => undefined);
+    await client.query('drop schema if exists netprobe cascade').catch(() => undefined);
+    await client.query('drop schema if exists netprobe2 cascade').catch(() => undefined);
     await client.query('create schema public');
     await client.query(readFileSync(BOOTSTRAP_FILE, 'utf8'));
 

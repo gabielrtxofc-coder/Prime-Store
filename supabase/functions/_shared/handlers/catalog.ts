@@ -1,5 +1,5 @@
 import type { Deps } from '../deps.ts';
-import { errorResponse, json, methodGuard, preflight } from '../http.ts';
+import { errorResponse, json, methodGuard, preflight, readJsonOrEmpty } from '../http.ts';
 import { enforceRateLimit } from '../rateLimit.ts';
 import { mapCatalogProduct, type CatalogRow } from '../mappers.ts';
 
@@ -46,7 +46,9 @@ export async function handleCatalog(request: Request, deps: Deps): Promise<Respo
     let category = url.searchParams.get('category');
 
     if (request.method === 'POST') {
-      const body = (await request.json().catch(() => ({}))) as { q?: unknown; category?: unknown };
+      // Corpo é opcional (filtros). Corpo maior que o teto continua sendo
+      // recusado pelo leitor comum — antes ele era consumido inteiro.
+      const body = (await readJsonOrEmpty<{ q?: unknown; category?: unknown }>(request));
       if (typeof body.q === 'string') search = body.q.slice(0, 120);
       if (typeof body.category === 'string') category = body.category.slice(0, 40);
     }

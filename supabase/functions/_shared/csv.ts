@@ -32,12 +32,24 @@ export interface ValidatedStock {
   valid: ParsedStockRow[];
   rejected: RejectedRow[];
   duplicatedInFile: number;
+  /** true quando o arquivo passou de `MAX_IMPORT_ROWS` e o excedente foi cortado. */
+  truncated: boolean;
 }
 
 const EMAIL_PATTERN = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/;
 const MAX_EMAIL_LENGTH = 254;
 const MAX_PASSWORD_LENGTH = 200;
 const MAX_NOTES_LENGTH = 500;
+
+/**
+ * Teto de linhas por importação.
+ *
+ * Os limites por campo (254/200/500) não limitavam o TOTAL: um CSV de 2 MB
+ * cabia com dezenas de milhares de linhas, todas cifradas e enviadas em um
+ * único RPC — custo de CPU/memória pago pela função e payload gigante para o
+ * banco. 5.000 linhas cobrem com folga um lote real de estoque.
+ */
+export const MAX_IMPORT_ROWS = 5000;
 
 function detectDelimiter(line: string): string {
   const semicolons = (line.match(/;/g) ?? []).length;
@@ -160,13 +172,25 @@ export function validateStockRows(
   rows: Array<{ rowNumber: number; email: string; password: string; notes: string }>,
   existingFingerprints: Set<string> = new Set(),
   fingerprintOf: (email: string, password: string) => string = defaultFingerprint,
+  options: { maxRows?: number } = {},
 ): ValidatedStock {
   const seen = new Set<string>();
   const valid: ParsedStockRow[] = [];
   const rejected: RejectedRow[] = [];
   let duplicatedInFile = 0;
+  let truncated = false;
 
+  const maxRows = options.maxRows ?? MAX_IMPORT_ROWS;
+  const accepted: typeof rows = [];
   for (const row of rows) {
+    if (accepted.length >= maxRows) {
+      truncated = true;
+      break;
+    }
+    accepted.push(row);
+  }
+
+  for (const row of accepted) {
     const email = row.email.trim();
     const password = row.password;
     const notes = row.notes.trim().slice(0, MAX_NOTES_LENGTH);
@@ -207,7 +231,7 @@ export function validateStockRows(
     valid.push({ rowNumber: row.rowNumber, email, password, notes });
   }
 
-  return { valid, rejected, duplicatedInFile };
+  return { valid, rejected, duplicatedInFile, truncated };
 }
 
 /** Fingerprint determinístico usado apenas para detecção local no arquivo. */

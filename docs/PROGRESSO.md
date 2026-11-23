@@ -451,3 +451,42 @@ Branch `arena/74b080f3-prime-store` sobre `main` `89033be`.
 - **Pendências do operador:** admins + TOTP, domínio/origens, decisão de
   pagamentos (WyviPay D1–D11 / MP), revisão jurídica, smoke final da sua
   máquina. **Não declarada pronta para lançamento.**
+
+## Missão 15 — Endurecimento de segurança (2026-11-22)
+
+Relatório: [auditoria/missao-15/RELATORIO.md](auditoria/missao-15/RELATORIO.md).
+Branch `arena/8411465f-prime-store` sobre `main` `234e14d`.
+Produção `audsosvbdybifvxsmqpi` · sandbox `eorlmqolbknrplvdbbtl`.
+
+- **Achado crítico, corrigido:** produção **não tinha** `ALLOWED_ORIGINS` nem
+  `STORE_URL`. O CORS fecha por padrão, então `catalog` respondia `200` **sem**
+  `Access-Control-Allow-Origin` e o navegador bloqueava **toda** chamada em
+  `prime-store-gilt.vercel.app`. Reproduzido com `pg_net` e corrigido com os
+  três secrets (`STORE_URL`, `ALLOWED_ORIGINS`, `RATE_LIMIT_SECRET`); prova
+  antes/depois e contraprova com origem estranha no relatório §2.
+- **Auth de produção:** `site_url` era `http://localhost:3000` e a allow list
+  estava vazia → agora aponta para o domínio real **e**
+  `disable_signup = true` (qualquer pessoa criava usuário no Auth).
+- **Código:** teto de 4 MB por corpo lido (`readJson`/`readBodyText`, corte
+  durante a leitura, `413`), teto de 5.000 linhas no CSV de estoque
+  (`MAX_IMPORT_ROWS`, commit recusa), `publicEnv` só entrega `VITE_*`,
+  `vercel.json` com CSP/HSTS/XFO/nosniff/Permissions-Policy, `index.html` com
+  `no-referrer` e descrição correta, `vite.config.ts` sem
+  `allowedHosts: true`.
+- **Verificado e correto:** `create_purchase_request` em produção **tem** a
+  correção anti-sequestro da 0039/0039b (corpo do `prosrc` conferido); demo mode
+  desligado por três travas; `admin_users` vazio; cron/Vault sem entrada do
+  cliente; 0 segredos no repo; `npm audit` 0.
+- **Testes:** `tsc` 0 · `npm test` **168/168** · `test:db` **496/496**
+  (40 arquivos; 441 de base + 24 de `tests/unit/hardening_borda.test.ts`
+  + 7 de `tests/db/28` + 3 em `tests/db/22` + 10 de `tests/db/29`
+  (pg_net com topologia real) + 11 de `tests/db/30` (bootstrap versionado))
+  · bundle 10/10 · `npm audit --omit=dev` 0. Rodado duas vezes com o mesmo
+  resultado, a partir de `node_modules` sem `pg_net` (estado de CI).
+  O valor **457** que constava aqui estava correto quando foi escrito
+  (`b065c55`, com 16 casos de hardening) e ficou defasado no commit seguinte
+  (`9b5f378`), que elevou o arquivo de 16 para 24 casos ao acrescentar as
+  7 guardas de CSP. Ver §7-bis do relatório da Missão 15.
+- **Pendências do operador:** admins + TOTP (agora com signup fechado), SMTP de
+  Auth, chave WyviPay definitiva, política de senha (P4), conferir CSP no console
+  no primeiro deploy. **Não declarada pronta para lançamento.**

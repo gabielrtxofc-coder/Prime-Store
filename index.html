@@ -4,8 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#080A0F" />
-    <meta name="description" content="Prime Store — protótipo de loja digital. Catálogo e checkout demonstrativos, sem processamento de pagamentos reais." />
-    <title>Prime Store — loja digital demonstrativa</title>
+    <meta
+      name="description"
+      content="Prime Store — loja digital com catálogo, checkout PIX e entrega privada de acessos."
+    />
+    <!--
+      Política principal (CSP, HSTS, X-Frame-Options, nosniff, Permissions-Policy)
+      é enviada como cabeçalho HTTP pelo `vercel.json` — cabeçalho vence meta e
+      não depende do documento. As duas metas abaixo são defesa em profundidade
+      para quando o HTML for servido fora da Vercel (ex.: preview local).
+      O token de entrega vai na URL (`/entrega/<token>`): `no-referrer` impede
+      que ele vaze pelo cabeçalho `Referer` para qualquer destino externo.
+    -->
+    <meta name="referrer" content="no-referrer" />
+    <title>Prime Store — loja digital</title>
   </head>
   <body>
     <div id="root"></div>
