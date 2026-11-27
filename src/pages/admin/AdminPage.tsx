@@ -16,10 +16,11 @@ import { AdminOverview } from './AdminOverview';
 import { AdminProducts } from './AdminProducts';
 import { AdminStock } from './AdminStock';
 import { AdminOrders } from './AdminOrders';
+import { AdminSecurity } from './AdminSecurity';
 
-type Tab = 'overview' | 'products' | 'stock' | 'orders';
+type Tab = 'overview' | 'products' | 'stock' | 'orders' | 'security';
 
-const TABS: Array<{ id: Tab; label: string; icon: IconName; description: string }> = [
+const BASE_TABS: Array<{ id: Tab; label: string; icon: IconName; description: string }> = [
   {
     id: 'overview',
     label: 'Visão geral',
@@ -45,6 +46,18 @@ const TABS: Array<{ id: Tab; label: string; icon: IconName; description: string 
     description: 'Acompanhe solicitações, pagamentos, entregas e reembolsos.',
   },
 ];
+
+// A área de Segurança gerencia autenticadores reais e NÃO está disponível no
+// modo demonstrativo (dados fictícios, sem Auth).
+const SECURITY_TAB: { id: Tab; label: string; icon: IconName; description: string } = {
+  id: 'security',
+  label: 'Segurança',
+  icon: 'shield',
+  description: 'Autenticadores de verificação em duas etapas, segundo fator e remoção de fatores.',
+};
+
+const TABS = (demo: boolean): Array<{ id: Tab; label: string; icon: IconName; description: string }> =>
+  demo ? BASE_TABS : [...BASE_TABS, SECURITY_TAB];
 
 export function AdminPage() {
   const configured = getBackendConfig().enabled;
@@ -93,7 +106,7 @@ export function AdminPage() {
     setTab('overview');
   };
 
-  const current = TABS.find((item) => item.id === tab) ?? TABS[0];
+  const current = TABS(demoMode).find((item) => item.id === tab) ?? TABS(demoMode)[0];
   const sessionLabel = demoMode ? 'Sessão de demonstração (sem dados reais)' : (session?.email ?? 'Sessão ativa');
 
   const demoBanner = demoMode ? (
@@ -145,6 +158,22 @@ export function AdminPage() {
     );
   }
 
+  // Falha na verificação de permissões NÃO é a mesma coisa que "fora da
+  // allowlist". Em caso de erro (ex.: Auth indisponível), mantemos o painel
+  // trancado e oferecemos retry — não liberamos nem exibimos "acesso negado".
+  if (session.adminCheckError) {
+    return (
+      <section className="container page-section admin-page">
+        <div className="admin-denied">
+          <h1>Não foi possível verificar o acesso</h1>
+          <p>{session.adminCheckError}</p>
+          <button className="button button--secondary" type="button" onClick={refresh}>Tentar novamente</button>
+          <button className="button button--ghost button--small" type="button" onClick={logout}>Sair</button>
+        </div>
+      </section>
+    );
+  }
+
   if (!session.isAdmin) {
     return (
       <section className="container page-section admin-page">
@@ -161,7 +190,7 @@ export function AdminPage() {
   }
 
   if (!session.mfaSatisfied) {
-    return <AdminMfaGate session={session} onVerified={refresh} onSignOut={logout} />;
+    return <AdminMfaGate session={session} onVerified={refresh} onSignOut={logout} onRetry={refresh} />;
   }
 
   return (
@@ -176,7 +205,7 @@ export function AdminPage() {
         </div>
 
         <nav className="admin-nav" aria-label="Seções do painel">
-          {TABS.map((item) => (
+          {TABS(demoMode).map((item) => (
             <button
               key={item.id}
               type="button"
@@ -237,6 +266,7 @@ export function AdminPage() {
           {tab === 'products' && <AdminProducts />}
           {tab === 'stock' && <AdminStock />}
           {tab === 'orders' && <AdminOrders />}
+          {tab === 'security' && !demoMode && <AdminSecurity initialSession={session} onSessionUpdated={refresh} />}
         </div>
 
         <p className="admin-footnote">
