@@ -11,7 +11,25 @@ import { demoAdminInvoke, isAdminDemoAvailable } from './adminDemoData';
  *   não autoriza nenhuma ação administrativa.
  * - Nenhuma chave privilegiada é usada no navegador: apenas a chave pública
  *   `anon`, e a autorização real acontece no banco (`assert_admin`).
+ *
+ * Garantias desta implementação (missão de endurecimento do MFA):
+ *  - Falha na consulta de fatores MFA É tratada como erro real; NUNCA é
+ *    interpretada como "ausência de autenticadores" (evita cadastros duplicados
+ *    e liberação indevida do painel).
+ *  - Falha de rede NUNCA é confundida com ausência de fatores.
+ *  - Falha na verificação de permissões NUNCA é confundida com conta fora da
+ *    allowlist (campo `adminCheckError` separado de `isAdmin`).
+ *  - Cadastros TOTP existentes são identificados antes de iniciar novos.
+ *  - Cadastros duplicados são evitados (cache do cadastro em andamento + guarda
+ *    de execução concorrente — cobre o React StrictMode).
+ *  - O limite de dois autenticadores é respeitado.
+ *  - A remoção de um fator exige sessão AAL2 e NUNCA remove o único fator
+ *    verificado.
+ *  - Após qualquer alteração de fatores, a sessão é reconsultada.
  */
+
+/** Limite de autenticadores TOTP por administrador (模型 AAL2 + reserva). */
+export const MAX_TOTP_FACTORS = 2;
 
 let client: SupabaseClient | null = null;
 
@@ -21,7 +39,8 @@ let client: SupabaseClient | null = null;
  * Só pode ser ligada quando `VITE_ADMIN_DEMO=true`. Nesse estado NENHUMA
  * chamada administrativa sai do navegador: tudo é respondido por
  * `adminDemoInvoke`. O caminho real (JWT + allowlist + AAL2) continua intacto
- * e é o único usado fora do modo demonstrativo.
+ * e é o único usado fora do modo demonstrativo. Funcionalidades de segurança
+ * (gestão de fatores) NÃO estão disponíveis no modo demonstrativo.
  */
 let demoSession = false;
 
@@ -73,11 +92,32 @@ export interface AdminSession {
   email: string | null;
   currentLevel: string;
   nextLevel: string;
-  /** Preenchido quando o usuário precisa concluir o TOTP. */
+  /** Preenchido quando o usuário precisa concluir o TOTP (não está em AAL2, mas o caminho existe). */
   pendingTotp: boolean;
+  /** Fatores TOTP verificados. */
   factors: TotpFactor[];
+  /** Fatores TOTP em cadastramento (ainda não verificados). */
+  pendingFactors: TotpFactor[];
   isAdmin: boolean;
   mfaSatisfied: boolean;
+  /**
+   * Erro na verificação de permissões (admin-api). Diferente de `isAdmin=false`:
+   * aqui NÃO sabemos se a conta está na allowlist — a checagem falhou. Deve
+   * resultar em tela de erro com retry, nunca em "acesso negado" nem em liberação.
+   */
+  adminCheckError: string | null;
+  /**
+   * Erro ao listar os fatores MFA. NUNCA significa "não há fatores": a UI deve
+   * mostrar erro/retry e NÃO iniciar um novo cadastro cegamente.
+   */
+  factorError: string | null;
+  /** Ainda é possível cadastrar outro autenticador (respeitando o limite). */
+  canEnrollMore: boolean;
+}
+
+function isNetworkLikeError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /failed to fetch|network|econnrefused|timeout|socket|etimedout|fetch failed/i.test(message);
 }
 
 function translateAuthError(message: string): string {
@@ -90,45 +130,133 @@ function translateAuthError(message: string): string {
   if (normalized.includes('rate limit') || normalized.includes('too many')) {
     return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
   }
+  if (isNetworkLikeError(message)) {
+    return 'Falha de comunicação com o serviço de autenticação. Verifique sua conexão e tente novamente.';
+  }
   return message;
 }
 
-async function listTotpFactors(supabase: SupabaseClient): Promise<TotpFactor[]> {
-  const { data, error } = await supabase.auth.mfa.listFactors();
-  if (error) return [];
-  return (data?.totp ?? [])
-    .filter((factor) => factor.status === 'verified')
-    .map((factor) => ({ id: factor.id, friendlyName: factor.friendly_name ?? null }));
+interface FactorBundle {
+  verified: TotpFactor[];
+  pending: TotpFactor[];
+}
+
+/**
+ * Lista os fatores TOTP do usuário.
+ *
+ * IMPORTANTE: qualquer falha (rede, Auth indisponível, erro de API) é retornada
+ * como `Fail`. NUNCA retornamos lista vazia em caso de erro — isso evitaria que
+ * a UI iniciasse um novo cadastro de forma redundante ou liberasse o painel.
+ */
+async function getFactors(supabase: SupabaseClient): Promise<Result<FactorBundle>> {
+  let data: { totp?: Array<{ id: string; friendly_name: string | null; status: string }> } | null = null;
+  let error: { message?: string } | null = null;
+  try {
+    const response = await supabase.auth.mfa.listFactors();
+    data = response.data as FactorBundle extends never ? never : { totp?: Array<{ id: string; friendly_name: string | null; status: string }> } | null;
+    error = response.error;
+  } catch (thrown) {
+    return fail(
+      isNetworkLikeError(thrown)
+        ? 'Falha de comunicação ao consultar seus autenticadores. Verifique sua conexão e tente novamente.'
+        : 'Não foi possível carregar seus autenticadores. Tente novamente.',
+    );
+  }
+  if (error) {
+    return fail(
+      error.message && isNetworkLikeError(error.message)
+        ? 'Falha de comunicação ao consultar seus autenticadores. Verifique sua conexão e tente novamente.'
+        : 'Não foi possível carregar seus autenticadores. Tente novamente.',
+    );
+  }
+  const totp = data?.totp ?? [];
+  const verified: TotpFactor[] = [];
+  const pending: TotpFactor[] = [];
+  for (const factor of totp) {
+    const mapped: TotpFactor = { id: factor.id, friendlyName: factor.friendly_name ?? null };
+    if (factor.status === 'verified') verified.push(mapped);
+    else pending.push(mapped);
+  }
+  return { ok: true, value: { verified, pending } };
 }
 
 async function describeSession(supabase: SupabaseClient, session: Session): Promise<AdminSession> {
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  const factors = await listTotpFactors(supabase);
+  // Nível de garantia (AAL). Falha de rede aqui não deve liberar o painel:
+  // assumimos o pior caso (aal1) até conseguirmos confirmar.
+  let aal: { currentLevel?: string; nextLevel?: string } | null = null;
+  try {
+    const response = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    aal = (response.data as { currentLevel?: string; nextLevel?: string } | null) ?? null;
+  } catch {
+    aal = null;
+  }
   const currentLevel = aal?.currentLevel ?? 'aal1';
   const nextLevel = aal?.nextLevel ?? currentLevel;
 
-  // A allowlist é decidida pelo banco; aqui só refletimos o resultado.
+  // Fatores MFA — falha de rede NÃO é "ausência de fatores".
+  const factorsResult = await getFactors(supabase);
+  const factorError = factorsResult.ok ? null : factorsResult.message;
+  const verified = factorsResult.ok ? factorsResult.value.verified : [];
+  const pending = factorsResult.ok ? factorsResult.value.pending : [];
+
+  // Verificação de permissões — falha NÃO é "fora da allowlist".
   let isAdmin = false;
   let mfaSatisfied = false;
+  let adminCheckError: string | null = null;
   try {
-    const status = await adminInvoke<{ is_admin: boolean; mfa_satisfied: boolean }>('session', {}, session.access_token);
+    const status = await adminInvoke<{ is_admin: boolean; mfa_satisfied: boolean }>(
+      'session',
+      {},
+      session.access_token,
+    );
     isAdmin = status.is_admin === true;
     mfaSatisfied = status.mfa_satisfied === true;
   } catch {
-    isAdmin = false;
-    mfaSatisfied = false;
+    adminCheckError =
+      'Não foi possível verificar suas permissões administrativas. Verifique sua conexão e tente novamente.';
   }
+
+  const total = verified.length + pending.length;
+  const pendingTotp = currentLevel !== 'aal2' && nextLevel === 'aal2';
 
   return {
     userId: session.user.id,
     email: session.user.email ?? null,
     currentLevel,
     nextLevel,
-    pendingTotp: currentLevel !== 'aal2' && nextLevel === 'aal2' && factors.length > 0,
-    factors,
+    pendingTotp,
+    factors: verified,
+    pendingFactors: pending,
     isAdmin,
     mfaSatisfied,
+    adminCheckError,
+    factorError,
+    // Fail-closed: sem certeza da listagem de fatores, não oferecemos cadastro.
+    canEnrollMore: !factorError && total < MAX_TOTP_FACTORS,
   };
+}
+
+/**
+ * Cadastro de TOTP em andamento. Guardamos o segredo/QR para evitar gerar
+ * fatores duplicados quando a UI (ex.: React StrictMode) dispara o cadastro
+ * mais de uma vez antes da verificação. O segredo é de uso único, por isso só
+ * podemos exibi-lo uma vez.
+ */
+interface PendingEnrollment {
+  factorId: string;
+  qrCode: string;
+  secret: string;
+  createdAt: number;
+}
+let pendingEnrollment: PendingEnrollment | null = null;
+const PENDING_ENROLLMENT_TTL_MS = 10 * 60 * 1000;
+
+// Guarda contra execução concorrente de `enrollTotpFactor` (StrictMode/efeitos duplos).
+let enrollInFlight: Promise<Result<PendingEnrollment & { reused: boolean }>> | null = null;
+
+function clearPendingEnrollment(): void {
+  pendingEnrollment = null;
+  enrollInFlight = null;
 }
 
 export async function signInWithPassword(email: string, password: string): Promise<Result<AdminSession>> {
@@ -141,7 +269,7 @@ export async function signInWithPassword(email: string, password: string): Promi
     if (error || !data.session) return fail(translateAuthError(error?.message ?? 'Falha ao entrar.'));
     return { ok: true, value: await describeSession(supabase, data.session) };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'Falha ao entrar.');
+    return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao entrar.'));
   }
 }
 
@@ -156,8 +284,12 @@ export async function getCurrentSession(): Promise<Result<AdminSession | null>> 
         nextLevel: 'aal2',
         pendingTotp: false,
         factors: [],
+        pendingFactors: [],
         isAdmin: true,
         mfaSatisfied: true,
+        adminCheckError: null,
+        factorError: null,
+        canEnrollMore: false,
       },
     };
   }
@@ -167,34 +299,118 @@ export async function getCurrentSession(): Promise<Result<AdminSession | null>> 
     if (!data.session) return { ok: true, value: null };
     return { ok: true, value: await describeSession(supabase, data.session) };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'Falha ao ler a sessão.');
+    return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao ler a sessão.'));
   }
 }
 
-/** Inicia o cadastro de um autenticador TOTP (mostra o QR code). */
-export async function startTotpEnrollment(): Promise<Result<{ factorId: string; qrCode: string; secret: string }>> {
-  try {
-    const supabase = getSupabaseAuthClient();
-    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Prime Store Admin' });
-    if (error || !data) return fail(translateAuthError(error?.message ?? 'Falha ao iniciar o TOTP.'));
+/**
+ * Inicia (ou reaproveita) o cadastro de um autenticador TOTP.
+ *
+ * Deduplicação:
+ *  - se há um cadastro em andamento recente em memória, reaproveitamos o mesmo
+ *    fator (segredo/QR já não podem ser recuperados do Auth);
+ *  - se há um fator pendente listado, não criamos outro;
+ *  - respeita o limite de `MAX_TOTP_FACTORS`.
+ *
+ * `reused` indica que nenhum fator novo foi gerado (evita contadores/surtos de UI).
+ */
+export async function enrollTotpFactor(
+  friendlyName = 'Prime Store Admin',
+): Promise<Result<PendingEnrollment & { reused: boolean }>> {
+  // Gestão de fatores NUNCA roda no modo demonstrativo (defesa em profundidade:
+  // a UI também esconde a área de Segurança no modo demo).
+  if (isAdminDemoSession()) return fail('Gestão de autenticadores não está disponível no modo demonstrativo.');
+  if (enrollInFlight) return enrollInFlight;
+  const run = (async (): Promise<Result<PendingEnrollment & { reused: boolean }>> => {
+    try {
+      const supabase = getSupabaseAuthClient();
 
-    if (data.type !== 'totp') return fail('Tipo de fator inesperado.');
+      // 1. Reaproveita cadastro em andamento (StrictMode / duplo efeito).
+      if (pendingEnrollment && Date.now() - pendingEnrollment.createdAt < PENDING_ENROLLMENT_TTL_MS) {
+        return { ok: true, value: { ...pendingEnrollment, reused: true } };
+      }
 
-    return {
-      ok: true,
-      value: {
+      // 2. Lista fatores existentes ANTES de criar novo.
+      const existing = await getFactors(supabase);
+      if (!existing.ok) return fail(existing.message);
+      const { verified, pending } = existing.value;
+
+      // 3. Se já existe um fator pendente (de um fluxo anterior), não cria outro.
+      //    Não temos o segredo do fator pendente (uso único); orientamos a concluir.
+      if (pending.length > 0) {
+        return fail(
+          'Há um cadastro de autenticador incompleto. Conclua a verificação ou descarte o cadastro antes de iniciar outro.',
+        );
+      }
+
+      // 4. Respeita o limite de `MAX_TOTP_FACTORS`.
+      if (verified.length >= MAX_TOTP_FACTORS) {
+        return fail('Você já atingiu o limite de dois autenticadores. Remova um antes de cadastrar outro.');
+      }
+
+      // 5. Cria o novo fator.
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName });
+      if (error || !data) return fail(translateAuthError(error?.message ?? 'Falha ao iniciar o TOTP.'));
+      if (data.type !== 'totp') return fail('Tipo de fator inesperado.');
+
+      const enrollment: PendingEnrollment = {
         factorId: data.id,
         qrCode: data.totp.qr_code,
         secret: data.totp.secret,
-      },
-    };
+        createdAt: Date.now(),
+      };
+      pendingEnrollment = enrollment;
+      return { ok: true, value: { ...enrollment, reused: false } };
+    } catch (error) {
+      return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao iniciar o TOTP.'));
+    }
+  })();
+  enrollInFlight = run;
+  try {
+    return await run;
+  } finally {
+    enrollInFlight = null;
+  }
+}
+
+/** Compatibilidade: mantém a assinatura usada pelo fluxo legado de primeiro acesso. */
+export async function startTotpEnrollment(): Promise<Result<{ factorId: string; qrCode: string; secret: string }>> {
+  const result = await enrollTotpFactor('Prime Store Admin');
+  if (!result.ok) return { ok: false, message: result.message };
+  const { factorId, qrCode, secret } = result.value;
+  return { ok: true, value: { factorId, qrCode, secret } };
+}
+
+/** Descarta um cadastro de autenticador incompleto (fator pendente). */
+export async function discardPendingEnrollment(): Promise<Result<true>> {
+  if (isAdminDemoSession()) return fail('Gestão de autenticadores não está disponível no modo demonstrativo.');
+  try {
+    const supabase = getSupabaseAuthClient();
+    const ids: string[] = [];
+    if (pendingEnrollment) ids.push(pendingEnrollment.factorId);
+    const listed = await getFactors(supabase);
+    if (listed.ok) for (const factor of listed.value.pending) if (!ids.includes(factor.id)) ids.push(factor.id);
+    if (ids.length === 0) {
+      clearPendingEnrollment();
+      return { ok: true, value: true };
+    }
+    for (const id of ids) {
+      const { error } = await supabase.auth.mfa.unenroll({ factorId: id });
+      // Ignora "não encontrado" — já foi removido por outro lado.
+      if (error && !/not found|does not exist|no matching/i.test(error.message ?? '')) {
+        return fail(translateAuthError(error.message ?? 'Falha ao descartar o cadastro.'));
+      }
+    }
+    clearPendingEnrollment();
+    return { ok: true, value: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'Falha ao iniciar o TOTP.');
+    return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao descartar o cadastro.'));
   }
 }
 
 /** Confirma o código do autenticador e eleva a sessão para AAL2. */
 export async function verifyTotp(factorId: string, code: string): Promise<Result<AdminSession>> {
+  if (isAdminDemoSession()) return fail('Verificação de autenticador não se aplica ao modo demonstrativo.');
   try {
     const supabase = getSupabaseAuthClient();
     const { error } = await supabase.auth.mfa.challengeAndVerify({
@@ -203,19 +419,76 @@ export async function verifyTotp(factorId: string, code: string): Promise<Result
     });
     if (error) return fail(translateAuthError(error.message));
 
+    // Sucesso: o cadastro em andamento passou a verificado; não reutilizamos mais.
+    if (pendingEnrollment && pendingEnrollment.factorId === factorId) clearPendingEnrollment();
+
     const { data } = await supabase.auth.getSession();
     if (!data.session) return fail('Sessão expirada. Entre novamente.');
     return { ok: true, value: await describeSession(supabase, data.session) };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'Falha ao validar o código.');
+    return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao validar o código.'));
+  }
+}
+
+/**
+ * Remove um autenticador TOTP.
+ *
+ * Regras de segurança:
+ *  - exige sessão AAL2 (o próprio dispositivo já verificado deve estar presente);
+ *  - NUNCA remove o único fator verificado (evita deixar a conta sem MFA);
+ *  - reconsulta a sessão ao final.
+ */
+export async function removeTotpFactor(factorId: string): Promise<Result<AdminSession>> {
+  if (isAdminDemoSession()) return fail('Gestão de autenticadores não está disponível no modo demonstrativo.');
+  try {
+    const supabase = getSupabaseAuthClient();
+
+    // 1. Exige AAL2 para mexer em fatores.
+    let aal: { currentLevel?: string } | null = null;
+    try {
+      const response = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      aal = (response.data as { currentLevel?: string } | null) ?? null;
+    } catch {
+      aal = null;
+    }
+    if ((aal?.currentLevel ?? 'aal1') !== 'aal2') {
+      return fail('Confirme seu autenticador atual (segunda etapa) antes de remover outro fator.');
+    }
+
+    // 2. Reconhece os fatores ANTES de remover.
+    const factorsResult = await getFactors(supabase);
+    if (!factorsResult.ok) return fail(factorsResult.message);
+    const { verified, pending } = factorsResult.value;
+    const target = [...verified, ...pending].find((factor) => factor.id === factorId);
+    if (!target) return fail('Autenticador não encontrado.');
+
+    // 3. Nunca remove o único fator verificado.
+    const isLastVerified = verified.length === 1 && verified[0].id === factorId;
+    if (isLastVerified) {
+      return fail('Não é possível remover o único autenticador verificado. Mantenha ao menos um fator ativo.');
+    }
+
+    // 4. Remove.
+    const { error } = await supabase.auth.mfa.unenroll({ factorId });
+    if (error) return fail(translateAuthError(error.message ?? 'Falha ao remover o autenticador.'));
+    if (pendingEnrollment && pendingEnrollment.factorId === factorId) clearPendingEnrollment();
+
+    // 5. Reconsulta a sessão.
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) return fail('Sessão expirada. Entre novamente.');
+    return { ok: true, value: await describeSession(supabase, data.session) };
+  } catch (error) {
+    return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao remover o autenticador.'));
   }
 }
 
 export async function signOutAdmin(): Promise<void> {
   if (isAdminDemoSession()) {
+    clearPendingEnrollment();
     demoSession = false;
     return;
   }
+  clearPendingEnrollment();
   try {
     await getSupabaseAuthClient().auth.signOut();
   } catch {
@@ -231,7 +504,7 @@ export async function requestPasswordReset(email: string): Promise<Result<true>>
     await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo });
     return { ok: true, value: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'Falha ao solicitar recuperação.');
+    return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao solicitar recuperação.'));
   }
 }
 
