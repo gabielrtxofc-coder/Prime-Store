@@ -17,16 +17,34 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const h = vi.hoisted(() => {
-  return {
+  /**
+   * Fatores TOTP POR usuário — no Supabase real, `listFactors`/`enroll`/
+   * `unenroll` operam sobre a conta da SESSÃO atual. O acesso `h.totp` nas
+   * fixtures lê/escreve o store do usuário da sessão corrente, preservando o
+   * formato antigo dos testes.
+   */
+  type Factor = { id: string; friendly_name: string | null; status: string };
+  const factorsByUser: Record<string, Factor[]> = {};
+  const api = {
     session: null as null | { access_token: string; user: { id: string; email: string | null } },
     aal: { currentLevel: 'aal1', nextLevel: 'aal1' },
-    totp: [] as Array<{ id: string; friendly_name: string | null; status: string }>,
+    factorsByUser,
+    get totp(): Factor[] {
+      const key = api.session?.user.id ?? '__sem_sessao__';
+      return factorsByUser[key] ?? [];
+    },
+    set totp(value: Factor[]) {
+      const key = api.session?.user.id ?? '__sem_sessao__';
+      factorsByUser[key] = [...value];
+    },
     signInError: null as { message: string } | null,
     listFactorsError: null as { message: string } | null,
     listFactorsThrow: null as unknown,
     getAalThrow: null as unknown,
     getSessionThrow: null as unknown,
     enrollError: null as { message: string } | null,
+    /** Portão para segurar um enroll em andamento (teste de corrida). */
+    enrollGate: null as null as { resolve: () => void } | null,
     enrollCalls: [] as Array<{ factorType: string; friendlyName?: string }>,
     challengeError: null as { message: string } | null,
     challengeCalls: [] as Array<{ factorId: string; code: string }>,
@@ -42,6 +60,7 @@ const h = vi.hoisted(() => {
     adminStatus: { is_admin: true, mfa_satisfied: true } as { is_admin: boolean; mfa_satisfied: boolean },
     adminThrow: null as unknown,
   };
+  return api;
 });
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -76,19 +95,30 @@ vi.mock('@supabase/supabase-js', () => ({
         },
         enroll: async (params: { factorType: string; friendlyName?: string }) => {
           h.enrollCalls.push(params);
+          // Id/segredo atribuídos no momento da CHAMADA (independem do portão).
+          const factorId = `fator-novo-${h.enrollCalls.length}`;
+          const secret = `SEGREDO-${h.enrollCalls.length}`;
+          // O portão segura apenas o PRIMEIRO enroll (a operação em voo alvo do
+          // teste); os seguintes passam direto.
+          const gate = h.enrollGate;
+          if (gate) {
+            h.enrollGate = null;
+            await new Promise<void>((resolve) => { gate.resolve = resolve; });
+          }
           if (h.enrollError) return { data: null, error: h.enrollError };
-          // Estado-stateful: o fator criado passa a existir remotamente como pendente.
+          // Estado-stateful: o fator criado passa a existir remotamente como
+          // pendente, na conta do usuário da sessão atual.
           const factor = {
-            id: `fator-novo-${h.enrollCalls.length}`,
+            id: factorId,
             friendly_name: params.friendlyName ?? null,
             status: 'pending',
           };
           h.totp = [...h.totp, factor];
           return {
             data: {
-              id: factor.id,
+              id: factorId,
               type: 'totp',
-              totp: { qr_code: 'data:image/svg+xml;base64,UVI9', secret: `SEGREDO-${h.enrollCalls.length}` },
+              totp: { qr_code: 'data:image/svg+xml;base64,UVI9', secret },
             },
             error: null,
           };
@@ -136,6 +166,9 @@ async function loadAuth(): Promise<typeof import('./adminAuth')> {
 function resetState() {
   h.session = { access_token: 'jwt-admin', user: { id: 'user-1', email: 'dono@prime-store.test' } };
   h.aal = { currentLevel: 'aal1', nextLevel: 'aal1' };
+  // Limpa os stores de TODOS os usuários (o estado do módulo sob teste é
+  // recriado a cada teste, mas este harness persiste entre testes).
+  for (const key of Object.keys(h.factorsByUser)) delete h.factorsByUser[key];
   h.totp = [];
   h.signInError = null;
   h.listFactorsError = null;
@@ -143,6 +176,7 @@ function resetState() {
   h.getAalThrow = null;
   h.getSessionThrow = null;
   h.enrollError = null;
+  h.enrollGate = null;
   h.enrollCalls = [];
   h.challengeError = null;
   h.challengeCalls = [];
@@ -667,5 +701,185 @@ describe('descarte e remoção — revisão do PR #16', () => {
     // A remoção em si ocorreu; o estado, porém, ficou sem confirmação.
     expect(h.unenrollCalls).toEqual(['f-reserva']);
     expect(h.refreshCalls).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('cache por administrador, revalidação no descarte e seleção — rodada final do PR #16', () => {
+  it('troca de administrador sem signOut: B nunca recebe segredo ou factorId de A', async () => {
+    const auth = await loadAuth();
+    h.adminStatus = { is_admin: true, mfa_satisfied: false };
+
+    // 1. Administrador A inicia um cadastro.
+    const a = await auth.enrollTotpFactor('A');
+    expect(a.ok).toBe(true);
+    if (!a.ok) return;
+    expect(a.value.factorId).toBe('fator-novo-1');
+    expect(a.value.secret).toBe('SEGREDO-1');
+
+    // 2. A sessão muda para B SEM signOutAdmin().
+    h.session = { access_token: 'jwt-b', user: { id: 'user-2', email: 'b@prime-store.test' } };
+
+    // 3. B inicia um cadastro.
+    const b = await auth.enrollTotpFactor('B');
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+
+    // 4. B recebe cadastro PRÓPRIO — nunca o segredo/fator de A.
+    expect(b.value.reused).toBe(false);
+    expect(b.value.factorId).toBe('fator-novo-2');
+    expect(b.value.secret).not.toBe(a.value.secret);
+    // B também não vê o fator pendente de A na SUA listagem — apenas o próprio.
+    const bSession = await auth.getCurrentSession();
+    expect(bSession.ok).toBe(true);
+    if (bSession.ok && bSession.value) {
+      expect(bSession.value.pendingFactors.map((factor) => factor.id)).toEqual(['fator-novo-2']);
+    }
+  });
+
+  it('troca de conta com cadastro EM ANDAMENTO: Promise isolada por usuário e cache não repovoado', async () => {
+    const auth = await loadAuth();
+    h.adminStatus = { is_admin: true, mfa_satisfied: false };
+    const gate = { resolve: () => undefined };
+    h.enrollGate = gate;
+
+    // A inicia o cadastro (a operação fica presa no portão do mock).
+    const promiseA = auth.enrollTotpFactor('A');
+
+    // A sessão muda para B enquanto a operação de A está em andamento.
+    h.session = { access_token: 'jwt-b', user: { id: 'user-2', email: 'b@prime-store.test' } };
+
+    // B chama na sequência: NÃO pode herdar a Promise de A — cria cadastro próprio.
+    const b = await auth.enrollTotpFactor('B');
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    expect(b.value.reused).toBe(false);
+    expect(b.value.factorId).toBe('fator-novo-2');
+    expect(b.value.secret).toBe('SEGREDO-2');
+
+    // A conclui DEPOIS que B assumiu a sessão: o resultado vai apenas para a
+    // chamada de A e NÃO repovoa o cache (dono atual é B).
+    gate.resolve();
+    const a = await promiseA;
+    expect(a.ok).toBe(true);
+    if (a.ok) {
+      expect(a.value.factorId).toBe('fator-novo-1');
+      expect(a.value.secret).toBe('SEGREDO-1');
+    }
+
+    // Prova do cache não repovoado: novo cadastro de B reaproveita o fator do
+    // PRÓPRIO B (se o A tardio tivesse gravado o cache, B receberia fator-novo-1).
+    const bAgain = await auth.enrollTotpFactor('B');
+    expect(bAgain.ok).toBe(true);
+    if (!bAgain.ok) return;
+    expect(bAgain.value.reused).toBe(true);
+    expect(bAgain.value.factorId).toBe('fator-novo-2');
+    expect(bAgain.value.secret).toBe('SEGREDO-2');
+    expect(h.enrollCalls).toHaveLength(2);
+  });
+
+  it('sessão encerrada limpa o cache: nada é reutilizado quando o administrador retorna', async () => {
+    const auth = await loadAuth();
+    h.adminStatus = { is_admin: true, mfa_satisfied: false };
+
+    const a = await auth.enrollTotpFactor('A');
+    expect(a.ok).toBe(true);
+    if (!a.ok) return;
+    expect(a.value.secret).toBe('SEGREDO-1');
+
+    // Sessão termina sem signOutAdmin(): nenhum cadastro pode ser reutilizado.
+    h.session = null;
+    const noSession = await auth.enrollTotpFactor('A');
+    expect(noSession.ok).toBe(false);
+    if (!noSession.ok) expect(noSession.message).toMatch(/Sessão expirada/i);
+    expect(h.enrollCalls).toHaveLength(1);
+
+    // getCurrentSession também confirma o encerramento (limpa o cache).
+    const none = await auth.getCurrentSession();
+    expect(none.ok).toBe(true);
+    if (none.ok) expect(none.value).toBeNull();
+
+    // A retorna; o fator pendente anterior foi removido no servidor nesse meio-tempo.
+    h.session = { access_token: 'jwt-a2', user: { id: 'user-1', email: 'dono@prime-store.test' } };
+    h.totp = [];
+    const again = await auth.enrollTotpFactor('A');
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(again.value.reused).toBe(false);
+    expect(again.value.secret).not.toBe(a.value.secret);
+    expect(h.enrollCalls).toHaveLength(2);
+  });
+
+  it('signOutAdmin limpa o cache: o próximo administrador nunca herda o cadastro', async () => {
+    const auth = await loadAuth();
+    h.adminStatus = { is_admin: true, mfa_satisfied: false };
+
+    const a = await auth.enrollTotpFactor('A');
+    expect(a.ok).toBe(true);
+    if (!a.ok) return;
+
+    await auth.signOutAdmin();
+    h.session = { access_token: 'jwt-b', user: { id: 'user-2', email: 'b@prime-store.test' } };
+
+    const b = await auth.enrollTotpFactor('B');
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    expect(b.value.reused).toBe(false);
+    expect(b.value.factorId).not.toBe(a.value.factorId);
+    expect(b.value.secret).not.toBe(a.value.secret);
+  });
+
+  it('descarte bem-sucedido revalida a sessão (refresh + AAL + fatores + permissões)', async () => {
+    const auth = await loadAuth();
+    h.aal = { currentLevel: 'aal2', nextLevel: 'aal2' };
+    h.totp = [
+      { id: 'f-principal', friendly_name: 'Celular pessoal', status: 'verified' },
+      { id: 'f-pend', friendly_name: 'Reserva incompleto', status: 'pending' },
+    ];
+
+    const result = await auth.discardPendingEnrollment('f-pend');
+
+    expect(result.ok).toBe(true);
+    // A sessão foi explicitamente atualizada após o unenroll.
+    expect(h.refreshCalls).toBeGreaterThanOrEqual(1);
+    expect(h.unenrollCalls).toEqual(['f-pend']);
+    if (result.ok && result.value) {
+      // Estado final confirmado contra o remoto: pendente saiu, principal segue.
+      expect(result.value.factors.map((factor) => factor.id)).toEqual(['f-principal']);
+      expect(result.value.pendingFactors).toHaveLength(0);
+      expect(result.value.currentLevel).toBe('aal2');
+      expect(result.value.mfaSatisfied).toBe(true);
+    }
+  });
+
+  it('descarte aplicado mas sessão não confirmada NÃO é reportado como sucesso', async () => {
+    const auth = await loadAuth();
+    h.aal = { currentLevel: 'aal2', nextLevel: 'aal2' };
+    h.totp = [
+      { id: 'f-principal', friendly_name: 'Celular pessoal', status: 'verified' },
+      { id: 'f-pend', friendly_name: 'Reserva incompleto', status: 'pending' },
+    ];
+    h.refreshSessionError = { message: 'refresh failed' };
+
+    const result = await auth.discardPendingEnrollment('f-pend');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toMatch(/confirmar o estado da sessão/i);
+    // O unenroll ocorreu; o sucesso, porém, não é declarado sem confirmação.
+    expect(h.unenrollCalls).toEqual(['f-pend']);
+    expect(h.refreshCalls).toBeGreaterThanOrEqual(1);
+  });
+
+  it('descarte sem pendentes não remove nada e NÃO dispara revalidação', async () => {
+    const auth = await loadAuth();
+    h.aal = { currentLevel: 'aal2', nextLevel: 'aal2' };
+    h.totp = [{ id: 'f-principal', friendly_name: 'Celular pessoal', status: 'verified' }];
+
+    const result = await auth.discardPendingEnrollment();
+
+    // Nada a descartar: nenhum unenroll, nenhum refresh (sem chamadas desnecessárias).
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toBeNull();
+    expect(h.unenrollCalls).toEqual([]);
+    expect(h.refreshCalls).toBe(0);
   });
 });

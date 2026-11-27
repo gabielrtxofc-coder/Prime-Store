@@ -251,6 +251,8 @@ async function describeSession(supabase: SupabaseClient, session: Session): Prom
  * podemos exibi-lo uma vez.
  */
 interface PendingEnrollment {
+  /** Proprietário do cadastro: NUNCA é reutilizado por outra conta. */
+  userId: string;
   factorId: string;
   qrCode: string;
   secret: string;
@@ -259,12 +261,28 @@ interface PendingEnrollment {
 let pendingEnrollment: PendingEnrollment | null = null;
 const PENDING_ENROLLMENT_TTL_MS = 10 * 60 * 1000;
 
-// Guarda contra execução concorrente de `enrollTotpFactor` (StrictMode/efeitos duplos).
-let enrollInFlight: Promise<Result<PendingEnrollment & { reused: boolean }>> | null = null;
+/**
+ * Cadastros em andamento, isolados POR usuário: uma Promise iniciada por um
+ * administrador nunca é reaproveitada por outro (a chave é o `userId` da
+ * sessão validada ANTES de qualquer reuso).
+ */
+const enrollsInFlight = new Map<
+  string,
+  Promise<Result<PendingEnrollment & { reused: boolean }>>
+>();
+
+/** `userId` da sessão atual (null sem sessão ou se a leitura falhar). */
+async function currentSessionUserId(supabase: SupabaseClient): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function clearPendingEnrollment(): void {
   pendingEnrollment = null;
-  enrollInFlight = null;
 }
 
 export async function signInWithPassword(email: string, password: string): Promise<Result<AdminSession>> {
@@ -304,7 +322,11 @@ export async function getCurrentSession(): Promise<Result<AdminSession | null>> 
   try {
     const supabase = getSupabaseAuthClient();
     const { data } = await supabase.auth.getSession();
-    if (!data.session) return { ok: true, value: null };
+    if (!data.session) {
+      // Sessão encerrada: cadastro em andamento (se houver) não tem mais dono.
+      clearPendingEnrollment();
+      return { ok: true, value: null };
+    }
     return { ok: true, value: await describeSession(supabase, data.session) };
   } catch (error) {
     return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao ler a sessão.'));
@@ -328,22 +350,44 @@ export async function enrollTotpFactor(
   // Gestão de fatores NUNCA roda no modo demonstrativo (defesa em profundidade:
   // a UI também esconde a área de Segurança no modo demo).
   if (isAdminDemoSession()) return fail('Gestão de autenticadores não está disponível no modo demonstrativo.');
-  if (enrollInFlight) return enrollInFlight;
+  const supabase = getSupabaseAuthClient();
+
+  // 1. Identidade ANTES de reutilizar cache ou Promise: o cadastro pertence a
+  //    uma conta específica. Sem sessão, nada é reutilizado.
+  const userId = await currentSessionUserId(supabase);
+  if (!userId) {
+    // Sessão encerrada: o cache não tem mais dono válido.
+    clearPendingEnrollment();
+    return fail('Sessão expirada. Entre novamente para cadastrar o autenticador.');
+  }
+
+  // 2. Cache de OUTRO usuário é descartado, nunca reutilizado nem exposto.
+  if (pendingEnrollment && pendingEnrollment.userId !== userId) {
+    clearPendingEnrollment();
+  }
+
+  // 3. Promise em andamento só é compartilhada ENTRE CHAMADAS DO MESMO usuário.
+  const inFlight = enrollsInFlight.get(userId);
+  if (inFlight) return inFlight;
+
   const run = (async (): Promise<Result<PendingEnrollment & { reused: boolean }>> => {
     try {
-      const supabase = getSupabaseAuthClient();
-
-      // 1. Reaproveita cadastro em andamento (StrictMode / duplo efeito).
-      if (pendingEnrollment && Date.now() - pendingEnrollment.createdAt < PENDING_ENROLLMENT_TTL_MS) {
+      // 4. Reaproveita cadastro em andamento do PRÓPRIO usuário (StrictMode /
+      //    duplo efeito), dentro do TTL.
+      if (
+        pendingEnrollment &&
+        pendingEnrollment.userId === userId &&
+        Date.now() - pendingEnrollment.createdAt < PENDING_ENROLLMENT_TTL_MS
+      ) {
         return { ok: true, value: { ...pendingEnrollment, reused: true } };
       }
 
-      // 2. Lista fatores existentes ANTES de criar novo.
+      // 5. Lista fatores existentes ANTES de criar novo.
       const existing = await getFactors(supabase);
       if (!existing.ok) return fail(existing.message);
       const { verified, pending } = existing.value;
 
-      // 3. Se já existe um fator pendente (de um fluxo anterior), não cria outro.
+      // 6. Se já existe um fator pendente (de um fluxo anterior), não cria outro.
       //    Não temos o segredo do fator pendente (uso único); orientamos a concluir.
       if (pending.length > 0) {
         return fail(
@@ -351,33 +395,41 @@ export async function enrollTotpFactor(
         );
       }
 
-      // 4. Respeita o limite de `MAX_TOTP_FACTORS`.
+      // 7. Respeita o limite de `MAX_TOTP_FACTORS`.
       if (verified.length >= MAX_TOTP_FACTORS) {
         return fail('Você já atingiu o limite de dois autenticadores. Remova um antes de cadastrar outro.');
       }
 
-      // 5. Cria o novo fator.
+      // 8. Cria o novo fator.
       const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName });
       if (error || !data) return fail(translateAuthError(error?.message ?? 'Falha ao iniciar o TOTP.'));
       if (data.type !== 'totp') return fail('Tipo de fator inesperado.');
 
       const enrollment: PendingEnrollment = {
+        userId,
         factorId: data.id,
         qrCode: data.totp.qr_code,
         secret: data.totp.secret,
         createdAt: Date.now(),
       };
-      pendingEnrollment = enrollment;
+
+      // 9. Não repovoa o cache se a sessão trocou de dono enquanto esta
+      //    operação assíncrona rodava (outro administrador entrou).
+      const ownerId = await currentSessionUserId(supabase);
+      if (ownerId === userId) pendingEnrollment = enrollment;
+
       return { ok: true, value: { ...enrollment, reused: false } };
     } catch (error) {
       return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao iniciar o TOTP.'));
     }
   })();
-  enrollInFlight = run;
+
+  enrollsInFlight.set(userId, run);
   try {
     return await run;
   } finally {
-    enrollInFlight = null;
+    // Remove apenas a entrada deste usuário; outra conta nunca a consulta.
+    if (enrollsInFlight.get(userId) === run) enrollsInFlight.delete(userId);
   }
 }
 
@@ -405,8 +457,18 @@ export async function startTotpEnrollment(): Promise<Result<{ factorId: string; 
  *  - recebe o `factorId` específico escolhido pelo administrador; sem ID,
  *    só descarta quando existe EXATAMENTE UM fator pendente remoto — nunca
  *    remove vários de uma vez.
+ *
+ * Revalidação da sessão (equivalente a `removeTotpFactor`): após o
+ * `unenroll()` bem-sucedido, a sessão é explicitamente atualizada
+ * (`refreshSession`), o AAL e as permissões são revalidados e os fatores são
+ * reconsultados. Se a atualização falhar, o descarte NÃO é reportado como
+ * concluído (estado aplicado, mas sem confirmação).
+ *
+ * Retorna a sessão recém-confirmada — ou `null` quando NADA foi descartado
+ * (não havia pendente remoto; nenhuma alteração de estado, nenhuma
+ * revalidação desnecessária).
  */
-export async function discardPendingEnrollment(factorId?: string): Promise<Result<true>> {
+export async function discardPendingEnrollment(factorId?: string): Promise<Result<AdminSession | null>> {
   if (isAdminDemoSession()) return fail('Gestão de autenticadores não está disponível no modo demonstrativo.');
   try {
     const supabase = getSupabaseAuthClient();
@@ -434,9 +496,9 @@ export async function discardPendingEnrollment(factorId?: string): Promise<Resul
       if (pending.length === 0) {
         // Nada pendente remotamente: qualquer cadastro em memória está
         // obsoleto (foi verificado ou removido em outra sessão) — apenas
-        // limpa o cache local, sem remover nada.
+        // limpa o cache local, sem remover nada e sem revalidar.
         clearPendingEnrollment();
-        return { ok: true, value: true };
+        return { ok: true, value: null };
       }
       if (pending.length > 1) {
         return fail('Há mais de um cadastro incompleto. Selecione qual deseja descartar.');
@@ -451,7 +513,23 @@ export async function discardPendingEnrollment(factorId?: string): Promise<Resul
       return fail(translateAuthError(error.message ?? 'Falha ao descartar o cadastro.'));
     }
     if (pendingEnrollment && pendingEnrollment.factorId === target.id) clearPendingEnrollment();
-    return { ok: true, value: true };
+
+    // 4. Atualiza EXPLICITAMENTE a sessão: o descarte pode ter sido o último
+    //    fator da conta (o administrador da área Segurança pode estar em AAL2
+    //    e ter outros fatores — ou não). O novo token reflete o estado atual.
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshed?.session) {
+      return fail(
+        'O descarte foi aplicado, mas não foi possível confirmar o estado da sessão. Atualize a página e verifique a área Segurança antes de continuar.',
+      );
+    }
+
+    // 5. Revalida AAL, fatores e permissões contra o estado remoto. A sessão
+    //    antiga (ex.: AAL2 de claim anterior) deixa de ser usada: o estado
+    //    recém-confirmado é o que retorna — e sem nenhum fator verificado,
+    //    `describeSession` já reporta AAL1 (fail-closed).
+    const next = await describeSession(supabase, refreshed.session);
+    return { ok: true, value: next };
   } catch (error) {
     return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao descartar o cadastro.'));
   }
@@ -549,10 +627,12 @@ export async function removeTotpFactor(factorId: string): Promise<Result<AdminSe
 export async function signOutAdmin(): Promise<void> {
   if (isAdminDemoSession()) {
     clearPendingEnrollment();
+    enrollsInFlight.clear();
     demoSession = false;
     return;
   }
   clearPendingEnrollment();
+  enrollsInFlight.clear();
   try {
     await getSupabaseAuthClient().auth.signOut();
   } catch {
