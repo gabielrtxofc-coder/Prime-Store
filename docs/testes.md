@@ -1,5 +1,40 @@
 # Testes
 
+## Endurecimento do MFA administrativo (estado atual)
+
+- `src/services/adminAuth.test.ts` (**19**) — serviço de autenticação com
+  Supabase Auth simulado e COM ESTADO (challenge promove fator a `verified`,
+  unenroll remove): falha de comunicação no login vira erro claro; falha na
+  consulta de fatores define `factorError` (nunca lista vazia confiável,
+  `canEnrollMore=false`); falha na verificação de permissões (`adminCheckError`)
+  distinta de "fora da allowlist"; múltiplos fatores TOTP e limite de dois;
+  fatores pendentes separados e bloqueando cadastro duplicado; cadastro sob
+  repetição de efeito (StrictMode) e concorrente cria um único fator; cadastro +
+  verificação de fator reserva eleva a AAL2 com dois fatores verificados; código
+  inválido recusado; remoção do segundo fator em AAL2; remoção do ÚLTIMO fator
+  verificado bloqueada; remoção exige AAL2; fator pendente removível; descarte
+  de cadastro incompleto libera novo cadastro; sessões AAL1/AAL2; nível AAL
+  indisponível tratado como AAL1; sem sessão → `null`.
+- `src/pages/admin/adminMfaGateHardening.test.tsx` (**6**) — portão TOTP:
+  cadastro único sob React StrictMode (uma visão de cadastro, sem duplicar
+  fator); seletor de autenticador com múltiplos fatores e verificação do fator
+  escolhido; fator pendente não dispara novo cadastro e oferece descarte
+  seguro; falha na listagem mostra erro + "Tentar novamente" sem cadastrar às
+  cegas; orientação de sincronização de data/hora; código recusado mantém o
+  portão fechado.
+- `src/pages/admin/adminSecurityArea.test.tsx` (**5**) — aba Segurança pelo
+  AdminPage real: existe para administrador AAL2, lista autenticadores com
+  situação ("Ativo (verificado)"/"Pendente (incompleto)") e não oferece remoção
+  do único fator; cadastro do segundo autenticador exige confirmação do código
+  e reconsulta a sessão; remoção passa por diálogo de confirmação explícita;
+  descarte de fator pendente com confirmação; **modo demonstração não expõe a
+  aba Segurança**.
+
+Estado atual (endurecimento do MFA, branch `arena/6913d554-prime-store`):
+`npm run build` OK · `npm test` **198/198** (27 arquivos) ·
+`npm run test:db` **496/496** (40 arquivos, PostgreSQL local, incluindo
+`tests/db/22_admin_guardia_aal2.test.ts` 10/10 — guarda AAL2 intacta).
+
 ## Missão 3 — preparação operacional (estado atual)
 
 - `tests/db/26_wyvi_worker_handler.test.ts` (**9**) — handler do worker
