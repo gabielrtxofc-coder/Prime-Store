@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export type IconName = 'search' | 'cart' | 'menu' | 'close' | 'arrow-right' | 'check' | 'chevron-down' | 'minus' | 'plus' | 'alert' | 'mail' | 'clock' | 'grid' | 'box' | 'layers' | 'receipt' | 'image' | 'tag';
+export type IconName = 'search' | 'cart' | 'menu' | 'close' | 'arrow-right' | 'check' | 'chevron-down' | 'minus' | 'plus' | 'alert' | 'mail' | 'clock' | 'grid' | 'box' | 'layers' | 'receipt' | 'image' | 'tag' | 'shield';
 
 const paths: Record<IconName, ReactNode> = {
   search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
@@ -21,6 +21,7 @@ const paths: Record<IconName, ReactNode> = {
   receipt: <><path d="M5 3h14v18l-2.3-1.5L14.4 21l-2.4-1.5L9.6 21l-2.3-1.5L5 21V3Z" /><path d="M9 8h6M9 12h6" /></>,
   image: <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="m4 18 5-5 3 3 3-3 5 5" /></>,
   tag: <><path d="M12 2H2v10l9.3 9.3a1 1 0 0 0 1.4 0l8.6-8.6a1 1 0 0 0 0-1.4L12 2Z" /><circle cx="7" cy="7" r="1.2" /></>,
+  shield: <><path d="M12 3 5 6v6c0 4.4 3 7.4 7 9 4-1.6 7-4.6 7-9V6l-7-3Z" /><path d="m9 12 2 2 4-4" /></>,
 };
 
 export function Icon({ name, size = 20, className }: { name: IconName; size?: number; className?: string }) {
