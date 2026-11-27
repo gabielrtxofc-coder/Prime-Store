@@ -34,7 +34,7 @@ const state = vi.hoisted(() => ({
   verifyResult: { ok: true as const, value: null as AdminSession | null },
   discardCalls: 0,
   discardIds: [] as Array<string | null>,
-  discardResult: { ok: true as const, value: true as const },
+  discardResult: { ok: true as const, value: null as AdminSession | null },
   removeCalls: [] as string[],
   removeResult: { ok: true as const, value: null as AdminSession | null },
 }));

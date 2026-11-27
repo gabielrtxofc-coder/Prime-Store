@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminSession } from '../../services/adminAuth';
@@ -23,7 +23,8 @@ const state = vi.hoisted(() => ({
   verifyCalls: [] as Array<[string, string]>,
   verifyResult: null as { ok: true; value: AdminSession } | { ok: false; message: string } | null,
   discardCalls: 0,
-  discardResult: { ok: true as const, value: true as const },
+  discardIds: [] as Array<string | null>,
+  discardResult: { ok: true as const, value: null as AdminSession | null },
 }));
 
 vi.mock('../../services/adminAuth', () => ({
@@ -35,8 +36,9 @@ vi.mock('../../services/adminAuth', () => ({
     state.verifyCalls.push([factorId, code]);
     return state.verifyResult ?? { ok: false as const, message: 'recusado' };
   },
-  discardPendingEnrollment: async (_factorId?: string) => {
+  discardPendingEnrollment: async (factorId?: string) => {
     state.discardCalls += 1;
+    state.discardIds.push(factorId ?? null);
     return state.discardResult;
   },
 }));
@@ -68,6 +70,7 @@ beforeEach(() => {
   state.verifyCalls = [];
   state.verifyResult = null;
   state.discardCalls = 0;
+  state.discardIds = [];
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
@@ -154,7 +157,36 @@ describe('AdminMfaGate — endurecimento do MFA', () => {
     // Escapável: descarte do cadastro incompleto reinicia o fluxo com segurança.
     await user.click(screen.getByRole('button', { name: /Descartar cadastro incompleto/i }));
     await vi.waitFor(() => expect(state.discardCalls).toBe(1));
+    // O ID do fator pendente é enviado explicitamente ao serviço.
+    expect(state.discardIds).toEqual(['f-incompleto']);
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('com vários pendentes, permite escolher qual descartar e envia o ID escolhido', async () => {
+    const { onRetry, user } = setup({
+      factors: [],
+      pendingFactors: [
+        { id: 'f-inc-1', friendlyName: 'Reserva 1' },
+        { id: 'f-inc-2', friendlyName: 'Reserva 2' },
+      ],
+    });
+
+    // A verificação continua disponível para QUALQUER fator (seletor com os dois).
+    const verifySelect = await screen.findByLabelText('Autenticador');
+    expect(within(verifySelect).getAllByRole('option')).toHaveLength(2);
+
+    // Seleção do pendente a descartar.
+    const discardSelect = screen.getByLabelText('Cadastro incompleto a descartar');
+    expect(discardSelect).toHaveValue('f-inc-1');
+    await user.selectOptions(discardSelect, 'f-inc-2');
+
+    await user.click(screen.getByRole('button', { name: /Descartar cadastro incompleto/i }));
+    await vi.waitFor(() => expect(state.discardCalls).toBe(1));
+    // EXATAMENTE o fator escolhido foi enviado — nenhum outro foi tocado.
+    expect(state.discardIds).toEqual(['f-inc-2']);
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    // Painel permanece bloqueado: portão ainda é o portão.
+    expect(screen.queryByRole('navigation', { name: 'Seções do painel' })).not.toBeInTheDocument();
   });
 
   it('falha na consulta de fatores mostra erro com retry e NÃO cadastra novo fator', async () => {

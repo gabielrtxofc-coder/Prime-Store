@@ -98,6 +98,9 @@ export function AdminSecurity({ initialSession, onSessionUpdated }: AdminSecurit
       setError(result.message);
       return;
     }
+    // Sessão recém-confirmada pelo serviço (refresh + revalidação de AAL,
+    // fatores e permissões) após o unenroll.
+    if (result.value) setSession(result.value);
     setEnrollment(null);
     setEnrollCode('');
     setNotice('Cadastro incompleto descartado.');
@@ -133,12 +136,14 @@ export function AdminSecurity({ initialSession, onSessionUpdated }: AdminSecurit
       confirmLabel: 'Descartar',
       danger: true,
       action: async () => {
-        // Apenas o fator selecionado; o serviço valida o estado remoto.
+        // Apenas o fator selecionado; o serviço valida o estado remoto e
+        // revalida a sessão (refresh + AAL + fatores + permissões).
         const result = await discardPendingEnrollment(factor.id);
         if (!result.ok) {
           setError(result.message);
           return;
         }
+        if (result.value) setSession(result.value);
         setNotice('Cadastro incompleto descartado.');
         await reload();
       },

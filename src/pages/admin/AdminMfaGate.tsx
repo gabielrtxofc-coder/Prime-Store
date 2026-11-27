@@ -36,6 +36,7 @@ export function AdminMfaGate({ session, onVerified, onSignOut, onRetry }: AdminM
   const [busy, setBusy] = useState(false);
   const [enrollment, setEnrollment] = useState<EnrollmentView | null>(null);
   const [selectedFactorId, setSelectedFactorId] = useState<string | null>(null);
+  const [discardSelection, setDiscardSelection] = useState<string | null>(null);
 
   const verified: TotpFactor[] = session.factors ?? [];
   const pending: TotpFactor[] = session.pendingFactors ?? [];
@@ -90,6 +91,7 @@ export function AdminMfaGate({ session, onVerified, onSignOut, onRetry }: AdminM
     setError(null);
     setEnrollment(null);
     setSelectedFactorId(null);
+    setDiscardSelection(null);
     await (onRetry ?? onVerified)();
   };
 
@@ -97,16 +99,21 @@ export function AdminMfaGate({ session, onVerified, onSignOut, onRetry }: AdminM
   // atualização da página no meio do cadastro), o administrador ficaria preso
   // no portão. Descartar um fator PENDENTE (nunca verificado) não enfraquece o
   // MFA — a conta continua sem nenhum fator e sem acesso administrativo.
+  // Com vários pendentes, o administrador escolhe EXATAMENTE qual descartar;
+  // o serviço valida remotamente que o escolhido segue pendente.
+  const discardTargetId = discardSelection ?? pending[0]?.id ?? null;
   const discardAndRestart = async () => {
+    if (!discardTargetId) return;
     setBusy(true);
     setError(null);
-    const result = await discardPendingEnrollment();
+    const result = await discardPendingEnrollment(discardTargetId);
     setBusy(false);
     if (!result.ok) {
       setError(result.message);
       return;
     }
     setEnrollment(null);
+    setDiscardSelection(null);
     await (onRetry ?? onVerified)();
   };
 
@@ -155,8 +162,29 @@ export function AdminMfaGate({ session, onVerified, onSignOut, onRetry }: AdminM
               Há um cadastro de autenticador em andamento. Abra o aplicativo onde você iniciou o cadastro e
               digite o código exibido para concluí-lo.
             </p>
+            {pending.length > 1 && verified.length === 0 && (
+              <div className="form-field form-field--full">
+                <label htmlFor="admin-pending-discard">Cadastro incompleto a descartar</label>
+                <select
+                  id="admin-pending-discard"
+                  value={discardTargetId ?? ''}
+                  onChange={(event) => setDiscardSelection(event.target.value)}
+                >
+                  {pending.map((factor) => (
+                    <option key={factor.id} value={factor.id}>
+                      {factor.friendlyName ?? 'Autenticador'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {verified.length === 0 && (
-              <button className="button button--secondary" type="button" onClick={discardAndRestart} disabled={busy}>
+              <button
+                className="button button--secondary"
+                type="button"
+                onClick={discardAndRestart}
+                disabled={busy || !discardTargetId}
+              >
                 Descartar cadastro incompleto e começar novamente
               </button>
             )}
