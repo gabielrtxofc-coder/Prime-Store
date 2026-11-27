@@ -35,7 +35,7 @@ vi.mock('../../services/adminAuth', () => ({
     state.verifyCalls.push([factorId, code]);
     return state.verifyResult ?? { ok: false as const, message: 'recusado' };
   },
-  discardPendingEnrollment: async () => {
+  discardPendingEnrollment: async (_factorId?: string) => {
     state.discardCalls += 1;
     return state.discardResult;
   },

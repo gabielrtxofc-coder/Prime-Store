@@ -90,7 +90,9 @@ export function AdminSecurity({ initialSession, onSessionUpdated }: AdminSecurit
   const discardIncomplete = async () => {
     setError(null);
     setEnrollBusy(true);
-    const result = await discardPendingEnrollment();
+    // Descarta EXATAMENTE o fator do cadastro em andamento (o serviço valida
+    // remotamente que ele segue pendente antes de remover).
+    const result = await discardPendingEnrollment(enrollment?.factorId);
     setEnrollBusy(false);
     if (!result.ok) {
       setError(result.message);
@@ -114,6 +116,10 @@ export function AdminSecurity({ initialSession, onSessionUpdated }: AdminSecurit
           setError(result.message);
           return;
         }
+        // Sessão recém-confirmada pelo serviço (refresh + revalidação de AAL
+        // e fatores). Se todos os fatores sumiram, ela volta como AAL1 e o
+        // painel reage (portão de re-cadastro) no refresh abaixo.
+        if (result.value) setSession(result.value);
         setNotice('Autenticador removido com sucesso.');
         await reload();
       },
@@ -127,7 +133,8 @@ export function AdminSecurity({ initialSession, onSessionUpdated }: AdminSecurit
       confirmLabel: 'Descartar',
       danger: true,
       action: async () => {
-        const result = await discardPendingEnrollment();
+        // Apenas o fator selecionado; o serviço valida o estado remoto.
+        const result = await discardPendingEnrollment(factor.id);
         if (!result.ok) {
           setError(result.message);
           return;

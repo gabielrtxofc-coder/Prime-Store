@@ -33,6 +33,7 @@ const state = vi.hoisted(() => ({
   verifyCalls: [] as Array<[string, string]>,
   verifyResult: { ok: true as const, value: null as AdminSession | null },
   discardCalls: 0,
+  discardIds: [] as Array<string | null>,
   discardResult: { ok: true as const, value: true as const },
   removeCalls: [] as string[],
   removeResult: { ok: true as const, value: null as AdminSession | null },
@@ -60,8 +61,9 @@ vi.mock('../../services/adminAuth', () => ({
     state.verifyCalls.push([factorId, code]);
     return state.verifyResult;
   },
-  discardPendingEnrollment: async () => {
+  discardPendingEnrollment: async (factorId?: string) => {
     state.discardCalls += 1;
+    state.discardIds.push(factorId ?? null);
     return state.discardResult;
   },
   removeTotpFactor: async (factorId: string) => {
@@ -173,8 +175,9 @@ beforeEach(() => {
   state.verifyCalls = [];
   state.verifyResult = { ok: true, value: null };
   state.discardCalls = 0;
+  state.discardIds = [];
   state.removeCalls = [];
-  state.removeResult = { ok: true, value: null };
+  state.removeResult = { ok: true, value: adminSession() };
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
@@ -266,6 +269,23 @@ describe('área de Segurança do painel', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Descartar' }));
     await vi.waitFor(() => expect(state.discardCalls).toBe(1));
+    // Exatamente o fator selecionado é enviado para descarte.
+    expect(state.discardIds).toEqual(['f-incompleto']);
+  });
+
+  it('descarte do cadastro em andamento refere o fator específico (não "todos")', async () => {
+    const user = userEvent.setup();
+    renderAt('/admin');
+
+    await openSecurityTab(user);
+    await user.click(screen.getByRole('button', { name: /Adicionar segundo autenticador/i }));
+    await screen.findByAltText('QR code para cadastrar o novo autenticador TOTP');
+
+    await user.click(screen.getByRole('button', { name: 'Descartar' }));
+
+    await vi.waitFor(() => expect(state.discardCalls).toBe(1));
+    expect(state.discardIds).toEqual(['factor-novo']);
+    expect(await screen.findByText(/Cadastro incompleto descartado/i)).toBeInTheDocument();
   });
 
   it('modo demonstração NÃO expõe a área de Segurança', async () => {
