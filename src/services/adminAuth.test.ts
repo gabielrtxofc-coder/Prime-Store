@@ -32,6 +32,13 @@ const h = vi.hoisted(() => {
     challengeCalls: [] as Array<{ factorId: string; code: string }>,
     unenrollCalls: [] as string[],
     unenrollError: null as { message: string } | null,
+    refreshCalls: 0,
+    refreshSessionThrow: null as unknown,
+    refreshSessionError: null as { message: string } | null,
+    /** Simula outro dispositivo removendo os demais fatores durante o unenroll. */
+    concurrentRemoveAll: false,
+    /** Simula claim AAL2 obsoleto: o token refreshed segue aal2 mesmo sem fatores. */
+    staleClaimAfterRemoval: false,
     adminStatus: { is_admin: true, mfa_satisfied: true } as { is_admin: boolean; mfa_satisfied: boolean },
     adminThrow: null as unknown,
   };
@@ -48,6 +55,13 @@ vi.mock('@supabase/supabase-js', () => ({
         if (h.getSessionThrow) throw h.getSessionThrow;
         return { data: { session: h.session } };
       },
+      refreshSession: async () => {
+        h.refreshCalls += 1;
+        if (h.refreshSessionThrow) throw h.refreshSessionThrow;
+        if (h.refreshSessionError) return { data: { session: null }, error: h.refreshSessionError };
+        // Novo token emitido: reflete o AAL calculado do estado atual.
+        return { data: { session: h.session }, error: null };
+      },
       signOut: async () => ({}),
       resetPasswordForEmail: async () => ({ data: {}, error: null }),
       mfa: {
@@ -63,9 +77,16 @@ vi.mock('@supabase/supabase-js', () => ({
         enroll: async (params: { factorType: string; friendlyName?: string }) => {
           h.enrollCalls.push(params);
           if (h.enrollError) return { data: null, error: h.enrollError };
+          // Estado-stateful: o fator criado passa a existir remotamente como pendente.
+          const factor = {
+            id: `fator-novo-${h.enrollCalls.length}`,
+            friendly_name: params.friendlyName ?? null,
+            status: 'pending',
+          };
+          h.totp = [...h.totp, factor];
           return {
             data: {
-              id: `fator-novo-${h.enrollCalls.length}`,
+              id: factor.id,
               type: 'totp',
               totp: { qr_code: 'data:image/svg+xml;base64,UVI9', secret: `SEGREDO-${h.enrollCalls.length}` },
             },
@@ -83,7 +104,12 @@ vi.mock('@supabase/supabase-js', () => ({
         unenroll: async (params: { factorId: string }) => {
           h.unenrollCalls.push(params.factorId);
           if (h.unenrollError) return { error: h.unenrollError };
-          h.totp = h.totp.filter((factor) => factor.id !== params.factorId);
+          h.totp = h.concurrentRemoveAll ? [] : h.totp.filter((factor) => factor.id !== params.factorId);
+          // Sem nenhum fator verificado, um token recém-emitido viria com AAL1.
+          if (!h.staleClaimAfterRemoval && !h.totp.some((factor) => factor.status === 'verified')) {
+            h.aal = { currentLevel: 'aal1', nextLevel: 'aal1' };
+            h.adminStatus = { is_admin: h.adminStatus.is_admin, mfa_satisfied: false };
+          }
           return { error: null };
         },
       },
@@ -122,6 +148,11 @@ function resetState() {
   h.challengeCalls = [];
   h.unenrollCalls = [];
   h.unenrollError = null;
+  h.refreshCalls = 0;
+  h.refreshSessionThrow = null;
+  h.refreshSessionError = null;
+  h.concurrentRemoveAll = false;
+  h.staleClaimAfterRemoval = false;
   h.adminStatus = { is_admin: true, mfa_satisfied: true };
   h.adminThrow = null;
 }
@@ -283,7 +314,7 @@ describe('adminAuth — endurecimento do MFA', () => {
     const reservaId = enroll.value.factorId;
 
     // O fator reserva entra como pendente na listagem (aguardando verificação).
-    h.totp.push({ id: reservaId, friendly_name: 'Reserva', status: 'pending' });
+    expect(h.totp.some((factor) => factor.id === reservaId && factor.status === 'pending')).toBe(true);
 
     const verified = await auth.verifyTotp(reservaId, '123456');
     expect(verified.ok).toBe(true);
@@ -403,6 +434,7 @@ describe('adminAuth — endurecimento do MFA', () => {
 
     h.aal = { currentLevel: 'aal2', nextLevel: 'aal2' };
     h.adminStatus = { is_admin: true, mfa_satisfied: true };
+    h.totp = [{ id: 'f-principal', friendly_name: 'Celular pessoal', status: 'verified' }];
     const aal2 = await auth.getCurrentSession();
     expect(aal2.ok).toBe(true);
     if (aal2.ok && aal2.value) {
@@ -431,5 +463,209 @@ describe('adminAuth — endurecimento do MFA', () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value).toBeNull();
+  });
+});
+
+describe('descarte e remoção — revisão do PR #16', () => {
+  it('descarte com falha na consulta remota NÃO chama unenroll (com e sem ID)', async () => {
+    const auth = await loadAuth();
+    h.totp = [{ id: 'f-pend-1', friendly_name: 'Reserva', status: 'pending' }];
+    h.listFactorsError = { message: 'boom' };
+
+    const noArg = await auth.discardPendingEnrollment();
+    const withId = await auth.discardPendingEnrollment('f-pend-1');
+
+    expect(noArg.ok).toBe(false);
+    expect(withId.ok).toBe(false);
+    if (!noArg.ok) expect(noArg.message).toMatch(/autenticadores/i);
+    // A operação foi interrompida ANTES de qualquer remoção.
+    expect(h.unenrollCalls).toEqual([]);
+  });
+
+  it('fator pendente verificado em outra sessão: descarte é recusado (com ID)', async () => {
+    const auth = await loadAuth();
+    h.adminStatus = { is_admin: true, mfa_satisfied: false };
+
+    const enroll = await auth.enrollTotpFactor('Reserva');
+    expect(enroll.ok).toBe(true);
+    if (!enroll.ok) return;
+    const factorId = enroll.value.factorId;
+
+    // Outra aba/dispositivo verificou o fator entre o cadastro e o descarte.
+    h.totp = [{ id: factorId, friendly_name: 'Reserva', status: 'verified' }];
+
+    const result = await auth.discardPendingEnrollment(factorId);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toMatch(/já está verificado/i);
+    expect(h.unenrollCalls).toEqual([]);
+    // O fator verificado permanece intacto.
+    expect(h.totp).toHaveLength(1);
+    expect(h.totp[0].status).toBe('verified');
+  });
+
+  it('fator pendente verificado em outra sessão: sem ID, nada é removido e o cache obsoleto é limpo', async () => {
+    const auth = await loadAuth();
+    h.adminStatus = { is_admin: true, mfa_satisfied: false };
+
+    const enroll = await auth.enrollTotpFactor('Reserva');
+    expect(enroll.ok).toBe(true);
+    if (!enroll.ok) return;
+
+    // Fator foi verificado em outra sessão: remotamente não há mais pendentes.
+    h.totp = [{ id: enroll.value.factorId, friendly_name: 'Reserva', status: 'verified' }];
+
+    const result = await auth.discardPendingEnrollment();
+
+    // Nenhum ID de memória foi usado como autorização: nada removido.
+    expect(result.ok).toBe(true);
+    expect(h.unenrollCalls).toEqual([]);
+    expect(h.totp).toHaveLength(1);
+    expect(h.totp[0].status).toBe('verified');
+
+    // Cache obsoleto limpo: novo cadastro não reutiliza o segredo do fator agora verificado.
+    const again = await auth.enrollTotpFactor('Reserva');
+    expect(again.ok).toBe(true);
+    if (again.ok) {
+      expect(again.value.reused).toBe(false);
+      expect(again.value.factorId).not.toBe(enroll.value.factorId);
+    }
+  });
+
+  it('descarta APENAS o fator específico escolhido (não remove os outros)', async () => {
+    const auth = await loadAuth();
+    h.totp = [
+      { id: 'f-pend-1', friendly_name: 'Reserva 1', status: 'pending' },
+      { id: 'f-pend-2', friendly_name: 'Reserva 2', status: 'pending' },
+    ];
+
+    const result = await auth.discardPendingEnrollment('f-pend-1');
+
+    expect(result.ok).toBe(true);
+    expect(h.unenrollCalls).toEqual(['f-pend-1']);
+    // O outro pendente permanece.
+    expect(h.totp.some((factor) => factor.id === 'f-pend-2')).toBe(true);
+  });
+
+  it('sem ID e com mais de um pendente: não remove nada e pede seleção', async () => {
+    const auth = await loadAuth();
+    h.totp = [
+      { id: 'f-pend-1', friendly_name: 'Reserva 1', status: 'pending' },
+      { id: 'f-pend-2', friendly_name: 'Reserva 2', status: 'pending' },
+    ];
+
+    const result = await auth.discardPendingEnrollment();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toMatch(/mais de um/i);
+    expect(h.unenrollCalls).toEqual([]);
+  });
+
+  it('sem ID e com exatamente um pendente remoto: remove somente esse fator', async () => {
+    const auth = await loadAuth();
+    h.totp = [{ id: 'f-pend-1', friendly_name: 'Reserva', status: 'pending' }];
+
+    const result = await auth.discardPendingEnrollment();
+
+    expect(result.ok).toBe(true);
+    expect(h.unenrollCalls).toEqual(['f-pend-1']);
+    expect(h.totp).toHaveLength(0);
+  });
+
+  it('descarte de fator inexistente entre os pendentes é recusado', async () => {
+    const auth = await loadAuth();
+    h.totp = [{ id: 'f-pend-1', friendly_name: 'Reserva', status: 'pending' }];
+
+    const result = await auth.discardPendingEnrollment('f-sumido');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toMatch(/não encontrado/i);
+    expect(h.unenrollCalls).toEqual([]);
+  });
+
+  it('remoção atualiza a sessão (refreshSession) e mantém AAL2 com o reserva ainda ativo', async () => {
+    const auth = await loadAuth();
+    h.aal = { currentLevel: 'aal2', nextLevel: 'aal2' };
+    h.totp = [
+      { id: 'f-principal', friendly_name: 'Celular pessoal', status: 'verified' },
+      { id: 'f-reserva', friendly_name: 'Celular reserva', status: 'verified' },
+    ];
+
+    const result = await auth.removeTotpFactor('f-reserva');
+
+    expect(result.ok).toBe(true);
+    // A sessão foi explicitamente atualizada após a remoção.
+    expect(h.refreshCalls).toBeGreaterThanOrEqual(1);
+    if (result.ok) {
+      // Estado final consistente com o remoto: reserva saiu, principal segue.
+      expect(result.value.currentLevel).toBe('aal2');
+      expect(result.value.mfaSatisfied).toBe(true);
+      expect(result.value.factors.map((factor) => factor.id)).toEqual(['f-principal']);
+      expect(result.value.pendingFactors).toHaveLength(0);
+    }
+  });
+
+  it('após perder TODOS os fatores, a sessão é tratada como AAL1 (nunca AAL2)', async () => {
+    const auth = await loadAuth();
+    h.aal = { currentLevel: 'aal2', nextLevel: 'aal2' };
+    h.adminStatus = { is_admin: true, mfa_satisfied: true };
+    h.totp = [
+      { id: 'f-principal', friendly_name: 'Celular pessoal', status: 'verified' },
+      { id: 'f-reserva', friendly_name: 'Celular reserva', status: 'verified' },
+    ];
+    // Outro dispositivo removeu o outro fator durante esta remoção.
+    h.concurrentRemoveAll = true;
+
+    const result = await auth.removeTotpFactor('f-principal');
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Sessão AAL1: a interface NÃO pode continuar tratando-a como AAL2.
+      expect(result.value.currentLevel).toBe('aal1');
+      expect(result.value.mfaSatisfied).toBe(false);
+      expect(result.value.factors).toHaveLength(0);
+      // Sem nenhum fator, nem mesmo o próximo nível alcançável é AAL2:
+      // o administrador precisa reenrolar (fluxo de primeiro acesso).
+      expect(result.value.nextLevel).toBe('aal1');
+      expect(result.value.pendingTotp).toBe(false);
+    }
+  });
+
+  it('claim AAL2 obsoleto sem fatores verificáveis não é tratado como AAL2', async () => {
+    const auth = await loadAuth();
+    h.aal = { currentLevel: 'aal2', nextLevel: 'aal2' };
+    h.adminStatus = { is_admin: true, mfa_satisfied: true };
+    // Estado remoto: nenhum fator (ex.: corrida entre dispositivos removeu
+    // todos), mas o token/claim local ainda diz aal2 e o admin-api, baseado
+    // nesse token antigo, diz mfa_satisfied=true.
+    h.totp = [];
+
+    const result = await auth.getCurrentSession();
+
+    expect(result.ok).toBe(true);
+    if (result.ok && result.value) {
+      // O estado remoto manda: AAL1 e MFA não satisfeito (fail-closed).
+      expect(result.value.currentLevel).toBe('aal1');
+      expect(result.value.mfaSatisfied).toBe(false);
+      expect(result.value.factors).toHaveLength(0);
+    }
+  });
+
+  it('refreshSession com falha: a remoção NÃO é reportada como concluída', async () => {
+    const auth = await loadAuth();
+    h.aal = { currentLevel: 'aal2', nextLevel: 'aal2' };
+    h.totp = [
+      { id: 'f-principal', friendly_name: 'Celular pessoal', status: 'verified' },
+      { id: 'f-reserva', friendly_name: 'Celular reserva', status: 'verified' },
+    ];
+    h.refreshSessionError = { message: 'refresh failed' };
+
+    const result = await auth.removeTotpFactor('f-reserva');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toMatch(/confirmar o estado da sessão/i);
+    // A remoção em si ocorreu; o estado, porém, ficou sem confirmação.
+    expect(h.unenrollCalls).toEqual(['f-reserva']);
+    expect(h.refreshCalls).toBeGreaterThanOrEqual(1);
   });
 });

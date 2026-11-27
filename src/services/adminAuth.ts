@@ -217,18 +217,26 @@ async function describeSession(supabase: SupabaseClient, session: Session): Prom
   }
 
   const total = verified.length + pending.length;
-  const pendingTotp = currentLevel !== 'aal2' && nextLevel === 'aal2';
+
+  // Fail-closed (revisão do PR #16): com a listagem OK e NENHUM fator
+  // verificado, a sessão NÃO pode ser tratada como AAL2 nem o MFA como
+  // satisfeito — mesmo que um token/claim antigo ainda diga `aal2` (ex.:
+  // corrida entre dispositivos removeu todos os fatores). O estado remoto
+  // manda sobre claims locais.
+  const noVerifiedFactors = !factorError && verified.length === 0;
+  const effectiveCurrent = noVerifiedFactors && currentLevel === 'aal2' ? 'aal1' : currentLevel;
+  const effectivePendingTotp = effectiveCurrent !== 'aal2' && nextLevel === 'aal2';
 
   return {
     userId: session.user.id,
     email: session.user.email ?? null,
-    currentLevel,
+    currentLevel: effectiveCurrent,
     nextLevel,
-    pendingTotp,
+    pendingTotp: effectivePendingTotp,
     factors: verified,
     pendingFactors: pending,
     isAdmin,
-    mfaSatisfied,
+    mfaSatisfied: noVerifiedFactors ? false : mfaSatisfied,
     adminCheckError,
     factorError,
     // Fail-closed: sem certeza da listagem de fatores, não oferecemos cadastro.
@@ -381,27 +389,68 @@ export async function startTotpEnrollment(): Promise<Result<{ factorId: string; 
   return { ok: true, value: { factorId, qrCode, secret } };
 }
 
-/** Descarta um cadastro de autenticador incompleto (fator pendente). */
-export async function discardPendingEnrollment(): Promise<Result<true>> {
+/**
+ * Descarta um cadastro de autenticador incompleto (fator PENDENTE).
+ *
+ * Segurança (revisão do PR #16):
+ *  - o estado atual dos fatores é consultado REMOTAMENTE antes de qualquer
+ *    remoção — um ID guardado em memória NUNCA é autorização suficiente para
+ *    remover um fator;
+ *  - se `listFactors()` falhar, a operação é interrompida SEM chamar
+ *    `unenroll()`;
+ *  - somente fatores cujo estado remoto atual é `pending` (não verificado)
+ *    podem ser descartados; se o fator passou a `verified` (ex.: verificado em
+ *    outra aba/dispositivo), o descarte é RECUSADO e a lista deve ser
+ *    atualizada;
+ *  - recebe o `factorId` específico escolhido pelo administrador; sem ID,
+ *    só descarta quando existe EXATAMENTE UM fator pendente remoto — nunca
+ *    remove vários de uma vez.
+ */
+export async function discardPendingEnrollment(factorId?: string): Promise<Result<true>> {
   if (isAdminDemoSession()) return fail('Gestão de autenticadores não está disponível no modo demonstrativo.');
   try {
     const supabase = getSupabaseAuthClient();
-    const ids: string[] = [];
-    if (pendingEnrollment) ids.push(pendingEnrollment.factorId);
+
+    // 1. Estado remoto ANTES de qualquer remoção. Falha aqui interrompe
+    //    a operação sem tocar nos fatores.
     const listed = await getFactors(supabase);
-    if (listed.ok) for (const factor of listed.value.pending) if (!ids.includes(factor.id)) ids.push(factor.id);
-    if (ids.length === 0) {
-      clearPendingEnrollment();
-      return { ok: true, value: true };
-    }
-    for (const id of ids) {
-      const { error } = await supabase.auth.mfa.unenroll({ factorId: id });
-      // Ignora "não encontrado" — já foi removido por outro lado.
-      if (error && !/not found|does not exist|no matching/i.test(error.message ?? '')) {
-        return fail(translateAuthError(error.message ?? 'Falha ao descartar o cadastro.'));
+    if (!listed.ok) return fail(listed.message);
+    const { verified, pending } = listed.value;
+
+    // 2. Define o alvo APENAS pelo estado remoto.
+    let target: TotpFactor;
+    if (factorId) {
+      if (verified.some((factor) => factor.id === factorId)) {
+        return fail(
+          'Este autenticador já está verificado e ativo. Atualize a lista antes de continuar.',
+        );
       }
+      const remote = pending.find((factor) => factor.id === factorId);
+      if (!remote) {
+        return fail('Autenticador não encontrado entre os pendentes. Atualize a lista e tente novamente.');
+      }
+      target = remote;
+    } else {
+      if (pending.length === 0) {
+        // Nada pendente remotamente: qualquer cadastro em memória está
+        // obsoleto (foi verificado ou removido em outra sessão) — apenas
+        // limpa o cache local, sem remover nada.
+        clearPendingEnrollment();
+        return { ok: true, value: true };
+      }
+      if (pending.length > 1) {
+        return fail('Há mais de um cadastro incompleto. Selecione qual deseja descartar.');
+      }
+      target = pending[0];
     }
-    clearPendingEnrollment();
+
+    // 3. Remove SOMENTE o alvo confirmado como pendente no estado remoto.
+    const { error } = await supabase.auth.mfa.unenroll({ factorId: target.id });
+    // Ignora "não encontrado" — já foi removido por outro lado.
+    if (error && !/not found|does not exist|no matching/i.test(error.message ?? '')) {
+      return fail(translateAuthError(error.message ?? 'Falha ao descartar o cadastro.'));
+    }
+    if (pendingEnrollment && pendingEnrollment.factorId === target.id) clearPendingEnrollment();
     return { ok: true, value: true };
   } catch (error) {
     return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao descartar o cadastro.'));
@@ -473,10 +522,25 @@ export async function removeTotpFactor(factorId: string): Promise<Result<AdminSe
     if (error) return fail(translateAuthError(error.message ?? 'Falha ao remover o autenticador.'));
     if (pendingEnrollment && pendingEnrollment.factorId === factorId) clearPendingEnrollment();
 
-    // 5. Reconsulta a sessão.
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) return fail('Sessão expirada. Entre novamente.');
-    return { ok: true, value: await describeSession(supabase, data.session) };
+    // 5. Atualiza EXPLICITAMENTE a sessão: o novo token reflete o estado atual
+    //    dos fatores. Necessário porque a remoção pode mudar o AAL efetivo
+    //    (ex.: corrida entre dispositivos removeu o último fator — a sessão
+    //    não pode continuar sendo tratada como AAL2 com base em claim antigo).
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshed?.session) {
+      return fail(
+        'A remoção foi aplicada, mas não foi possível confirmar o estado da sessão. Atualize a página e verifique a aba Segurança antes de continuar.',
+      );
+    }
+
+    // 6. Revalida o AAL e reconsulta os fatores contra o estado remoto
+    //    (describeSession refaz getAuthenticatorAssuranceLevel + listFactors
+    //    + verificação de permissões no admin-api). A operação só é tratada
+    //    como concluída com o estado recém-confirmado — e a sessão sem
+    //    nenhum fator verificado volta a ser reportada como AAL1
+    //    (fail-closed em describeSession), nunca como AAL2.
+    const next = await describeSession(supabase, refreshed.session);
+    return { ok: true, value: next };
   } catch (error) {
     return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao remover o autenticador.'));
   }
