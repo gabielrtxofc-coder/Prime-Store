@@ -7,6 +7,17 @@ oferece três desfechos auditados: **reembolsar e encerrar**, **contestação re
 (valor recuperado)** e **manter em análise**. A ação chama
 `admin_resolve_dispute` via `admin-api` (`orders.resolveDispute`).
 
+## Perfil operacional (e-mail + senha)
+
+O trabalho diário (estoque e informações de produto) usa o **perfil
+operacional**: só e-mail + senha, sem TOTP, passkey ou PIN. Ele tem allowlist
+própria (`operator_users`) e funções próprias (`ops_*`, `assert_operator()`);
+não alcança pedidos, pagamentos, credenciais, preços/custos nem auditoria.
+Detalhes: [`perfil-operacional.md`](./perfil-operacional.md).
+
+As regras abaixo continuam valendo integralmente para o **acesso
+administrativo completo**.
+
 ## Acesso
 
 - Rota: `/admin` (chunk carregado sob demanda; nada da biblioteca de auth entra

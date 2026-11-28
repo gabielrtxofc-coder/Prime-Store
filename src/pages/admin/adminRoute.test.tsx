@@ -42,6 +42,11 @@ const state = vi.hoisted(() => ({
 const UNAUTHORIZED_HINT = 'Acesso administrativo negado.';
 
 vi.mock('../../services/adminAuth', () => ({
+  // Recuperação de senha / perfil operacional (missão de autenticação operacional).
+  isPasswordRecoveryPending: () => false,
+  clearPasswordRecovery: () => undefined,
+  updatePassword: async () => ({ ok: true as const, value: true as const }),
+  MIN_PASSWORD_LENGTH: 8,
   isAdminDemoSession: () => false,
   canUseAdminDemo: () => false,
   setAdminDemoSession: () => undefined,
@@ -159,7 +164,7 @@ describe('rota /admin (missão 03.2A)', () => {
     state.session = null;
     renderAt('/admin');
 
-    expect(await screen.findByRole('heading', { name: 'Painel administrativo' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Painel da loja' })).toBeInTheDocument();
     expect(screen.getByLabelText('E-mail')).toBeInTheDocument();
     expect(screen.getByLabelText('Senha')).toBeInTheDocument();
     // Nenhum vestígio do painel autenticado:
@@ -176,7 +181,7 @@ describe('rota /admin (missão 03.2A)', () => {
     state.session = null;
     renderAt('/admin/qualquer/caminho');
 
-    expect(await screen.findByRole('heading', { name: 'Painel administrativo' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Painel da loja' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Não encontramos esta página' })).not.toBeInTheDocument();
   });
 
@@ -264,7 +269,7 @@ describe('rota /admin (missão 03.2A)', () => {
       state.session = locked;
       const { unmount } = renderAt('/admin');
       await screen.findByRole('heading', {
-        name: locked === null ? 'Painel administrativo' : 'Confirme o código TOTP',
+        name: locked === null ? 'Painel da loja' : 'Confirme o código TOTP',
       });
       expect(state.indicatorsMock).not.toHaveBeenCalled();
       unmount();

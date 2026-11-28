@@ -57,8 +57,11 @@ const h = vi.hoisted(() => {
     concurrentRemoveAll: false,
     /** Simula claim AAL2 obsoleto: o token refreshed segue aal2 mesmo sem fatores. */
     staleClaimAfterRemoval: false,
-    adminStatus: { is_admin: true, mfa_satisfied: true } as { is_admin: boolean; mfa_satisfied: boolean },
+    adminStatus: { is_admin: true, mfa_satisfied: true } as { is_admin: boolean; mfa_satisfied: boolean; is_operator?: boolean },
     adminThrow: null as unknown,
+    updateUserCalls: [] as Array<{ password?: string }>,
+    updateUserError: null as { message: string } | null,
+    authEvents: [] as Array<(event: string) => void>,
   };
   return api;
 });
@@ -83,6 +86,14 @@ vi.mock('@supabase/supabase-js', () => ({
       },
       signOut: async () => ({}),
       resetPasswordForEmail: async () => ({ data: {}, error: null }),
+      updateUser: async (params: { password?: string }) => {
+        h.updateUserCalls.push(params);
+        return h.updateUserError ? { data: null, error: h.updateUserError } : { data: { user: {} }, error: null };
+      },
+      onAuthStateChange: (callback: (event: string) => void) => {
+        h.authEvents.push(callback);
+        return { data: { subscription: { unsubscribe: () => undefined } } };
+      },
       mfa: {
         getAuthenticatorAssuranceLevel: async () => {
           if (h.getAalThrow) throw h.getAalThrow;
@@ -189,6 +200,9 @@ function resetState() {
   h.staleClaimAfterRemoval = false;
   h.adminStatus = { is_admin: true, mfa_satisfied: true };
   h.adminThrow = null;
+  h.updateUserCalls = [];
+  h.updateUserError = null;
+  h.authEvents = [];
 }
 
 beforeEach(resetState);
@@ -881,5 +895,77 @@ describe('cache por administrador, revalidação no descarte e seleção — rod
     if (result.ok) expect(result.value).toBeNull();
     expect(h.unenrollCalls).toEqual([]);
     expect(h.refreshCalls).toBe(0);
+  });
+});
+
+describe('adminAuth — perfil operacional e recuperação de senha', () => {
+  it('sessão de operador (e-mail + senha, AAL1) expõe isOperator sem exigir MFA', async () => {
+    const auth = await loadAuth();
+    h.adminStatus = { is_admin: false, mfa_satisfied: false, is_operator: true };
+    const result = await auth.getCurrentSession();
+    expect(result.ok).toBe(true);
+    if (!result.ok || !result.value) throw new Error('sessão esperada');
+    expect(result.value.isOperator).toBe(true);
+    expect(result.value.isAdmin).toBe(false);
+    expect(result.value.mfaSatisfied).toBe(false);
+  });
+
+  it('sem o campo is_operator (backend antigo) o perfil operacional fica desligado (fail-closed)', async () => {
+    const auth = await loadAuth();
+    h.adminStatus = { is_admin: false, mfa_satisfied: false };
+    const result = await auth.getCurrentSession();
+    if (!result.ok || !result.value) throw new Error('sessão esperada');
+    expect(result.value.isOperator).toBe(false);
+  });
+
+  it('falha ao verificar permissões não libera o perfil operacional', async () => {
+    const auth = await loadAuth();
+    h.adminThrow = new Error('Failed to fetch');
+    const result = await auth.getCurrentSession();
+    if (!result.ok || !result.value) throw new Error('sessão esperada');
+    expect(result.value.isOperator).toBe(false);
+    expect(result.value.adminCheckError).toBeTruthy();
+  });
+
+  it('evento PASSWORD_RECOVERY marca a recuperação pendente; updatePassword grava e limpa', async () => {
+    const auth = await loadAuth();
+    await auth.getCurrentSession();
+    expect(auth.isPasswordRecoveryPending()).toBe(false);
+    for (const callback of h.authEvents) callback('PASSWORD_RECOVERY');
+    expect(auth.isPasswordRecoveryPending()).toBe(true);
+
+    const result = await auth.updatePassword('NovaSenha123');
+    expect(result.ok).toBe(true);
+    expect(h.updateUserCalls).toEqual([{ password: 'NovaSenha123' }]);
+    expect(auth.isPasswordRecoveryPending()).toBe(false);
+  });
+
+  it('updatePassword recusa senha curta sem chamar o Supabase', async () => {
+    const auth = await loadAuth();
+    const result = await auth.updatePassword('curta');
+    expect(result.ok).toBe(false);
+    expect(h.updateUserCalls).toEqual([]);
+  });
+
+  it('updatePassword traduz erro de senha repetida', async () => {
+    const auth = await loadAuth();
+    h.updateUserError = { message: 'New password should be different from the old password.' };
+    const result = await auth.updatePassword('MesmaSenha123');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toBe('A nova senha precisa ser diferente da anterior.');
+  });
+
+  it('link de recuperação na URL (type=recovery) é detectado antes do cliente consumir o fragmento', async () => {
+    window.history.replaceState(null, '', '/admin#access_token=x&type=recovery');
+    try {
+      const auth = await loadAuth();
+      await auth.getCurrentSession();
+      expect(auth.isPasswordRecoveryPending()).toBe(true);
+      await auth.signOutAdmin();
+      expect(auth.isPasswordRecoveryPending()).toBe(false);
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
   });
 });

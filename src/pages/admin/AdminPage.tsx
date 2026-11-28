@@ -4,14 +4,18 @@ import { Icon, type IconName } from '../../components/Icon';
 import { getBackendConfig } from '../../services/backend/config';
 import {
   canUseAdminDemo,
+  clearPasswordRecovery,
   getCurrentSession,
   isAdminDemoSession,
+  isPasswordRecoveryPending,
   setAdminDemoSession,
   signOutAdmin,
   type AdminSession,
 } from '../../services/adminAuth';
 import { AdminLogin } from './AdminLogin';
 import { AdminMfaGate } from './AdminMfaGate';
+import { AdminNewPassword } from './AdminNewPassword';
+import { OperatorPanel } from './OperatorPanel';
 import { AdminOverview } from './AdminOverview';
 import { AdminProducts } from './AdminProducts';
 import { AdminStock } from './AdminStock';
@@ -70,9 +74,14 @@ export function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('overview');
   const [navOpen, setNavOpen] = useState(false);
+  // Link de recuperação de senha aberto: mostra só a tela de nova senha.
+  const [recovery, setRecovery] = useState(false);
+  // Conta que é operadora E administradora pediu o painel completo (TOTP).
+  const [wantsFullAccess, setWantsFullAccess] = useState(false);
 
   const refresh = useCallback(async () => {
     const result = await getCurrentSession();
+    setRecovery(isPasswordRecoveryPending());
     if (!result.ok) {
       setError(result.message);
       setSession(null);
@@ -100,9 +109,12 @@ export function AdminPage() {
 
   const logout = async () => {
     await signOutAdmin();
+    clearPasswordRecovery();
     setAdminDemoSession(false);
     setDemoMode(false);
     setSession(null);
+    setRecovery(false);
+    setWantsFullAccess(false);
     setTab('overview');
   };
 
@@ -158,6 +170,18 @@ export function AdminPage() {
     );
   }
 
+  if (recovery && !demoMode) {
+    return (
+      <AdminNewPassword
+        onDone={async () => {
+          setRecovery(false);
+          await refresh();
+        }}
+        onSignOut={logout}
+      />
+    );
+  }
+
   // Falha na verificação de permissões NÃO é a mesma coisa que "fora da
   // allowlist". Em caso de erro (ex.: Auth indisponível), mantemos o painel
   // trancado e oferecemos retry — não liberamos nem exibimos "acesso negado".
@@ -174,13 +198,28 @@ export function AdminPage() {
     );
   }
 
+  // Perfil OPERACIONAL: e-mail + senha bastam (sem TOTP). Vale para quem está
+  // na allowlist operacional e ainda não tem a sessão administrativa completa
+  // (AAL2). O banco decide o que cada perfil pode fazer.
+  const isOperator = session.isOperator === true;
+  const fullAdmin = session.isAdmin && session.mfaSatisfied;
+  if (isOperator && !fullAdmin && !(session.isAdmin && wantsFullAccess && !demoMode)) {
+    return (
+      <OperatorPanel
+        session={session}
+        onSignOut={logout}
+        onRequestFullAccess={session.isAdmin ? () => setWantsFullAccess(true) : undefined}
+      />
+    );
+  }
+
   if (!session.isAdmin) {
     return (
       <section className="container page-section admin-page">
         <div className="admin-denied">
           <h1>Acesso negado</h1>
           <p>
-            A conta <strong>{session.email}</strong> está autenticada, mas não está na allowlist de administradores.
+            A conta <strong>{session.email}</strong> está autenticada, mas não tem permissão para usar o painel.
             Solicite a inclusão ao responsável pela loja.
           </p>
           <button className="button button--secondary" type="button" onClick={logout}>Sair</button>
@@ -190,7 +229,18 @@ export function AdminPage() {
   }
 
   if (!session.mfaSatisfied) {
-    return <AdminMfaGate session={session} onVerified={refresh} onSignOut={logout} onRetry={refresh} />;
+    return (
+      <>
+        {isOperator && (
+          <div className="container page-section">
+            <button className="link-button" type="button" onClick={() => setWantsFullAccess(false)}>
+              ← Voltar ao painel operacional
+            </button>
+          </div>
+        )}
+        <AdminMfaGate session={session} onVerified={refresh} onSignOut={logout} onRetry={refresh} />
+      </>
+    );
   }
 
   return (

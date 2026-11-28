@@ -1,5 +1,18 @@
 # Testes
 
+## Perfil operacional — e-mail + senha (estado atual)
+
+- `tests/db/31_perfil_operacional.test.ts` (**33**) e
+  `tests/db/32_perfil_operacional_http.test.ts` (**24**) — banco real e HTTP.
+- `src/pages/admin/operatorPanel.test.tsx` (**12**) e
+  `src/services/adminAuth.test.ts` (**44**, +7).
+- Ajustados: `08`/`28` (conjunto de `authenticated` passa a ser
+  `admin_*` + `ops_*` + `is_admin` + `is_operator`) e `14` (23 objetos
+  visíveis ao backend; 22 com RLS — entrou `operator_users`).
+- Totais: `npm test` **237/237** · `npm run test:db` **553/553** (42 arquivos)
+  · `tsc -b` 0 · `bundle:functions` 10/10 · `npm run build` ok.
+- Ver [`perfil-operacional.md`](./perfil-operacional.md).
+
 ## Endurecimento do MFA administrativo (estado atual)
 
 - `src/services/adminAuth.test.ts` (**37**) — serviço de autenticação com

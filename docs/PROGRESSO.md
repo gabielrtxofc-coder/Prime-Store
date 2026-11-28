@@ -3,6 +3,16 @@
 > Atualizado em 2026-11-10. Este arquivo existe para que outra sessão consiga
 > retomar o trabalho sem depender do histórico de conversa.
 
+## Autenticação operacional simplificada (2026-11-28)
+
+- Perfil operacional com e-mail + senha (sem TOTP/passkey/PIN): migração
+  `20261128120000_0048_perfil_operacional.sql`, ações `ops.*` na `admin-api`,
+  painel "Operação diária" (Estoque, Produtos), tela de nova senha.
+- Admin completo inalterado (allowlist + AAL2). Contas existentes preservadas.
+- Provisionamento: `scripts/provision-operator.sql` (idempotente).
+- Testes: `npm test` 237/237 · `test:db` 553/553.
+- Relatório: [`auditoria/autenticacao-operacional/RELATORIO.md`](./auditoria/autenticacao-operacional/RELATORIO.md).
+
 ## Missão 08 (reconciliação Supabase) — migrações aplicadas; funções/smoke BLOQUEADOS
 
 Relatório completo: [`missao-08-reconciliacao-supabase.md`](./missao-08-reconciliacao-supabase.md).
