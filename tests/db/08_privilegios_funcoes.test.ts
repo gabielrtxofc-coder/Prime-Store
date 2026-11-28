@@ -168,7 +168,7 @@ describe('privilégios por contexto', () => {
 
   // is_admin é a única função visível a anon (booleano, sem efeito colateral).
 
-  it('authenticated executa somente funções administrativas e is_admin', async () => {
+  it('authenticated executa somente funções administrativas, operacionais e os testes de perfil', async () => {
     const granted = await runSql<{ proname: string }>(
       `select distinct p.proname
          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -176,8 +176,18 @@ describe('privilégios por contexto', () => {
         order by 1`,
     );
     const names = granted.map((row) => row.proname);
-    expect(names.every((name) => name.startsWith('admin_') || name === 'is_admin')).toBe(true);
+    // admin_* (allowlist admin + AAL2) e ops_* (allowlist operacional, perfil
+    // de e-mail + senha). Nada além disso.
+    expect(
+      names.every(
+        (name) => name.startsWith('admin_') || name.startsWith('ops_') || name === 'is_admin' || name === 'is_operator',
+      ),
+    ).toBe(true);
     expect(names).toContain('admin_list_orders');
+    expect(names).toContain('ops_list_stock');
+    expect(names).not.toContain('ops_product_projection');
+    expect(names).not.toContain('assert_operator');
+    expect(names).not.toContain('log_operator_action');
     // Funções internas do backend nunca são executáveis por usuário.
     for (const internal of [
       'create_order',

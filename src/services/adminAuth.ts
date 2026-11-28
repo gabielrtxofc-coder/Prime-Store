@@ -4,11 +4,16 @@ import { invokeFunction } from './backend/http';
 import { demoAdminInvoke, isAdminDemoAvailable } from './adminDemoData';
 
 /**
- * Autenticação do painel administrativo.
+ * Autenticação do painel (dois perfis).
  *
  * - Login por e-mail/senha (Supabase Auth) — cadastro público desativado.
- * - Segunda etapa obrigatória por TOTP (AAL2). O token de sessão sozinho (AAL1)
- *   não autoriza nenhuma ação administrativa.
+ * - PERFIL OPERACIONAL (estoque e informações de produto): e-mail + senha
+ *   bastam. O banco decide pela allowlist `operator_users` (assert_operator);
+ *   nenhum TOTP, passkey ou PIN é exigido.
+ * - PERFIL ADMINISTRATIVO (pedidos, pagamentos, reembolsos, credenciais,
+ *   preço/custo, auditoria): segunda etapa por TOTP (AAL2) continua
+ *   obrigatória. O token de sessão sozinho (AAL1) não autoriza nenhuma ação
+ *   administrativa.
  * - Nenhuma chave privilegiada é usada no navegador: apenas a chave pública
  *   `anon`, e a autorização real acontece no banco (`assert_admin`).
  *
@@ -32,6 +37,29 @@ import { demoAdminInvoke, isAdminDemoAvailable } from './adminDemoData';
 export const MAX_TOTP_FACTORS = 2;
 
 let client: SupabaseClient | null = null;
+
+/**
+ * Recuperação de senha: o link do e-mail volta para `/admin` com
+ * `type=recovery` no fragmento. O cliente do Supabase troca o link por uma
+ * sessão; enquanto a nova senha não for definida, o painel mostra SOMENTE o
+ * formulário de nova senha.
+ */
+let passwordRecoveryPending = false;
+
+function detectRecoveryInUrl(): boolean {
+  if (typeof window === 'undefined') return false;
+  const hash = window.location.hash ?? '';
+  const search = window.location.search ?? '';
+  return /(?:^|[#&?])type=recovery(?:&|$)/.test(hash) || /(?:^|[?&])type=recovery(?:&|$)/.test(search);
+}
+
+export function isPasswordRecoveryPending(): boolean {
+  return passwordRecoveryPending;
+}
+
+export function clearPasswordRecovery(): void {
+  passwordRecoveryPending = false;
+}
 
 /**
  * Sessão de demonstração do painel (dados fictícios, sem rede).
@@ -59,6 +87,8 @@ export function canUseAdminDemo(): boolean {
 export function getSupabaseAuthClient(): SupabaseClient {
   if (client) return client;
   const { supabaseUrl, anonKey } = assertBackendConfigured();
+  // Lido ANTES de criar o cliente: ele consome e limpa o fragmento da URL.
+  if (detectRecoveryInUrl()) passwordRecoveryPending = true;
   client = createClient(supabaseUrl, anonKey, {
     auth: {
       persistSession: true,
@@ -67,6 +97,13 @@ export function getSupabaseAuthClient(): SupabaseClient {
       storageKey: 'prime-store.admin-auth',
     },
   });
+  try {
+    client.auth.onAuthStateChange?.((event) => {
+      if (event === 'PASSWORD_RECOVERY') passwordRecoveryPending = true;
+    });
+  } catch {
+    // Assinatura opcional: sem ela, a detecção pela URL continua valendo.
+  }
   return client;
 }
 
@@ -100,6 +137,12 @@ export interface AdminSession {
   pendingFactors: TotpFactor[];
   isAdmin: boolean;
   mfaSatisfied: boolean;
+  /**
+   * Conta na allowlist do perfil OPERACIONAL (e-mail + senha, sem TOTP).
+   * Decidido pelo banco (`is_operator`); a interface só escolhe a tela.
+   * Ausente = falso (fail-closed).
+   */
+  isOperator?: boolean;
   /**
    * Erro na verificação de permissões (admin-api). Diferente de `isAdmin=false`:
    * aqui NÃO sabemos se a conta está na allowlist — a checagem falhou. Deve
@@ -202,15 +245,17 @@ async function describeSession(supabase: SupabaseClient, session: Session): Prom
   // Verificação de permissões — falha NÃO é "fora da allowlist".
   let isAdmin = false;
   let mfaSatisfied = false;
+  let isOperator = false;
   let adminCheckError: string | null = null;
   try {
-    const status = await adminInvoke<{ is_admin: boolean; mfa_satisfied: boolean }>(
+    const status = await adminInvoke<{ is_admin: boolean; mfa_satisfied: boolean; is_operator?: boolean }>(
       'session',
       {},
       session.access_token,
     );
     isAdmin = status.is_admin === true;
     mfaSatisfied = status.mfa_satisfied === true;
+    isOperator = status.is_operator === true;
   } catch {
     adminCheckError =
       'Não foi possível verificar suas permissões administrativas. Verifique sua conexão e tente novamente.';
@@ -237,6 +282,7 @@ async function describeSession(supabase: SupabaseClient, session: Session): Prom
     pendingFactors: pending,
     isAdmin,
     mfaSatisfied: noVerifiedFactors ? false : mfaSatisfied,
+    isOperator,
     adminCheckError,
     factorError,
     // Fail-closed: sem certeza da listagem de fatores, não oferecemos cadastro.
@@ -313,6 +359,7 @@ export async function getCurrentSession(): Promise<Result<AdminSession | null>> 
         pendingFactors: [],
         isAdmin: true,
         mfaSatisfied: true,
+        isOperator: false,
         adminCheckError: null,
         factorError: null,
         canEnrollMore: false,
@@ -633,6 +680,7 @@ export async function signOutAdmin(): Promise<void> {
   }
   clearPendingEnrollment();
   enrollsInFlight.clear();
+  passwordRecoveryPending = false;
   try {
     await getSupabaseAuthClient().auth.signOut();
   } catch {
@@ -649,6 +697,39 @@ export async function requestPasswordReset(email: string): Promise<Result<true>>
     return { ok: true, value: true };
   } catch (error) {
     return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao solicitar recuperação.'));
+  }
+}
+
+/** Tamanho mínimo exigido pelo painel para uma nova senha. */
+export const MIN_PASSWORD_LENGTH = 8;
+
+/**
+ * Define a nova senha durante a recuperação (ou troca voluntária).
+ * Usa somente a sessão do próprio usuário (`auth.updateUser`); nenhuma chave
+ * privilegiada. Não cria PIN nem fator adicional.
+ */
+export async function updatePassword(newPassword: string): Promise<Result<true>> {
+  if (isAdminDemoSession()) return fail('Indisponível no modo demonstrativo.');
+  if (typeof newPassword !== 'string' || newPassword.length < MIN_PASSWORD_LENGTH) {
+    return fail(`A nova senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`);
+  }
+  try {
+    const supabase = getSupabaseAuthClient();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      const normalized = (error.message ?? '').toLowerCase();
+      if (normalized.includes('different from the old') || normalized.includes('same password')) {
+        return fail('A nova senha precisa ser diferente da anterior.');
+      }
+      if (normalized.includes('weak') || normalized.includes('at least')) {
+        return fail('Senha fraca. Use pelo menos 8 caracteres, misturando letras e números.');
+      }
+      return fail(translateAuthError(error.message ?? 'Falha ao atualizar a senha.'));
+    }
+    passwordRecoveryPending = false;
+    return { ok: true, value: true };
+  } catch (error) {
+    return fail(translateAuthError(error instanceof Error ? error.message : 'Falha ao atualizar a senha.'));
   }
 }
 

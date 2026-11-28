@@ -40,6 +40,11 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('../../services/adminAuth', () => ({
+  // Recuperação de senha / perfil operacional (missão de autenticação operacional).
+  isPasswordRecoveryPending: () => false,
+  clearPasswordRecovery: () => undefined,
+  updatePassword: async () => ({ ok: true as const, value: true as const }),
+  MIN_PASSWORD_LENGTH: 8,
   isAdminDemoSession: () => state.demo,
   canUseAdminDemo: () => true,
   setAdminDemoSession: (value: boolean) => {

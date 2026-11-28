@@ -98,7 +98,7 @@ describe('24 — superfície RPC após a 0046 (redução sem quebrar o painel)',
     expect(expostas).toEqual([]);
   });
 
-  it('o conjunto executável por authenticated é exatamente admin_* + is_admin', async () => {
+  it('o conjunto executável por authenticated é exatamente admin_* + ops_* + is_admin + is_operator', async () => {
     const rows = await runSql<{ proname: string }>(
       `select distinct p.proname
          from pg_proc p
@@ -108,7 +108,13 @@ describe('24 — superfície RPC após a 0046 (redução sem quebrar o painel)',
         order by 1`,
     );
     const nomes = rows.map((row) => row.proname);
-    expect(nomes.every((nome) => nome.startsWith('admin_') || nome === 'is_admin')).toBe(true);
+    // Missão de autenticação operacional: ops_* (perfil operacional, cada uma
+    // protegida por assert_operator) somam-se às admin_*.
+    expect(
+      nomes.every(
+        (nome) => nome.startsWith('admin_') || nome.startsWith('ops_') || nome === 'is_admin' || nome === 'is_operator',
+      ),
+    ).toBe(true);
     expect(nomes).not.toContain('admin_stock_summary');
     // Todas as 22 do painel estão presentes — nenhuma revogação acidental.
     for (const fn of PAINEL_FUNCOES) expect(nomes).toContain(fn);

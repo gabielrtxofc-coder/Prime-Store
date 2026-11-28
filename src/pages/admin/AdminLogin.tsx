@@ -57,9 +57,10 @@ export function AdminLogin({
     <section className="container page-section admin-login">
       <div className="admin-login__card">
         <span className="eyebrow-label">ACESSO RESTRITO</span>
-        <h1>Painel administrativo</h1>
+        <h1>Painel da loja</h1>
         <p className="field-hint">
-          Duas contas administrativas. O cadastro público está desativado e a verificação em duas etapas é obrigatória.
+          Entre com e-mail e senha para a operação do dia a dia (estoque e produtos). O cadastro público está desativado.
+          Pedidos, pagamentos e configurações exigem o acesso administrativo completo.
         </p>
 
         {error && (

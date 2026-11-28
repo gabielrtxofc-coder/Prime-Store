@@ -81,6 +81,18 @@ allowlist (admin_users.is_active) + claim aal = 'aal2'  →  assert_admin()
 - Toda mutação administrativa grava `admin_audit_log` com `auth.uid()`.
 - O painel não guarda decisões de autorização em cache: cada chamada revalida.
 
+## Autorização operacional (perfil diário)
+
+```
+allowlist (operator_users.is_active)  →  assert_operator()   (AAL1 basta)
+```
+
+- Só funções `ops_*`: estoque e campos operacionais de produto.
+- Nenhuma saída contém credencial, fingerprint, custo, pedidos ou clientes.
+- `operator_users` sem políticas e sem grants: o cliente não se autopromove.
+- Operador nunca passa em `assert_admin()` (nem em AAL2).
+- Ver [`perfil-operacional.md`](./perfil-operacional.md).
+
 ## Webhooks
 
 - Assinatura `x-signature` (HMAC-SHA256 do manifest `id:...;request-id:...;ts:...;`)

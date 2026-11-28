@@ -23,6 +23,11 @@ vi.mock('../../services/backend/config', () => ({
 }));
 
 vi.mock('../../services/adminAuth', () => ({
+  // Recuperação de senha / perfil operacional (missão de autenticação operacional).
+  isPasswordRecoveryPending: () => false,
+  clearPasswordRecovery: () => undefined,
+  updatePassword: async () => ({ ok: true as const, value: true as const }),
+  MIN_PASSWORD_LENGTH: 8,
   isAdminDemoSession: () => false,
   canUseAdminDemo: () => false,
   setAdminDemoSession: () => undefined,

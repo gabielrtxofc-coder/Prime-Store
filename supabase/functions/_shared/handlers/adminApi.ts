@@ -13,6 +13,7 @@ import type { Deps } from '../deps.ts';
 import { ApiError, errorResponse, json, methodGuard, preflight, readJson } from '../http.ts';
 import { enforceRateLimit } from '../rateLimit.ts';
 import type { RpcFn } from '../rest.ts';
+import { handleOpsAction, isOpsAction } from './opsActions.ts';
 import {
   boundedInt,
   isUuid,
@@ -108,10 +109,14 @@ async function decryptSecret(deps: Deps, value: string): Promise<string> {
 }
 
 /**
- * POST /admin-api — porta única do painel administrativo.
+ * POST /admin-api — porta única do painel (dois perfis).
  *
- * A autorização é sempre decidida no banco (assert_admin), usando o JWT do
- * usuário: sem allowlist ativa e sem AAL2 (TOTP), toda ação falha.
+ * A autorização é sempre decidida no banco, usando o JWT do usuário:
+ *  - ações `ops.*` (perfil operacional) → funções `ops_*` → assert_operator()
+ *    (allowlist `operator_users`; e-mail + senha bastam, sem TOTP);
+ *  - demais ações (perfil administrativo) → funções `admin_*` → assert_admin()
+ *    (allowlist `admin_users` + AAL2). Sem allowlist e sem AAL2, toda ação
+ *    administrativa falha — inclusive para quem é operador.
  */
 export async function handleAdminApi(request: Request, deps: Deps): Promise<Response> {
   if (request.method === 'OPTIONS') return preflight();
@@ -137,7 +142,12 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
 
     const body = await readJson<AdminBody>(request);
     const action = requireString(body.action, 'action', { max: 60 });
-    const payload = body.payload ?? {};
+    const payload = (body.payload && typeof body.payload === 'object' ? body.payload : {}) as Record<string, unknown>;
+
+    // Perfil operacional: módulo separado, só alcança funções ops_*.
+    if (isOpsAction(action)) {
+      return await handleOpsAction(action, payload, rpc, deps);
+    }
 
     switch (action) {
       // ---------------------------------------------------------------------
@@ -146,10 +156,12 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
       case 'session': {
         const isAdmin = await rpc<boolean>('is_admin', { p_require_mfa: false }).catch(() => false);
         const mfaSatisfied = await rpc<boolean>('is_admin', { p_require_mfa: true }).catch(() => false);
+        const isOperator = await rpc<boolean>('is_operator').catch(() => false);
         return json({
           user: { id: user.id },
           is_admin: Boolean(isAdmin),
           mfa_satisfied: Boolean(mfaSatisfied),
+          is_operator: Boolean(isOperator),
         });
       }
 
@@ -504,7 +516,41 @@ export async function handleAdminApi(request: Request, deps: Deps): Promise<Resp
     // Erros do PostgREST preservam a mensagem para tratamento no cliente.
     if (error && typeof error === 'object' && 'code' in error) {
       const dbError = error as { code: string; message?: string; detail?: string };
-      if (dbError.code === '42501' || (dbError.message ?? '').includes('not_admin')) {
+      const dbMessage = dbError.message ?? '';
+      if (dbMessage.includes('operator_field_not_allowed')) {
+        const fields = (dbError.detail ?? '').replace(/[^a-z_,]/g, '').split(',').filter(Boolean);
+        return json(
+          {
+            error: 'field_not_allowed',
+            message: fields.length
+              ? `O perfil operacional não pode alterar: ${fields.join(', ')}.`
+              : 'O perfil operacional não pode alterar este campo.',
+          },
+          { status: 403 },
+        );
+      }
+      if (dbMessage.includes('not_operator')) {
+        return json(
+          { error: 'forbidden', message: 'Esta conta não tem acesso operacional.' },
+          { status: 403 },
+        );
+      }
+      if (dbError.code === '22P02' || dbMessage.includes('invalid_payload') || dbMessage.includes('invalid_status_filter')) {
+        return json({ error: 'invalid_payload', message: 'Dados inválidos. Revise e tente novamente.' }, { status: 422 });
+      }
+      if (dbError.code === '23514') {
+        return json({ error: 'invalid_payload', message: 'Valor fora do permitido para este campo.' }, { status: 422 });
+      }
+      if (dbMessage.includes('stock_unit_not_toggleable')) {
+        return json(
+          { error: 'stock_unit_not_toggleable', message: 'Unidade reservada ou vendida não pode ser alterada.' },
+          { status: 409 },
+        );
+      }
+      if (dbMessage.includes('stock_unit_not_found')) {
+        return json({ error: 'not_found', message: 'Unidade não encontrada.' }, { status: 404 });
+      }
+      if (dbError.code === '42501' || dbMessage.includes('not_admin')) {
         const isMfa = (dbError.message ?? '').includes('mfa_required');
         return json(
           {

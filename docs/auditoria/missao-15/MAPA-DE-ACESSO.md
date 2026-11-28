@@ -48,6 +48,13 @@ apenas as 22 `admin_*` e `is_admin`, e **cada uma** começa por
 sessão em AAL2 (TOTP verificado). Um JWT roubado em AAL1 não lê nem escreve
 nada administrativo.
 
+> **Atualização 2026-11-28 (perfil operacional).** `authenticated` passou a
+> executar também as 9 funções `ops_*` e `is_operator`. Cada `ops_*` começa por
+> `assert_operator()` (allowlist `operator_users`, AAL1 basta) e só alcança
+> estoque e campos operacionais de produto — nunca credenciais, fingerprint,
+> custo, pedidos, clientes ou auditoria. As 22 `admin_*` continuam exigindo
+> `admin_users` + AAL2. Ver [`../../perfil-operacional.md`](../../perfil-operacional.md).
+
 ---
 
 ## 3. Segredos

@@ -491,7 +491,9 @@ describe('permissões não foram enfraquecidas', () => {
     // entrou com RLS ligada e privilégios só para o backend (mesma regra de
     // `stock_units`). 21 -> 22 na automação WyviPay: `provider_api_gates`
     // (gate de API entre instâncias) — interna, RLS ligada, sem políticas,
-    // visível só para o backend. Nada novo para anon/authenticated.
+    // visível só para o backend. 22 -> 23 no perfil operacional:
+    // `operator_users` (allowlist operacional) — RLS ligada, sem políticas,
+    // sem grants a anon/authenticated. Nada novo para anon/authenticated.
     expect(
       Number(
         await sqlValue<number>(
@@ -499,7 +501,7 @@ describe('permissões não foram enfraquecidas', () => {
             where n.nspname = 'public' and c.relkind in ('r','v') and has_table_privilege('service_role', c.oid, 'SELECT')`,
         ),
       ),
-    ).toBe(22);
+    ).toBe(23);
     expect(
       Number(
         await sqlValue<number>(
@@ -507,7 +509,7 @@ describe('permissões não foram enfraquecidas', () => {
             where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity`,
         ),
       ),
-    ).toBe(21);
+    ).toBe(22);
   });
 });
 

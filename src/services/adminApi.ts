@@ -38,14 +38,15 @@ export interface AdminStockUnit {
   product_name: string;
   status: 'available' | 'reserved' | 'sold' | 'disabled';
   notes: string;
-  credential_fingerprint: string;
+  /** Ausente no perfil operacional (não é dado operacional). */
+  credential_fingerprint?: string;
   import_batch_id: string | null;
-  sold_order_id: string | null;
+  sold_order_id?: string | null;
   sold_at: string | null;
   created_at: string;
   updated_at: string;
   reservation_expires_at: string | null;
-  reservation_order_id: string | null;
+  reservation_order_id?: string | null;
   /** Motivo categorizado da desativação (migração 0038); null quando disponível. */
   status_reason: StockAdjustmentReason | null;
   status_reason_note: string;
@@ -253,7 +254,8 @@ export interface ProductInput {
 }
 
 export const adminApi = {
-  session: () => adminInvoke<{ user: { id: string }; is_admin: boolean; mfa_satisfied: boolean }>('session'),
+  session: () =>
+    adminInvoke<{ user: { id: string }; is_admin: boolean; mfa_satisfied: boolean; is_operator?: boolean }>('session'),
 
   listProducts: (search = '', includeInactive = true) =>
     adminInvoke<{ products: AdminProduct[] }>('products.list', { search, includeInactive }),
@@ -344,3 +346,128 @@ export const adminApi = {
 
   expireReservations: () => adminInvoke<Record<string, unknown>>('reservations.expire'),
 };
+
+// ---------------------------------------------------------------------------
+// Perfil OPERACIONAL (e-mail + senha, sem TOTP)
+// ---------------------------------------------------------------------------
+
+/**
+ * Produto como o perfil operacional o enxerga: sem custo, margem, autoria ou
+ * histórico de preços. O preço aparece só para conferência (não é editável).
+ */
+export interface OpsProduct {
+  id: string;
+  slug: string;
+  name: string;
+  category_id: string;
+  category_label?: string;
+  price_cents: number;
+  is_active: boolean;
+  is_featured: boolean;
+  max_quantity_per_order: number;
+  access_validity_label: string | null;
+  short_description: string;
+  description: string;
+  instructions: string;
+  conditions: string[];
+  image_url: string | null;
+  available_units?: number;
+  reserved_units?: number;
+  sold_units?: number;
+  updated_at: string;
+}
+
+/** Campos que o perfil operacional pode alterar (espelho de ops_update_product). */
+export interface OpsProductPatch {
+  name?: string;
+  short_description?: string;
+  description?: string;
+  instructions?: string;
+  conditions?: string[];
+  image_url?: string | null;
+  access_validity_label?: string | null;
+  max_quantity_per_order?: number;
+  is_featured?: boolean;
+  is_active?: boolean;
+}
+
+export const OPS_PRODUCT_FIELDS: ReadonlyArray<keyof OpsProductPatch> = [
+  'name',
+  'short_description',
+  'description',
+  'instructions',
+  'conditions',
+  'image_url',
+  'access_validity_label',
+  'max_quantity_per_order',
+  'is_featured',
+  'is_active',
+];
+
+/**
+ * Chamadas do perfil operacional. Só alcançam funções `ops_*` no banco
+ * (assert_operator). Não há chamada para credenciais, pedidos, pagamentos,
+ * reembolsos, auditoria, indicadores ou criação de produto.
+ */
+export const opsApi = {
+  session: () => adminInvoke<{ user_id: string; display_name: string; profile: 'operational' }>('ops.session'),
+
+  listProducts: (search = '', includeInactive = true) =>
+    adminInvoke<{ products: OpsProduct[] }>('ops.products.list', { search, includeInactive }),
+
+  updateProduct: (productId: string, patch: OpsProductPatch) =>
+    adminInvoke<{ product: OpsProduct }>('ops.products.update', { productId, patch }),
+
+  setProductActive: (productId: string, active: boolean) =>
+    adminInvoke<{ product: OpsProduct }>('ops.products.setActive', { productId, active }),
+
+  stockSummary: () => adminInvoke<AdminStockSummary>('ops.stock.summary'),
+
+  listStock: (params: { productId?: string | null; status?: string | null; search?: string; limit?: number; offset?: number }) =>
+    adminInvoke<AdminStockList>('ops.stock.list', params),
+
+  addStock: (params: { productId: string; email: string; password: string; notes?: string }) =>
+    adminInvoke<{ unit: { id: string; status: string } }>('ops.stock.add', params),
+
+  setStockStatus: (
+    stockUnitId: string,
+    status: 'available' | 'disabled',
+    reason?: StockAdjustmentReason | null,
+    note?: string,
+  ) =>
+    adminInvoke<{ id: string; status: string; reason: StockAdjustmentReason | null; note: string }>(
+      'ops.stock.setStatus',
+      { stockUnitId, status, reason: reason ?? null, note: note ?? '' },
+    ),
+
+  previewImport: (productId: string, csv: string) =>
+    adminInvoke<ImportPreview>('ops.stock.import.preview', { productId, csv }),
+
+  commitImport: (productId: string, csv: string, fileName: string) =>
+    adminInvoke<{ report: ImportReport }>('ops.stock.import.commit', { productId, csv, fileName }),
+};
+
+/**
+ * Contrato mínimo de estoque usado pela tela de Estoque. Permite reutilizar a
+ * MESMA tela nos dois perfis: o administrativo passa `adminStockApi`, o
+ * operacional passa `opsStockApi` (que nunca pede credenciais).
+ */
+export interface StockApi {
+  listProducts: () => Promise<{ products: Array<{ id: string; name: string }> }>;
+  stockSummary: () => Promise<AdminStockSummary>;
+  listStock: (params: {
+    productId?: string | null;
+    status?: string | null;
+    includeCredentials?: boolean;
+    limit?: number;
+  }) => Promise<AdminStockList>;
+  addStock: (params: { productId: string; email: string; password: string; notes?: string }) => Promise<unknown>;
+  setStockStatus: (
+    stockUnitId: string,
+    status: 'available' | 'disabled',
+    reason?: StockAdjustmentReason | null,
+    note?: string,
+  ) => Promise<unknown>;
+  previewImport: (productId: string, csv: string) => Promise<ImportPreview>;
+  commitImport: (productId: string, csv: string, fileName: string) => Promise<{ report: ImportReport }>;
+}

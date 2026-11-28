@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { adminApi, STOCK_ADJUSTMENT_REASONS, type AdminProduct, type AdminStockList, type AdminStockSummary, type ImportPreview, type ImportReport, type StockAdjustmentReason, type StockHealth } from '../../services/adminApi';
+import { adminApi, opsApi, STOCK_ADJUSTMENT_REASONS, type AdminStockList, type AdminStockSummary, type ImportPreview, type ImportReport, type StockAdjustmentReason, type StockApi, type StockHealth } from '../../services/adminApi';
 import { ConfirmActionDialog } from '../../components/admin/ConfirmActionDialog';
 import { describeBackendError } from '../../services/backend/http';
 
@@ -24,8 +24,43 @@ const HEALTH_BADGE: Record<StockHealth, string> = {
   ok: 'admin-badge is-on',
 };
 
-export function AdminStock() {
-  const [products, setProducts] = useState<AdminProduct[]>([]);
+/** Perfil administrativo (AAL2): pode revelar credenciais (auditado). */
+export const adminStockApi: StockApi = {
+  listProducts: () => adminApi.listProducts('', true),
+  stockSummary: () => adminApi.stockSummary(),
+  listStock: (params) => adminApi.listStock(params),
+  addStock: (params) => adminApi.addStock(params),
+  setStockStatus: (...args) => adminApi.setStockStatus(...args),
+  previewImport: (...args) => adminApi.previewImport(...args),
+  commitImport: (...args) => adminApi.commitImport(...args),
+};
+
+/**
+ * Perfil operacional (e-mail + senha): mesmas tarefas de estoque, mas nunca
+ * pede credenciais nem fingerprint — o servidor também recusaria.
+ */
+export const opsStockApi: StockApi = {
+  listProducts: () => opsApi.listProducts('', true),
+  stockSummary: () => opsApi.stockSummary(),
+  listStock: ({ productId, status, limit }) => opsApi.listStock({ productId, status, limit }),
+  addStock: (params) => opsApi.addStock(params),
+  setStockStatus: (...args) => opsApi.setStockStatus(...args),
+  previewImport: (...args) => opsApi.previewImport(...args),
+  commitImport: (...args) => opsApi.commitImport(...args),
+};
+
+interface AdminStockProps {
+  /**
+   * `operational`: tela do perfil operacional — sem coluna de fingerprint e
+   * sem a opção de exibir credenciais. Padrão: perfil administrativo.
+   */
+  mode?: 'admin' | 'operational';
+}
+
+export function AdminStock({ mode = 'admin' }: AdminStockProps = {}) {
+  const operational = mode === 'operational';
+  const api = operational ? opsStockApi : adminStockApi;
+  const [products, setProducts] = useState<Array<{ id: string; name: string }>>([]);
   // Missão 13: três seleções independentes — filtrar a lista, cadastrar
   // unidade e importar CSV não compartilham mais o mesmo estado.
   const [stockFilterProductId, setStockFilterProductId] = useState('');
@@ -61,13 +96,13 @@ export function AdminStock() {
   const load = useCallback(async () => {
     try {
       const [list, summaryResult] = await Promise.all([
-        adminApi.listStock({
+        api.listStock({
           productId: stockFilterProductId || null,
           status: status || null,
-          includeCredentials: showCredentials,
+          includeCredentials: operational ? false : showCredentials,
           limit: 100,
         }),
-        adminApi.stockSummary(),
+        api.stockSummary(),
       ]);
       setStock(list);
       setSummary(summaryResult);
@@ -75,13 +110,13 @@ export function AdminStock() {
     } catch (loadError) {
       setError(describeBackendError(loadError));
     }
-  }, [stockFilterProductId, status, showCredentials]);
+  }, [api, operational, stockFilterProductId, status, showCredentials]);
 
   useEffect(() => {
-    void adminApi.listProducts('', true)
+    void api.listProducts()
       .then((result) => setProducts(result.products))
       .catch((productsError) => setError(describeBackendError(productsError)));
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     void load();
@@ -112,7 +147,7 @@ export function AdminStock() {
     try {
       // Sempre envia o produto do formulário de cadastro (addProductId),
       // nunca o filtro da listagem.
-      await adminApi.addStock({ productId: addProductId, email: trimmedEmail, password, notes: notes.trim() });
+      await api.addStock({ productId: addProductId, email: trimmedEmail, password, notes: notes.trim() });
       setNotice('Unidade cadastrada. E-mail e senha foram cifrados antes de gravar.');
       setEmail('');
       setPassword('');
@@ -137,7 +172,7 @@ export function AdminStock() {
     if (!pendingUnit) return;
     setActionBusy(true);
     try {
-      await adminApi.setStockStatus(
+      await api.setStockStatus(
         pendingUnit.id,
         pendingUnit.next,
         pendingUnit.next === 'disabled' ? (disableReason || null) : null,
@@ -196,7 +231,7 @@ export function AdminStock() {
     setImportBusy(true);
     setError(null);
     try {
-      const result = await adminApi.previewImport(importProductId, csv);
+      const result = await api.previewImport(importProductId, csv);
       setPreview(result);
       setPreviewProductId(importProductId);
       setReport(null);
@@ -224,7 +259,7 @@ export function AdminStock() {
     setImportBusy(true);
     setError(null);
     try {
-      const result = await adminApi.commitImport(importProductId, csv, fileName);
+      const result = await api.commitImport(importProductId, csv, fileName);
       setReport(result.report);
       invalidatePreview();
       setCsv('');
@@ -325,10 +360,12 @@ export function AdminStock() {
           </select>
         </div>
         <div className="admin-filter-field admin-filter-field--actions">
-          <label className="admin-inline-check">
-            <input type="checkbox" checked={showCredentials} onChange={(event) => setShowCredentials(event.target.checked)} />
-            Exibir credenciais (registrado em auditoria como stock_credentials_listed)
-          </label>
+          {!operational && (
+            <label className="admin-inline-check">
+              <input type="checkbox" checked={showCredentials} onChange={(event) => setShowCredentials(event.target.checked)} />
+              Exibir credenciais (registrado em auditoria como stock_credentials_listed)
+            </label>
+          )}
           <button className="button button--secondary button--small" type="button" onClick={() => void load()}>Atualizar</button>
         </div>
       </div>
@@ -340,7 +377,7 @@ export function AdminStock() {
               <th>Produto</th>
               <th>Status</th>
               <th>Credencial</th>
-              <th>Fingerprint</th>
+              {!operational && <th>Fingerprint</th>}
               <th>Reserva</th>
               <th>Criada em</th>
               <th>Ações</th>
@@ -359,11 +396,13 @@ export function AdminStock() {
                   )}
                 </td>
                 <td>
-                  {showCredentials
+                  {showCredentials && !operational
                     ? <><code>{unit.email ?? '—'}</code><br /><code>{unit.password ?? '—'}</code></>
-                    : <span className="field-hint">oculta</span>}
+                    : <span className="field-hint">{operational ? 'protegida' : 'oculta'}</span>}
                 </td>
-                <td><code className="admin-fingerprint">{unit.credential_fingerprint.slice(0, 12)}…</code></td>
+                {!operational && (
+                  <td><code className="admin-fingerprint">{(unit.credential_fingerprint ?? '').slice(0, 12)}…</code></td>
+                )}
                 <td className="field-hint">
                   {unit.reservation_expires_at
                     ? `expira ${new Date(unit.reservation_expires_at).toLocaleString('pt-BR')}`
@@ -385,7 +424,7 @@ export function AdminStock() {
               </tr>
             ))}
             {(stock?.items ?? []).length === 0 && (
-              <tr><td colSpan={7} className="field-hint">Nenhuma unidade encontrada para o filtro atual.</td></tr>
+              <tr><td colSpan={operational ? 6 : 7} className="field-hint">Nenhuma unidade encontrada para o filtro atual.</td></tr>
             )}
           </tbody>
         </table>
@@ -542,7 +581,7 @@ export function AdminStock() {
                 placeholder={disableReason === 'other' ? 'Descreva o motivo em pelo menos 5 caracteres' : 'Detalhe adicional para auditoria'}
                 onChange={(event) => setDisableNote(event.target.value)}
               />
-              <p className="field-hint">Fica registrado na auditoria (admin_audit_log) com quem, quando e por quê.</p>
+              <p className="field-hint">Fica registrado na auditoria com quem, quando e por quê.</p>
             </div>
           </>
         )}
